@@ -1,0 +1,11 @@
+(test
+ (name aether2)
+ (flags (:standard -warn-error -A))
+ (preprocess
+  (pps
+   ppx_jane))
+ (libraries
+  core
+  alcotest
+  aether2)
+ )
