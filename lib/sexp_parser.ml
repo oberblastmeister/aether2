@@ -43,4 +43,10 @@ let item list_ref f =
       list_ref := xs;
       res
 
+let optional_item list f =
+  match list with
+  | [] -> None
+  | x :: [] -> with_span (Sexp_cst.span x) (fun () -> Some (f x))
+  | _ -> None
+
 let rest xs f = List.map xs ~f

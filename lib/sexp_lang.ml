@@ -5,3 +5,7 @@ end
 module Syntax = struct
   include Sexp_cst
 end
+
+module Pretty = struct
+  include Sexp_pretty
+end

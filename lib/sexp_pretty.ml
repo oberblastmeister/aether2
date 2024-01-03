@@ -1,5 +1,5 @@
 open O
-include Sexp_print_intf
+include Sexp_pretty_intf
 
 let indent_increase = 2
 
@@ -43,7 +43,7 @@ let print_to_buffer sexp =
   go 0 sexp;
   buffer
 
-let print sexp = print_to_buffer sexp |> Buffer.contents
+let to_string sexp = print_to_buffer sexp |> Buffer.contents
 
 let%expect_test _ =
   let sexp =
@@ -68,7 +68,7 @@ let%expect_test _ =
           ];
       ]
   in
-  print sexp |> print_endline;
+  to_string sexp |> print_endline;
   [%expect
     {|
     (define (fun b c)

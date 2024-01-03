@@ -6,5 +6,11 @@
  (flags
   (:standard -warn-error -A))
  (preprocess
-  (pps ppx_deriving.show ppx_deriving.enum ppx_accessor ppx_jane))
+  (pps
+   ppx_deriving.show
+   ppx_deriving.iter
+   ppx_deriving.map
+   ppx_deriving.fold
+   ppx_accessor
+   ppx_jane))
  (libraries core accessor accessor_core fmt algaeff))

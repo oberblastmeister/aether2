@@ -1,14 +1,6 @@
 open O
 open Instr_types
 
-module type USEDEFS = sig
-  type instr [@@deriving sexp_of]
-  type name [@@deriving equal, compare, sexp, hash]
-
-  val uses : instr -> name list
-  val defs : instr -> name list
-end
-
 module type BlockLike = sig
   type t [@@deriving sexp_of]
   type instr
