@@ -64,10 +64,12 @@ let pretty_instr_control i =
       Pretty.(
         List ([ Atom "ret" ] @ (Option.map ~f:pretty_value v |> Option.to_list)))
 
-let pretty_assign (Lir.Instr.Assign (name, op)) =
+let pretty_assign i =
+  let name, op = Lir.Instr.get_assign i in
   Pretty.(List [ Atom "set"; pretty_value name; pretty_instr_op op ])
 
-let pretty_control (Lir.Instr.Control op : Lir.Control.c Lir.Instr.t) =
+let pretty_control op =
+  let op = Lir.Instr.get_control op in
   pretty_instr_control op
 
 let pretty_block (label : Lir.Label.t) (block : Lir.Block.t) =

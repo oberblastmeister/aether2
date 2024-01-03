@@ -97,7 +97,18 @@ module Instr = struct
 
     type 'c t = (Value.t, 'c) t'
 
-    let get_args (BlockArgs vs) = vs
+    let get_control : type v. (v, Control.c) t' -> v InstrControl.t' = function
+      | Control c -> c
+      | _ -> assert false
+
+    let get_assign : type v. (v, Control.o) t' -> Value.t * v InstrOp.t' =
+      function
+      | Assign a -> a
+      | _ -> assert false
+
+    let get_args : type v. (v, Control.e) t' -> Value.t list = function
+      | BlockArgs vs -> vs
+      | _ -> assert false
 
     let sexp_of_t' (type c v) (f : v -> Sexp.t) (i : (v, c) t') =
       match i with
@@ -145,7 +156,7 @@ module Instr = struct
   let to_some i = Some.T i
   let uses _ = failwith ""
   let defs _ = failwith ""
-  let jumps (Control i) = InstrControl.jumps i
+  let jumps i = InstrControl.jumps @@ get_control i
 end
 
 module Block = struct
@@ -157,8 +168,6 @@ module Block = struct
     exit : ('v, Control.c) Instr.t';
   }
   [@@deriving accessors]
-
-  module Fields = Fields_of_t'
 
   type t = Value.t t'
 

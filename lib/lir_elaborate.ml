@@ -93,11 +93,12 @@ u64
   let fns = Lir_parse.parse s |> Or_error.ok_exn in
   let fns = fns |> elaborate |> Or_error.ok_exn in
   (* printf "sexp:\n";
-  print_s @@ [%sexp_of: Lir.Function.t list] fns; *)
+     print_s @@ [%sexp_of: Lir.Function.t list] fns; *)
   printf "pretty:\n";
   print_endline @@ Lir_pretty.pretty fns;
   ();
-  [%expect {|
+  [%expect
+    {|
     pretty:
     (define (testing (first u64) (second u64)) u64
       (label (first arg)
