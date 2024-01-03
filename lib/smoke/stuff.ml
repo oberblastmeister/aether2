@@ -102,20 +102,26 @@ module E = Gen (Empty) ()
 module F = App (Empty')
 
 (* let _ =
-  (* A.t and B.t are compatible. *)
-  ignore (A.zero == B.zero);
+     (* A.t and B.t are compatible. *)
+     ignore (A.zero == B.zero);
 
-  (* OK *)
+     (* OK *)
 
-  (* A.t and C.t are not compatible because the functor arguments
-   * are not syntactically equal. *)
-  ignore (A.zero == C.zero);
+     (* A.t and C.t are not compatible because the functor arguments
+      * are not syntactically equal. *)
+     ignore (A.zero == C.zero);
 
-  ignore (A.zero == F.zero);
-  (* type error *)
+     ignore (A.zero == F.zero);
+     (* type error *)
 
-  (* D.t and C.t are not compatible because they are produced
-   * from generative functors. *)
-  ignore (D.zero == E.zero)
-(* type error *)
+     (* D.t and C.t are not compatible because they are produced
+      * from generative functors. *)
+     ignore (D.zero == E.zero)
+   (* type error *)
 *)
+
+(* needs to be true *)
+let%test _ = true
+
+(* how to do test assertions *)
+let%test_unit _ = [%test_result: bool] ~expect:false false

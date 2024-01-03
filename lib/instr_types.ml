@@ -19,6 +19,8 @@ module Label = struct
   module Hashtbl = Hashtbl.Make (T)
   module Map = Map.Make (T)
   module Set = Set.Make (T)
+
+  let of_string s = T s
 end
 
 module Name = struct
@@ -30,6 +32,8 @@ module Name = struct
   include T
   module Hashtbl = Hashtbl.Make (T)
   module Map = Map.Make (T)
+
+  let of_string s = Name s
 end
 
 let%expect_test "testing" =

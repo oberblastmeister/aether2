@@ -1,11 +1,7 @@
 (test
  (name aether2)
- (flags (:standard -warn-error -A))
+ (flags
+  (:standard -warn-error -A))
  (preprocess
-  (pps
-   ppx_jane))
- (libraries
-  core
-  alcotest
-  aether2)
- )
+  (pps ppx_jane))
+ (libraries core alcotest aether2))

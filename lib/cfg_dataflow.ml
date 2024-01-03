@@ -53,6 +53,11 @@ module type BlockTransfer = sig
   val direction : Direction.t
 end
 
+module type BlockRewriteTransfer = sig
+  type block
+  type domain [@@deriving sexp_of]
+end
+
 module InstrToBlockTransfer
     (Block : BlockLike)
     (Transfer : InstrTransfer with type instr = Block.instr) :
@@ -144,7 +149,7 @@ module MakeDominatorsBlockTransfer (Block : BlockLike) :
   type block = Block.t
   type domain = Label.Set.t [@@deriving sexp_of]
 
-  let transfer = failwith ""
+  let transfer _ = failwith ""
   let empty = Label.Set.empty
   let direction = Direction.Forward
 end

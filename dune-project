@@ -29,6 +29,7 @@
    (accessor_core (= v0.16.0))
    (alcotest (= 1.7.0))
    (fmt (= 0.9.0))
+   (algaeff (= 2.0.0))
  )
  (tags
   (topics "to describe" your project)))

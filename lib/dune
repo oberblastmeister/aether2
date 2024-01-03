@@ -1,9 +1,10 @@
 (include_subdirs qualified)
+
 (library
  (name aether2)
  (inline_tests)
  (flags
   (:standard -warn-error -A))
  (preprocess
-  (pps ppx_deriving.show ppx_accessor ppx_jane))
- (libraries core accessor accessor_core fmt))
+  (pps ppx_deriving.show ppx_deriving.enum ppx_accessor ppx_jane))
+ (libraries core accessor accessor_core fmt algaeff))
