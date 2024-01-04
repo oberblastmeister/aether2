@@ -1,3 +1,3 @@
 open O
-let%expect_test _ =
-  ()
+
+let%expect_test _ = ()

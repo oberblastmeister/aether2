@@ -10,22 +10,21 @@ let collect_types (fn : Name.t Function.t') =
   let add_instr z (Instr.Some.T i) =
     match i with
     | Instr.Assign (v, _) ->
-        A.map (A.Map.at v.name)
-          ~f:(function
-            | None -> Some (List1.singleton v.ty)
-            | Some at -> Some List1.(v.ty |: at))
-          z
+        Map.change z v.name ~f:(function
+          | None -> Some (List1.singleton v.ty)
+          | Some at -> Some List1.(v.ty |: at))
     | _ -> z
   in
-  let p = Function.body @> Graph.blocks @> A.Map.each in
   let tys_of_name =
-    A.fold p fn ~init:Name.Map.empty ~f:(fun init block ->
-        Block.fold_instrs_forward ~init ~f:add_instr block)
+    G.Fold.reduce
+      (G.Core.Map.ifold @> G.Fold.ix Block.instrs_forward_fold)
+      (G.Reduce.T (add_instr, Name.Map.empty, Fn.id))
+      fn.body.blocks
   in
   let tys_of_name_with_fn_params =
     List.fold_left ~init:tys_of_name
       ~f:(fun m param ->
-        A.map (A.Map.at param.name) m ~f:(function
+        Map.change m param.name ~f:(function
           | None -> Some (List1.singleton param.ty)
           | Some at -> Some List1.(param.ty |: at)))
       fn.params
@@ -65,14 +64,23 @@ let elaborate_block label ty_of_name block =
     { f = (fun instr -> elaborate_instr label ty_of_name instr) }
     block
 
-let elaborate_function (fn : Name.t Function.t') =
+let elaborate_function (fn : Name.t Function.t') : Function.t =
   let ty_of_name = collect_types fn in
-  let p = Function.body @> Graph.blocks @> A.Map.eachi in
-  A.mapi p fn ~f:(fun label block ->
-      elaborate_block (A.Index.hd label) ty_of_name block)
+  (* let p = Function.body @> Graph.blocks @> A.Map.eachi in *)
+  let map =
+    (fun (x : _ Function.t') ~f -> { x with body = f x.body })
+    & (fun (x : _ Graph.t') ~f -> { x with blocks = f x.blocks })
+    & G.Core.Map.mapi
+  in
+  let res =
+    map fn ~f:(fun (label, block) -> elaborate_block label ty_of_name block)
+  in
+  res
 
 let elaborate_single fn = run (fun () -> elaborate_function fn)
-let elaborate fns = run (fun () -> List.map ~f:elaborate_function fns)
+
+let elaborate fns : Function.t list Or_error.t =
+  run (fun () -> List.map ~f:elaborate_function fns)
 
 let%expect_test _ =
   let s =

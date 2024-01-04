@@ -133,7 +133,7 @@ let parse_block =
                   ~got:(Instr.sexp_of_t' Name.sexp_of_t i : Sexp.t)]
       in
       ( label,
-        ({ entry = Instr.BlockArgs args; body = instrs; exit = last_instr }
+        ({ entry = Instr.Block_args args; body = instrs; exit = last_instr }
           : _ Block.t') ))
 
 let parse_graph xs =
@@ -191,7 +191,7 @@ let%expect_test _ =
        ((entry ((name (Name first))))
         (blocks
          ((((name (Name first)))
-           ((entry (BlockArgs (((name (Name arg)) (ty U64)))))
+           ((entry (Block_args (((name (Name arg)) (ty U64)))))
             (body
              ((Assign ((name (Name x)) (ty U64)) (Add (ty U64) (v1 _) (v2 _)))))
             (exit (Control (Ret ())))))))

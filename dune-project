@@ -23,6 +23,7 @@
    ocaml
    dune
    (core (= v0.16.2))
+   (core_bench (= v0.16.0))
    (ppx_deriving (= 5.2.1))
    (ppx_jane (= v0.16.0))
    (accessor (= v0.16.0))

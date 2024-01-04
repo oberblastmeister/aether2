@@ -2,6 +2,7 @@ open O
 
 module Error : sig
   type t = { span : Span.t; message : Sexp.t } [@@deriving equal, compare, sexp]
+
   val to_error : t -> Error.t
 end
 

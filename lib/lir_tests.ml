@@ -30,19 +30,17 @@ let%expect_test "uses" =
   let fn = List.hd_exn @@ Lazy.force loop_lir in
   let p =
     Lir.(
-      Function.body @> Graph.blocks @> A.Map.each
-      @> Block.instrs_forward_accessor)
+      G.Fold.of_fn Function.body @> G.Fold.of_fn Graph.blocks @> G.Core.Map.fold
+      @> Block.instrs_forward_fold @> Instr.uses_fold)
   in
-  let uses =
-    A.fold p ~f:(fun z (Lir.Instr.Some.T i) -> Lir.Instr.uses i @ z) ~init:[] fn
-  in
+  let uses = G.Fold.reduce p G.Reduce.to_list_rev fn in
   print_s [%sexp (uses : Lir.Value.t list)];
   [%expect
     {|
-    (((name (Name z)) (ty U64)) ((name (Name e)) (ty U64))
-     ((name (Name f)) (ty U64)) ((name (Name r)) (ty U64))
-     ((name (Name b)) (ty U64)) ((name (Name r)) (ty U64))
-     ((name (Name one)) (ty U64)) ((name (Name e)) (ty U64))) |}]
+    (((name (Name f)) (ty U64)) ((name (Name z)) (ty U64))
+     ((name (Name e)) (ty U64)) ((name (Name r)) (ty U64))
+     ((name (Name one)) (ty U64)) ((name (Name e)) (ty U64))
+     ((name (Name b)) (ty U64)) ((name (Name r)) (ty U64))) |}]
 
 let%expect_test "liveness" =
   let fn = List.hd_exn (Lazy.force loop_lir) in

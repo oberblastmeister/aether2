@@ -11,6 +11,5 @@
    ppx_deriving.iter
    ppx_deriving.map
    ppx_deriving.fold
-   ppx_accessor
    ppx_jane))
- (libraries core accessor accessor_core fmt algaeff))
+ (libraries core fmt algaeff getter))

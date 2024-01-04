@@ -6,8 +6,8 @@ module type BlockLike = sig
   type instr
 
   val jumps : t -> Label.t list
-  val fold_instrs_forward : init:'a -> f:('a -> instr -> 'a) -> t -> 'a
-  val fold_instrs_backward : init:'a -> f:('a -> instr -> 'a) -> t -> 'a
+  val fold_instrs_forward : t -> init:'a -> f:('a -> instr -> 'a) -> 'a
+  val fold_instrs_backward : t -> init:'a -> f:('a -> instr -> 'a) -> 'a
 end
 
 module type InstrLike = sig
@@ -64,7 +64,7 @@ struct
   type block = Block.t
   type domain = Transfer.domain [@@deriving sexp_of]
 
-  let transfer label block ~other_facts ~current_fact =
+  let transfer _label block ~other_facts ~current_fact =
     (* print_s [%message "on label" ~label:(label : Label.t)]; *)
     let new_fact =
       (match Transfer.direction with
@@ -160,7 +160,9 @@ module MakeDataflowForBlock (Block : BlockLike) = struct
 end
 
 module MakeLivenessInstrTransfer (Instr : InstrLike) :
-  InstrTransfer with type instr = Instr.t = struct
+  InstrTransfer
+    with type instr = Instr.t
+    with type domain = Set.Make(Instr.Value).t = struct
   module DomainSet = Set.Make (Instr.Value)
 
   type instr = Instr.t [@@deriving sexp_of]

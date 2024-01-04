@@ -76,7 +76,7 @@ let pretty_block (label : Label.t) (block : Block.t) =
              Atom "label";
              List
                ([ pretty_name label.name ]
-               @ List.map ~f:pretty_value (Instr.get_args block.entry));
+               @ List.map ~f:pretty_value (Instr.get_block_args block.entry));
              Ann IndentLine;
            ];
            List.map ~f:pretty_assign block.body

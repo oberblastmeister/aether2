@@ -2,7 +2,7 @@ open O
 open Instr_types
 
 module Ty = struct
-  type t = U1 | U64 [@@deriving equal, compare, sexp, hash, accessors]
+  type t = U1 | U64 [@@deriving equal, compare, sexp, hash, variants]
 end
 
 module Name = Name
@@ -15,7 +15,7 @@ module Value = struct
       name : Name.t;
       ty : Ty.t; [@equal.ignore] [@compare.ignore] [@hash.ignore]
     }
-    [@@deriving equal, compare, hash, sexp, accessors]
+    [@@deriving equal, compare, hash, sexp, fields]
   end
 
   include T
@@ -25,7 +25,7 @@ module Value = struct
 end
 
 module CmpOp = struct
-  type t = Gt [@@deriving equal, compare, sexp, accessors]
+  type t = Gt [@@deriving equal, compare, sexp]
 end
 
 module InstrOp = struct
@@ -35,7 +35,7 @@ module InstrOp = struct
     | Const of { ty : Ty.t; const : int64 }
     | Cmp of { ty : Ty.t; op : CmpOp.t; v1 : 'v; v2 : 'v }
     | Val of { ty : Ty.t; v : 'v }
-  [@@deriving equal, compare, sexp, accessors, variants, map, iter, fold]
+  [@@deriving equal, compare, sexp, map, iter, fold]
 
   let get_ty = function
     | Add { ty; _ } -> ty
@@ -49,7 +49,7 @@ end
 
 module BlockCall = struct
   type 'v t' = { label : Label.t; args : 'v list }
-  [@@deriving equal, compare, sexp, accessors, map, iter, fold]
+  [@@deriving equal, compare, sexp, fields, map, iter, fold]
 
   type t = Value.t t' [@@deriving equal, compare, sexp]
 end
@@ -59,7 +59,7 @@ module InstrControl = struct
     | Jump of 'v BlockCall.t'
     | CondJump of ('v * 'v BlockCall.t' * 'v BlockCall.t')
     | Ret of 'v option
-  [@@deriving equal, compare, sexp, accessors, map, iter, fold]
+  [@@deriving equal, compare, sexp, map, iter, fold]
 
   type t = Value.t t' [@@deriving equal, compare, sexp]
 
@@ -68,27 +68,39 @@ module InstrControl = struct
     | Jump j -> [ j.label ]
     | CondJump (_, j1, j2) -> [ j1.label; j2.label ]
     | Ret _ -> []
+
+  let block_calls_fold =
+    G.Fold.T
+      {
+        f =
+          (fun i ~init ~f ->
+            match i with
+            | Jump j -> f init j
+            | CondJump (_, j1, j2) -> f (f init j1) j2
+            | Ret _ -> init);
+      }
 end
 
 module Instr = struct
   module T = struct
     type ('v, 'c) t' =
-      | BlockArgs : Value.t list -> ('v, Control.e) t'
+      | Block_args : Value.t list -> ('v, Control.e) t'
       | Assign : (Value.t * 'v InstrOp.t') -> ('v, Control.o) t'
       | Control : 'v InstrControl.t' -> ('v, Control.c) t'
   end
 
   include T
 
-  let fold_t' (type c) (f : 'a -> 'v -> 'a) (i : ('v, c) t') ~(init : 'a) : 'a =
+  let fold_t' (type c) (i : ('v, c) t') ~(init : 'a) ~(f : 'a -> 'v -> 'a) : 'a
+      =
     match i with
-    | BlockArgs vs -> List.fold_left ~init ~f vs
+    | Block_args vs -> List.fold_left ~init ~f vs
     | Assign (_, op) -> InstrOp.fold_t' f init op
     | Control c -> InstrControl.fold_t' f init c
 
   let map_t' (type c) (f : 'v -> 'v) (i : ('v, c) t') : ('v, c) t' =
     match i with
-    | BlockArgs vs -> BlockArgs (List.map ~f vs)
+    | Block_args vs -> Block_args (List.map ~f vs)
     | Assign (v, op) -> Assign (v, InstrOp.map_t' f op)
     | Control c -> Control (InstrControl.map_t' f c)
 
@@ -99,19 +111,50 @@ module Instr = struct
     (* ocaml can't refute this for some reason? *)
     | _ -> assert false
 
+  let set_control :
+      type v. (v, Control.c) t' -> v InstrControl.t' -> (v, Control.c) t' =
+   fun i c -> match i with Control _ -> Control c | _ -> assert false
+
+  let map_control :
+      type v.
+      (v, Control.c) t' ->
+      f:(v InstrControl.t' -> v InstrControl.t') ->
+      (v, Control.c) t' =
+   fun i ~f -> get_control i |> f |> set_control i
+
   let get_assign : type v. (v, Control.o) t' -> Value.t * v InstrOp.t' =
     function
     | Assign a -> a
     | _ -> assert false
 
-  let get_args : type v. (v, Control.e) t' -> Value.t list = function
-    | BlockArgs vs -> vs
+  let set_assign :
+      type v. (v, Control.o) t' -> Value.t * v InstrOp.t' -> (v, Control.o) t' =
+   fun i a -> match i with Assign _ -> Assign a | _ -> assert false
+
+  let map_assign :
+      type v.
+      (v, Control.o) t' -> f:(v InstrOp.t' -> v InstrOp.t') -> (v, Control.o) t'
+      =
+   fun i ~f -> get_assign i |> fun (v, op) -> set_assign i (v, f op)
+
+  let get_block_args : type v. (v, Control.e) t' -> Value.t list = function
+    | Block_args vs -> vs
     | _ -> assert false
+
+  let set_block_args :
+      type v. (v, Control.e) t' -> Value.t list -> (v, Control.e) t' =
+   fun i vs -> match i with Block_args _ -> Block_args vs | _ -> assert false
+
+  let map_block_args :
+      type v.
+      (v, Control.e) t' -> f:(Value.t list -> Value.t list) -> (v, Control.e) t'
+      =
+   fun i ~f -> get_block_args i |> fun vs -> set_block_args i (f vs)
 
   let sexp_of_t' (type c v) (f : v -> Sexp.t) (i : (v, c) t') =
     match i with
     | Control c -> [%sexp "Control", (InstrControl.sexp_of_t' f c : Sexp.t)]
-    | BlockArgs vs -> [%sexp "BlockArgs", (vs : Value.t list)]
+    | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
     | Assign (v, op) ->
         [%sexp "Assign", (v : Value.t), (InstrOp.sexp_of_t' f op : Sexp.t)]
 
@@ -122,7 +165,7 @@ module Instr = struct
     match (i1, i2) with
     | Control c1, Control c2 when [%equal: InstrControl.t] c1 c2 ->
         Some Type_equal.refl
-    | BlockArgs vs1, BlockArgs vs2 when [%equal: Value.t list] vs1 vs2 ->
+    | Block_args vs1, Block_args vs2 when [%equal: Value.t list] vs1 vs2 ->
         Some Type_equal.refl
     | Assign a1, Assign a2 when [%equal: Value.t * InstrOp.t] a1 a2 ->
         Some Type_equal.refl
@@ -143,15 +186,19 @@ module Instr = struct
 
   let map_t' : type a b c. (a -> b) -> (a, c) t' -> (b, c) t' =
    fun f -> function
-    | BlockArgs vs -> BlockArgs vs
+    | Block_args vs -> Block_args vs
     | Assign (v, instr) -> Assign (v, InstrOp.map_t' f instr)
     | Control c -> Control (InstrControl.map_t' f c)
 
   let to_some i = Some.T i
-  let uses i = fold_t' (Fn.flip List.cons) ~init:[] i
+  let uses_fold = G.Fold.T { f = (fun (Some.T i) -> fold_t' i) }
+  let uses i = fold_t' ~init:[] ~f:(Fn.flip List.cons) i
 
   let defs (type c) (i : (_, c) t') =
-    match i with BlockArgs vs -> vs | Assign (v, _) -> [ v ] | Control _ -> []
+    match i with
+    | Block_args vs -> vs
+    | Assign (v, _) -> [ v ]
+    | Control _ -> []
 
   let jumps i = InstrControl.jumps @@ get_control i
 end
@@ -164,7 +211,7 @@ module Block = struct
     body : ('v, Control.o) Instr.t' list;
     exit : ('v, Control.c) Instr.t';
   }
-  [@@deriving accessors]
+  [@@deriving fields]
 
   type t = Value.t t'
 
@@ -188,32 +235,29 @@ module Block = struct
     let exit = m.f exit in
     { entry; body; exit }
 
-  let fold_instrs_forward ~init ~f ({ entry; body; exit } : _ t') =
+  let fold_instrs_forward ({ entry; body; exit } : _ t') ~init ~f =
     let init = f init (Instr.to_some entry) in
     let init =
       List.fold_left ~init ~f:(fun z i -> f z (Instr.to_some i)) body
     in
     f init (Instr.to_some exit)
 
-  let fold_instrs_backward ~init ~f ({ entry; body; exit } : _ t') =
+  let fold_instrs_backward ({ entry; body; exit } : _ t') ~init ~f =
     let init = f init (Instr.to_some exit) in
     let init =
       List.rev body
       |> List.fold_left ~init ~f:(fun z i -> f z (Instr.to_some i))
     in
+
     f init (Instr.to_some entry)
 
-  let instrs_forward_accessor : (_, Instr.Some.t, t, [> many_getter ]) A.t =
-    [%accessor
-      A.many_getter (fun block ->
-          let open A.Many_getter in
-          fold_instrs_forward ~init:empty ~f:(fun z i -> access i @ z) block)]
+  let instrs_forward_fold = G.Fold.T { f = fold_instrs_forward }
 end
 
 let%expect_test _ =
   let (b : Block.t) =
     {
-      entry = BlockArgs [];
+      entry = Block_args [];
       body = [];
       exit =
         Instr.Control
@@ -223,13 +267,13 @@ let%expect_test _ =
   [%sexp_of: Block.t] b |> print_s;
   [%expect
     {|
-    ((entry (BlockArgs ())) (body ())
+    ((entry (Block_args ())) (body ())
      (exit (Control (Ret (((name (Name x)) (ty U64))))))) |}]
 
 module Graph = struct
   type 'v t' = 'v Block.t' Cfg_graph.Graph.t [@@deriving sexp_of]
 
-  include Cfg_graph.Graph.Accessors
+  include Cfg_graph.Graph.Fields
 
   type t = Value.t t' [@@deriving sexp_of]
 end
@@ -241,7 +285,9 @@ module Function = struct
     body : 'v Graph.t';
     return_ty : Ty.t;
   }
-  [@@deriving sexp_of, accessors]
+  [@@deriving sexp_of, fields]
+
+  module Fields = Fields_of_t'
 
   type t = Value.t t' [@@deriving sexp_of]
 end

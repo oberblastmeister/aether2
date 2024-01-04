@@ -1,7 +1,7 @@
 open O
 
 type t = { start : int; stop : int }
-[@@deriving sexp, equal, compare, sexp, hash, accessors]
+[@@deriving sexp, equal, compare, sexp, hash, fields]
 
 val empty : t
 val single : int -> t

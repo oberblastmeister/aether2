@@ -15,4 +15,4 @@ type t =
   | R13
   | R14
   | R15
-[@@deriving equal, compare, sexp, hash, accessors]
+[@@deriving equal, compare, sexp, hash, variants]

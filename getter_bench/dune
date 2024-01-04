@@ -1,0 +1,7 @@
+(executable
+ (public_name getter_bench)
+ (flags
+  (:standard -warn-error -A))
+ (preprocess
+  (pps ppx_jane ppx_accessor))
+ (libraries core core_unix.command_unix core_bench getter))
