@@ -11,3 +11,4 @@ val to_list : 'a t -> 'a list
 val hd : 'a t -> 'a
 val tl : 'a t -> 'a list
 val all_equal : ('a -> 'a -> bool) -> 'a t -> bool
+val fold_map : f:('a -> 'b) -> combine:('b -> 'b -> 'b) -> 'a t -> 'b

@@ -1,2 +1,4 @@
-val pretty_single : Lir_instr.Function.t -> string
-val pretty : Lir_instr.Function.t list -> string
+open Lir_instr
+
+val pretty_single : Function.t -> string
+val pretty : Function.t list -> string

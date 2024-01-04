@@ -1,13 +1,12 @@
 open Instr_types
 
 module Graph = struct
-  type 'b t = { entry : Label.t; body : 'b Label.Map.t; exit : Label.t }
-  [@@deriving accessors, sexp_of]
-end
+  type 'b t = { entry : Label.t; blocks : 'b Label.Map.t; exit : Label.t }
+  [@@deriving sexp_of, accessors]
 
-module MakeGraph (Block : sig
-  type t [@@deriving sexp_of]
-end) =
-struct
-  type t = Block.t Graph.t [@@deriving sexp_of]
+  module Accessors = struct
+    let entry = entry
+    let blocks = blocks
+    let exit = exit
+  end
 end

@@ -11,3 +11,6 @@ let to_list (T (x, xs)) = x :: xs
 let hd (T (x, _)) = x
 let tl (T (_, xs)) = xs
 let all_equal equal (T (x, xs)) = List.for_all ~f:(equal x) xs
+
+let fold_map ~f ~combine (T (x, xs)) =
+  List.fold ~init:(f x) ~f:(fun z x -> combine z (f x)) xs

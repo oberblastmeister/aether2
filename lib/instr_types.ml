@@ -1,9 +1,9 @@
 open O
 
 module Control = struct
-  type e
-  type o
-  type c
+  type e = |
+  type o = |
+  type c = |
 end
 
 module SControl = struct

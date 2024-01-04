@@ -10,11 +10,18 @@ module Label = Label
 module Control = Control
 
 module Value = struct
-  type t = {
-    name : Name.t;
-    ty : Ty.t; [@equal.ignore] [@compare.ignore] [@hash.ignore]
-  }
-  [@@deriving equal, compare, hash, sexp, accessors]
+  module T = struct
+    type t = {
+      name : Name.t;
+      ty : Ty.t; [@equal.ignore] [@compare.ignore] [@hash.ignore]
+    }
+    [@@deriving equal, compare, hash, sexp, accessors]
+  end
+
+  include T
+  module Hashtbl = Hashtbl.Make (T)
+  module Map = Map.Make (T)
+  module Set = Set.Make (T)
 end
 
 module CmpOp = struct
@@ -38,25 +45,6 @@ module InstrOp = struct
     | Val { ty; _ } -> ty
 
   type t = Value.t t' [@@deriving equal, compare, sexp]
-
-  let uses_accessor : (_, 'v, 'v t', [< many ]) Accessor.t =
-    [%accessor
-      A.many (fun instr ->
-          let open A.Many.Let_syntax in
-          match instr with
-          | Add { ty; v1; v2 } ->
-              let%map_open v1 = access v1 and v2 = access v2 in
-              Add { ty; v1; v2 }
-          | Sub { ty; v1; v2 } ->
-              let%map_open v1 = access v1 and v2 = access v2 in
-              Sub { ty; v1; v2 }
-          | Cmp { ty; op; v1; v2 } ->
-              let%map_open v1 = access v1 and v2 = access v2 in
-              Cmp { ty; op; v1; v2 }
-          | Val { ty; v } ->
-              let%map_open v = access v in
-              Val { ty; v }
-          | Const _ -> return instr)]
 end
 
 module BlockCall = struct
@@ -88,40 +76,46 @@ module Instr = struct
       | BlockArgs : Value.t list -> ('v, Control.e) t'
       | Assign : (Value.t * 'v InstrOp.t') -> ('v, Control.o) t'
       | Control : 'v InstrControl.t' -> ('v, Control.c) t'
-
-    let map_t' (type c) (f : 'v -> 'v) (i : ('v, c) t') : ('v, c) t' =
-      match i with
-      | BlockArgs vs -> BlockArgs (List.map ~f vs)
-      | Assign (v, op) -> Assign (v, InstrOp.map_t' f op)
-      | Control c -> Control (InstrControl.map_t' f c)
-
-    type 'c t = (Value.t, 'c) t'
-
-    let get_control : type v. (v, Control.c) t' -> v InstrControl.t' = function
-      | Control c -> c
-      | _ -> assert false
-
-    let get_assign : type v. (v, Control.o) t' -> Value.t * v InstrOp.t' =
-      function
-      | Assign a -> a
-      | _ -> assert false
-
-    let get_args : type v. (v, Control.e) t' -> Value.t list = function
-      | BlockArgs vs -> vs
-      | _ -> assert false
-
-    let sexp_of_t' (type c v) (f : v -> Sexp.t) (i : (v, c) t') =
-      match i with
-      | Control c -> [%sexp "Control", (InstrControl.sexp_of_t' f c : Sexp.t)]
-      | BlockArgs vs -> [%sexp "BlockArgs", (vs : Value.t list)]
-      | Assign (v, op) ->
-          [%sexp "Assign", (v : Value.t), (InstrOp.sexp_of_t' f op : Sexp.t)]
-
-    let sexp_of_t instr = sexp_of_t' Value.sexp_of_t instr
   end
 
   include T
-  include Higher_kinded.Make (T)
+
+  let fold_t' (type c) (f : 'a -> 'v -> 'a) (i : ('v, c) t') ~(init : 'a) : 'a =
+    match i with
+    | BlockArgs vs -> List.fold_left ~init ~f vs
+    | Assign (_, op) -> InstrOp.fold_t' f init op
+    | Control c -> InstrControl.fold_t' f init c
+
+  let map_t' (type c) (f : 'v -> 'v) (i : ('v, c) t') : ('v, c) t' =
+    match i with
+    | BlockArgs vs -> BlockArgs (List.map ~f vs)
+    | Assign (v, op) -> Assign (v, InstrOp.map_t' f op)
+    | Control c -> Control (InstrControl.map_t' f c)
+
+  type 'c t = (Value.t, 'c) t'
+
+  let get_control : type v. (v, Control.c) t' -> v InstrControl.t' = function
+    | Control c -> c
+    (* ocaml can't refute this for some reason? *)
+    | _ -> assert false
+
+  let get_assign : type v. (v, Control.o) t' -> Value.t * v InstrOp.t' =
+    function
+    | Assign a -> a
+    | _ -> assert false
+
+  let get_args : type v. (v, Control.e) t' -> Value.t list = function
+    | BlockArgs vs -> vs
+    | _ -> assert false
+
+  let sexp_of_t' (type c v) (f : v -> Sexp.t) (i : (v, c) t') =
+    match i with
+    | Control c -> [%sexp "Control", (InstrControl.sexp_of_t' f c : Sexp.t)]
+    | BlockArgs vs -> [%sexp "BlockArgs", (vs : Value.t list)]
+    | Assign (v, op) ->
+        [%sexp "Assign", (v : Value.t), (InstrOp.sexp_of_t' f op : Sexp.t)]
+
+  let sexp_of_t instr = sexp_of_t' Value.sexp_of_t instr
 
   let type_equal (type c d) (i1 : c t) (i2 : d t) : (c, d) Type_equal.t Option.t
       =
@@ -141,8 +135,8 @@ module Instr = struct
     type 'v t' = T : ('v, 'c) T.t' -> 'v t'
     type t = Value.t t'
 
-    let sexp_of_t' f (T s) = T.sexp_of_t' f s
-    let sexp_of_t (T s) = T.sexp_of_t s
+    let sexp_of_t' f (T s) = sexp_of_t' f s
+    let sexp_of_t (T s) = sexp_of_t s
   end
 
   module Value = Value
@@ -154,8 +148,11 @@ module Instr = struct
     | Control c -> Control (InstrControl.map_t' f c)
 
   let to_some i = Some.T i
-  let uses _ = failwith ""
-  let defs _ = failwith ""
+  let uses i = fold_t' (Fn.flip List.cons) ~init:[] i
+
+  let defs (type c) (i : (_, c) t') =
+    match i with BlockArgs vs -> vs | Assign (v, _) -> [ v ] | Control _ -> []
+
   let jumps i = InstrControl.jumps @@ get_control i
 end
 
@@ -205,6 +202,12 @@ module Block = struct
       |> List.fold_left ~init ~f:(fun z i -> f z (Instr.to_some i))
     in
     f init (Instr.to_some entry)
+
+  let instrs_forward_accessor : (_, Instr.Some.t, t, [> many_getter ]) A.t =
+    [%accessor
+      A.many_getter (fun block ->
+          let open A.Many_getter in
+          fold_instrs_forward ~init:empty ~f:(fun z i -> access i @ z) block)]
 end
 
 let%expect_test _ =
@@ -224,12 +227,9 @@ let%expect_test _ =
      (exit (Control (Ret (((name (Name x)) (ty U64))))))) |}]
 
 module Graph = struct
-  type 'v t' = {
-    entry : Label.t;
-    blocks : 'v Block.t' Label.Map.t;
-    exit : Label.t;
-  }
-  [@@deriving sexp_of, accessors]
+  type 'v t' = 'v Block.t' Cfg_graph.Graph.t [@@deriving sexp_of]
+
+  include Cfg_graph.Graph.Accessors
 
   type t = Value.t t' [@@deriving sexp_of]
 end
@@ -264,19 +264,19 @@ module DataflowInstr = struct
   let defs (Instr.Some.T i) = Instr.defs i
 end
 
-module Dataflow = Cfg_dataflow.MakeDataflowForBlock (DataflowBlock)
+module Dataflow = Cfg.MakeDataflowForBlock (DataflowBlock)
 
 module Liveness = struct
-  module InstrTransfer = Cfg_dataflow.MakeLivenessInstrTransfer (DataflowInstr)
+  module InstrTransfer = Cfg.MakeLivenessInstrTransfer (DataflowInstr)
 
   module BlockTransfer =
-    Cfg_dataflow.InstrToBlockTransfer (DataflowBlock) (InstrTransfer)
+    Cfg.InstrToBlockTransfer (DataflowBlock) (InstrTransfer)
 
   include Dataflow.MakeRun (BlockTransfer)
 end
 
 module Dominators = struct
-  module BlockTransfer = Cfg_dataflow.MakeDominatorsBlockTransfer (DataflowBlock)
+  module BlockTransfer = Cfg.MakeDominatorsBlockTransfer (DataflowBlock)
   include Dataflow.MakeRun (BlockTransfer)
 end
 
@@ -289,5 +289,3 @@ let%expect_test _ =
     (Assign ((name (Name x)) (ty U64))
      (Add (ty U64) (v1 ((name (Name x)) (ty U64)))
       (v2 ((name (Name x)) (ty U64))))) |}]
-
-let%test _ = 1234 = 1234

@@ -1,29 +1,25 @@
 open O
-
-module Lir = struct
-  include Lir_instr
-end
-
+open Lir_instr
 module Parser = Sexp_lang.Parser
 
 let parse_ty =
   Parser.atom (function
-    | "u64" -> Lir.Ty.U64
-    | "u1" -> Lir.Ty.U1
+    | "u64" -> Ty.U64
+    | "u1" -> Ty.U1
     | _ -> Parser.parse_error [%message "unknown type"])
 
-let parse_var = Parser.atom (fun s -> Lir.Name.of_string s)
+let parse_var = Parser.atom (fun s -> Name.of_string s)
 
 let parse_value =
   Parser.list_ref (fun xs ->
       let name = Parser.item xs parse_var in
       let ty = Parser.item xs parse_ty in
-      ({ name; ty } : Lir.Value.t))
+      ({ name; ty } : Value.t))
 
 let parse_ident = Parser.atom Fn.id
 
 let parse_cmp_op = function
-  | "gt" -> Lir.CmpOp.Gt
+  | "gt" -> CmpOp.Gt
   | s -> Parser.parse_error [%message "unknown cmp op" ~op:s]
 
 let parse_op_instr =
@@ -33,7 +29,7 @@ let parse_op_instr =
       | "val" ->
           let ty = Parser.item xs parse_ty in
           let v = Parser.item xs parse_var in
-          Lir.InstrOp.Val { ty; v }
+          InstrOp.Val { ty; v }
       | "const" ->
           let ty = Parser.item xs parse_ty in
           let const =
@@ -44,21 +40,21 @@ let parse_op_instr =
                           Parser.parse_error
                             [%message "couldn't parse number" ~s]))
           in
-          Lir.InstrOp.Const { ty; const }
+          InstrOp.Const { ty; const }
       | "cmp" ->
           let ty = Parser.item xs parse_ty in
           let op = Parser.item xs @@ Parser.atom parse_cmp_op in
           let v1 = Parser.item xs parse_var in
           let v2 = Parser.item xs parse_var in
-          Lir.InstrOp.Cmp { ty; op; v1; v2 }
+          InstrOp.Cmp { ty; op; v1; v2 }
       | "add" ->
           let ty = Parser.item xs parse_ty in
           let v1 = Parser.item xs parse_var in
           let v2 = Parser.item xs parse_var in
-          Lir.InstrOp.Add { ty; v1; v2 }
+          InstrOp.Add { ty; v1; v2 }
       | _ -> Parser.parse_error [%message "unknown op" ~name])
 
-let parse_label = Parser.atom Lir.Label.of_string
+let parse_label = Parser.atom Label.of_string
 
 let parse_lit s =
   Parser.atom (fun s' ->
@@ -69,30 +65,34 @@ let parse_block_call =
   Parser.list_ref (fun xs ->
       let label = Parser.item xs parse_label in
       let args = Parser.rest !xs parse_var in
-      ({ label; args } : _ Lir.BlockCall.t'))
+      ({ label; args } : _ BlockCall.t'))
 
 module Some = struct
-  type t = T : (Lir.Name.t, 'c) Lir.Instr.t' -> t
+  type t = T : (Name.t, 'c) Instr.t' -> t
 end
 
 let parse_instr =
-  let instr_o name instr_op : Some.t =
-    Some.T (Lir.Instr.Assign (name, instr_op))
-  in
-  let instr_c instr_control : Some.t =
-    Some.T (Lir.Instr.Control instr_control)
-  in
+  let instr_o name instr_op : Some.t = Some.T (Instr.Assign (name, instr_op)) in
+  let instr_c instr_control : Some.t = Some.T (Instr.Control instr_control) in
   Parser.list_ref (fun xs ->
       let instr_name = Parser.item xs parse_ident in
       match instr_name with
       | "set" ->
           let name = Parser.item xs parse_var in
           let instr = Parser.item xs parse_op_instr in
-          let ty = Lir.InstrOp.get_ty instr in
+          let ty = InstrOp.get_ty instr in
           instr_o { name; ty } instr
       | "ret" ->
           let v = Parser.optional_item !xs parse_var in
-          instr_c (Lir.InstrControl.Ret v)
+          instr_c (InstrControl.Ret v)
+      | "jump" ->
+          let j = Parser.item xs parse_block_call in
+          instr_c (InstrControl.Jump j)
+      | "cond_jump" ->
+          let v = Parser.item xs parse_var in
+          let j1 = Parser.item xs parse_block_call in
+          let j2 = Parser.item xs parse_block_call in
+          instr_c (InstrControl.CondJump (v, j1, j2))
       | _ ->
           Parser.parse_error [%message "unknown instruction" ~name:instr_name])
 
@@ -115,27 +115,26 @@ let parse_block =
       let instrs =
         List.map instrs ~f:(fun (Some.T i) ->
             match i with
-            | Lir.Instr.Assign (name, instr_op) ->
-                Lir.Instr.Assign (name, instr_op)
+            | Instr.Assign (name, instr_op) -> Instr.Assign (name, instr_op)
             | _ ->
                 Parser.parse_error
                   [%message
                     "instructions before the end must be op instrs"
-                      ~got:(Lir.Instr.sexp_of_t' Lir.Name.sexp_of_t i : Sexp.t)])
+                      ~got:(Instr.sexp_of_t' Name.sexp_of_t i : Sexp.t)])
       in
       let last_instr =
         let (Some.T i) = last_instr in
         match i with
-        | Lir.Instr.Control i -> Lir.Instr.Control i
+        | Instr.Control i -> Instr.Control i
         | _ ->
             Parser.parse_error
               [%message
                 "last instruction must be control instruction"
-                  ~got:(Lir.Instr.sexp_of_t' Lir.Name.sexp_of_t i : Sexp.t)]
+                  ~got:(Instr.sexp_of_t' Name.sexp_of_t i : Sexp.t)]
       in
       ( label,
-        ({ entry = Lir.Instr.BlockArgs args; body = instrs; exit = last_instr }
-          : _ Lir.Block.t') ))
+        ({ entry = Instr.BlockArgs args; body = instrs; exit = last_instr }
+          : _ Block.t') ))
 
 let parse_graph xs =
   let blocks = Parser.rest xs parse_block in
@@ -143,10 +142,10 @@ let parse_graph xs =
   | (label, _) :: _ ->
       ({
          entry = label;
-         blocks = Lir.Label.Map.of_alist_exn blocks;
+         blocks = Label.Map.of_alist_exn blocks;
          exit = List.last_exn blocks |> fst;
        }
-        : _ Lir.Graph.t')
+        : _ Graph.t')
   | _ -> Parser.parse_error [%message "graph must have at least one block"]
 
 let parse_function =
@@ -161,7 +160,7 @@ let parse_function =
       in
       let return_ty = Parser.item xs parse_ty in
       let body = parse_graph !xs in
-      ({ name; params; return_ty; body } : _ Lir.Function.t'))
+      ({ name; params; return_ty; body } : _ Function.t'))
 
 let parse s =
   let open Result.Let_syntax in
@@ -182,9 +181,10 @@ let%expect_test _ =
   |}
   in
   let fns = parse s |> Or_error.ok_exn in
-  print_s [%sexp (fns : _ Lir.Function.t' list)];
+  print_s [%sexp (fns : _ Function.t' list)];
   ();
-  [%expect {|
+  [%expect
+    {|
     (((name (Name testing))
       (params (((name (Name first)) (ty U64)) ((name (Name second)) (ty U64))))
       (body

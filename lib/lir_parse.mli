@@ -1,3 +1,4 @@
 open O
+open Lir_instr
 
-val parse : string -> Lir_instr.Name.t Lir_instr.Function.t' list Or_error.t
+val parse : string -> Name.t Function.t' list Or_error.t
