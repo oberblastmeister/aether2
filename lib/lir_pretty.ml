@@ -2,10 +2,7 @@ open O
 open Lir_instr
 module Pretty = Sexp_lang.Pretty
 
-let pretty_name = function
-  | Name.Name s -> Pretty.Atom s
-  | Name.GenName (s, i) -> Pretty.Atom (s ^ "." ^ string_of_int i)
-
+let pretty_name = Fn.compose Pretty.atom Name.pretty
 let pretty_value (value : Value.t) = pretty_name value.name
 
 let pretty_ty = function
@@ -41,7 +38,9 @@ let pretty_instr_op = function
 
 let pretty_block_call ({ label; args } : BlockCall.t) =
   Pretty.(
-    List [ pretty_name label.name; Pretty.List (List.map ~f:pretty_value args) ])
+    List
+      (List.concat
+         [ [ pretty_name label.name ]; List.map ~f:pretty_value args ]))
 
 let pretty_instr_control i =
   match i with
@@ -76,7 +75,7 @@ let pretty_block (label : Label.t) (block : Block.t) =
              Atom "label";
              List
                ([ pretty_name label.name ]
-               @ List.map ~f:pretty_value (Instr.get_block_args block.entry));
+               @ List.map ~f:pretty_value_typed (Instr.get_block_args block.entry));
              Ann IndentLine;
            ];
            List.map ~f:pretty_assign block.body
@@ -117,10 +116,17 @@ let pretty_function (fn : Function.t) =
            pretty_graph fn.body;
          ])
 
-let pretty_single fn = pretty_function fn |> Pretty.to_string
+let pretty_program (prog : Program.t) =
+  Pretty.(
+    list
+    @@ List.concat
+         [
+           List.map ~f:pretty_function prog.functions
+           |> List.intersperse ~sep:(Ann Line);
+         ])
 
-let pretty fns =
-  fns
+let pretty (program : Program.t) =
+  program.functions
   |> List.map ~f:pretty_function
   |> List.map ~f:Pretty.to_string
   |> String.concat ~sep:"\n\n"

@@ -1,6 +1,7 @@
 open O
 include Lir_instr
 include Lir_pretty
+module Ssa = Lir_ssa
 
 let parse s =
   let open Or_error.Let_syntax in

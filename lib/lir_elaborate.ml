@@ -44,7 +44,7 @@ let collect_types (fn : Name.t Function.t') =
 
 let elaborate_instr label ty_of_name instr =
   Instr.map_t'
-    (fun name : Value.t ->
+    ~f:(fun name : Value.t ->
       {
         name;
         ty =
@@ -60,7 +60,7 @@ let elaborate_instr label ty_of_name instr =
     instr
 
 let elaborate_block label ty_of_name block =
-  Block.map_forwards
+  Block.map_instrs_forwards
     { f = (fun instr -> elaborate_instr label ty_of_name instr) }
     block
 
@@ -79,8 +79,12 @@ let elaborate_function (fn : Name.t Function.t') : Function.t =
 
 let elaborate_single fn = run (fun () -> elaborate_function fn)
 
-let elaborate fns : Function.t list Or_error.t =
-  run (fun () -> List.map ~f:elaborate_function fns)
+let elaborate_program (program : Name.t Program.t') =
+  let new_functions = List.map ~f:elaborate_function program.functions in
+  { program with functions = new_functions }
+
+let elaborate (program : Name.t Program.t') : Program.t Or_error.t =
+  run (fun () -> elaborate_program program)
 
 let%expect_test _ =
   let s =
@@ -97,24 +101,24 @@ u64
 (define (another) u64 (label (start) (ret)))
   |}
   in
-  let fns = Lir_parse.parse s |> Or_error.ok_exn in
-  let fns = fns |> elaborate |> Or_error.ok_exn in
+  let program = Lir_parse.parse s |> Or_error.ok_exn in
+  let program = program |> elaborate |> Or_error.ok_exn in
   (* printf "sexp:\n";
      print_s @@ [%sexp_of: Function.t list] fns; *)
   printf "pretty:\n";
-  print_endline @@ Lir_pretty.pretty fns;
+  print_endline @@ Lir_pretty.pretty program;
   ();
   [%expect
     {|
     pretty:
     (define (testing (first u64) (second u64)) u64
-      (label (first arg)
+      (label (first (arg u64))
         (set x (add u64 first second))
         (ret))
-      (label (second arg)
+      (label (second (arg u64))
         (set x (add u64 first second))
         (ret))
-      (label (third arg)
+      (label (third (arg u64))
         (set x (add u64 first second))
         (ret)))
 

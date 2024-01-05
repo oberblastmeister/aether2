@@ -16,10 +16,7 @@ depends: [
   "core_bench" {= "v0.16.0"}
   "ppx_deriving" {= "5.2.1"}
   "ppx_jane" {= "v0.16.0"}
-  "accessor" {= "v0.16.0"}
-  "accessor_core" {= "v0.16.0"}
   "alcotest" {= "1.7.0"}
-  "fmt" {= "0.9.0"}
   "algaeff" {= "2.0.0"}
   "odoc" {with-doc}
 ]

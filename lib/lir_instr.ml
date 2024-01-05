@@ -49,9 +49,11 @@ end
 
 module BlockCall = struct
   type 'v t' = { label : Label.t; args : 'v list }
-  [@@deriving equal, compare, sexp, fields, map, iter, fold]
+  [@@deriving sexp, fields, map, iter, fold]
 
-  type t = Value.t t' [@@deriving equal, compare, sexp]
+  module Fields = Fields_of_t'
+
+  type t = Value.t t' [@@deriving sexp]
 end
 
 module InstrControl = struct
@@ -59,15 +61,22 @@ module InstrControl = struct
     | Jump of 'v BlockCall.t'
     | CondJump of ('v * 'v BlockCall.t' * 'v BlockCall.t')
     | Ret of 'v option
-  [@@deriving equal, compare, sexp, map, iter, fold]
+  [@@deriving sexp, map, iter, fold]
 
-  type t = Value.t t' [@@deriving equal, compare, sexp]
+  type t = Value.t t' [@@deriving sexp]
 
-  let jumps i =
-    match i with
-    | Jump j -> [ j.label ]
-    | CondJump (_, j1, j2) -> [ j1.label; j2.label ]
-    | Ret _ -> []
+  let jumps_fold =
+    G.Fold.T
+      {
+        f =
+          (fun i ~init ~f ->
+            match i with
+            | Jump j -> f init j
+            | CondJump (_, j1, j2) -> f (f init j1) j2
+            | Ret _ -> init);
+      }
+
+  let jumps i = G.Fold.reduce jumps_fold G.Reduce.to_list_rev i
 
   let block_calls_fold =
     G.Fold.T
@@ -79,6 +88,12 @@ module InstrControl = struct
             | CondJump (_, j1, j2) -> f (f init j1) j2
             | Ret _ -> init);
       }
+
+  let map_block_calls i ~f =
+    match i with
+    | Jump j -> Jump (f j)
+    | CondJump (v, j1, j2) -> CondJump (v, f j1, f j2)
+    | Ret v -> Ret v
 end
 
 module Instr = struct
@@ -163,15 +178,12 @@ module Instr = struct
   let type_equal (type c d) (i1 : c t) (i2 : d t) : (c, d) Type_equal.t Option.t
       =
     match (i1, i2) with
-    | Control c1, Control c2 when [%equal: InstrControl.t] c1 c2 ->
-        Some Type_equal.refl
-    | Block_args vs1, Block_args vs2 when [%equal: Value.t list] vs1 vs2 ->
-        Some Type_equal.refl
-    | Assign a1, Assign a2 when [%equal: Value.t * InstrOp.t] a1 a2 ->
-        Some Type_equal.refl
+    | Control _, Control _ -> Some Type_equal.refl
+    | Block_args _, Block_args _ -> Some Type_equal.refl
+    | Assign _, Assign _ -> Some Type_equal.refl
     | _ -> None
 
-  let equal (type c d) (i1 : c t) (i2 : d t) =
+  let tag_equal (type c d) (i1 : c t) (i2 : d t) =
     type_equal i1 i2 |> Option.is_some
 
   module Some = struct
@@ -184,8 +196,9 @@ module Instr = struct
 
   module Value = Value
 
-  let map_t' : type a b c. (a -> b) -> (a, c) t' -> (b, c) t' =
-   fun f -> function
+  let map_t' : type a b c. (a, c) t' -> f:(a -> b) -> (b, c) t' =
+   fun i ~f ->
+    match i with
     | Block_args vs -> Block_args vs
     | Assign (v, instr) -> Assign (v, InstrOp.map_t' f instr)
     | Control c -> Control (InstrControl.map_t' f c)
@@ -193,13 +206,27 @@ module Instr = struct
   let to_some i = Some.T i
   let uses_fold = G.Fold.T { f = (fun (Some.T i) -> fold_t' i) }
   let uses i = fold_t' ~init:[] ~f:(Fn.flip List.cons) i
+  let map_uses = map_t'
 
-  let defs (type c) (i : (_, c) t') =
+  let map_defs : type c. (_, c) t' -> f:(Value.t -> Value.t) -> (_, c) t' =
+   fun i ~f ->
     match i with
-    | Block_args vs -> vs
-    | Assign (v, _) -> [ v ]
-    | Control _ -> []
+    | Block_args vs -> Block_args (List.map ~f vs)
+    | Assign (v, op) -> Assign (f v, op)
+    | Control c -> Control c
 
+  let defs_fold =
+    G.Fold.T
+      {
+        f =
+          (fun (type c) (i : (_, c) t') ~init ~f ->
+            match i with
+            | Block_args vs -> List.fold ~init ~f vs
+            | Assign (v, _) -> f init v
+            | Control _ -> init);
+      }
+
+  let defs i = G.Fold.reduce defs_fold G.Reduce.to_list_rev i
   let jumps i = InstrControl.jumps @@ get_control i
 end
 
@@ -223,13 +250,12 @@ module Block = struct
         ("exit", (Instr.sexp_of_t' f exit : Sexp.t))]
 
   let sexp_of_t block = sexp_of_t' Value.sexp_of_t block
-  let jumps (block : t) = Instr.jumps block.exit
 
   module Mapper = struct
     type ('a, 'b) t = { f : 'c. ('a, 'c) Instr.t' -> ('b, 'c) Instr.t' }
   end
 
-  let map_forwards (m : _ Mapper.t) { entry; body; exit } =
+  let map_instrs_forwards (m : _ Mapper.t) { entry; body; exit } =
     let entry = m.f entry in
     let body = List.map ~f:m.f body in
     let exit = m.f exit in
@@ -273,7 +299,7 @@ let%expect_test _ =
 module Graph = struct
   type 'v t' = 'v Block.t' Cfg_graph.Graph.t [@@deriving sexp_of]
 
-  include Cfg_graph.Graph.Fields
+  include Cfg_graph.Graph.Stuff
 
   type t = Value.t t' [@@deriving sexp_of]
 end
@@ -292,11 +318,25 @@ module Function = struct
   type t = Value.t t' [@@deriving sexp_of]
 end
 
+module Program = struct
+  type 'v t' = { functions : 'v Function.t' list } [@@deriving sexp_of, fields]
+
+  module Fields = Fields_of_t'
+
+  type t = Value.t t' [@@deriving sexp_of]
+end
+
 module DataflowBlock = struct
   type t = Block.t [@@deriving sexp_of]
   type instr = Instr.Some.t
 
-  let jumps = Block.jumps
+  let jumps (b : t) =
+    G.Fold.reduce
+      (G.Fold.of_fn Instr.get_control
+      @> InstrControl.jumps_fold
+      @> G.Fold.of_fn BlockCall.label)
+      G.Reduce.to_list_rev b.exit
+
   let fold_instrs_forward = Block.fold_instrs_forward
   let fold_instrs_backward = Block.fold_instrs_backward
 end

@@ -21,6 +21,10 @@ module Name = struct
   module Map = Map.Make (T)
 
   let of_string s = Name s
+
+  let pretty = function
+    | Name s -> s
+    | GenName (s, i) -> s ^ "." ^ string_of_int i
 end
 
 module Label = struct

@@ -27,7 +27,7 @@ let loop_lir =
    |> Lir.parse |> Or_error.ok_exn)
 
 let%expect_test "uses" =
-  let fn = List.hd_exn @@ Lazy.force loop_lir in
+  let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let p =
     Lir.(
       G.Fold.of_fn Function.body @> G.Fold.of_fn Graph.blocks @> G.Core.Map.fold
@@ -43,7 +43,7 @@ let%expect_test "uses" =
      ((name (Name b)) (ty U64)) ((name (Name r)) (ty U64))) |}]
 
 let%expect_test "liveness" =
-  let fn = List.hd_exn (Lazy.force loop_lir) in
+  let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let res = Lir.Liveness.run fn.body in
   print_s [%sexp (res : Lir.Liveness.InstrTransfer.domain Lir.Label.Map.t)];
   ();
@@ -60,10 +60,9 @@ let%expect_test "liveness" =
       (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))))) |}]
 
 let%expect_test "dominators" =
-  let fn = List.hd_exn (Lazy.force loop_lir) in
+  let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let res = Lir.Dominators.run fn.body in
   print_s [%sexp (res : Lir.Dominators.BlockTransfer.domain Lir.Label.Map.t)];
-  ();
   [%expect
     {|
     ((((name (Name body)))
@@ -72,3 +71,28 @@ let%expect_test "dominators" =
       (((name (Name done))) ((name (Name loop))) ((name (Name start)))))
      (((name (Name loop))) (((name (Name loop))) ((name (Name start)))))
      (((name (Name start))) (((name (Name start)))))) |}]
+
+let%expect_test "naive ssa" =
+  let program = Lazy.force loop_lir in
+  let res =
+    (Field.map Lir.Program.Fields.functions & List.map)
+      ~f:Lir.Ssa.convert_naive_ssa program
+  in
+  print_endline @@ Lir.pretty res;
+  [%expect
+    {|
+    (define (pow (b.0 u64) (e.0 u64)) u64
+      (label (start)
+        (set r.0 (const u64 1))
+        (jump (loop b.0 e.0 r.0)))
+      (label (body (b.1 u64) (e.1 u64) (r.1 u64))
+        (set r.2 (add u64 r.1 b.1))
+        (set one.0 (const u64 1))
+        (set e.2 (add u64 e.1 one.0))
+        (jump (loop b.1 e.2 r.2)))
+      (label (loop (b.2 u64) (e.3 u64) (r.3 u64))
+        (set z.0 (const u64 0))
+        (set f.0 (cmp u64 gt e.3 z.0))
+        (cond_jump f.0 (done r.3) (body b.2 e.3 r.3)))
+      (label (done (r.4 u64))
+        (ret r.4))) |}]

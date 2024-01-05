@@ -162,14 +162,18 @@ let parse_function =
       let body = parse_graph !xs in
       ({ name; params; return_ty; body } : _ Function.t'))
 
+let parse_program xs =
+      let functions = Parser.rest xs parse_function in
+      ({ functions } : _ Program.t')
+
 let parse s =
   let open Result.Let_syntax in
   let%bind sexp = Sexp_lang.Syntax.parse s in
-  let%bind functions =
-    Sexp_lang.Parser.run (fun () -> List.map ~f:parse_function sexp)
+  let%bind program =
+    Sexp_lang.Parser.run (fun () -> parse_program sexp)
     |> Result.map_error ~f:Parser.Error.to_error
   in
-  return functions
+  return program
 
 let%expect_test _ =
   let s =
@@ -181,19 +185,20 @@ let%expect_test _ =
   |}
   in
   let fns = parse s |> Or_error.ok_exn in
-  print_s [%sexp (fns : _ Function.t' list)];
+  print_s [%sexp (fns : _ Program.t')];
   ();
   [%expect
     {|
-    (((name (Name testing))
-      (params (((name (Name first)) (ty U64)) ((name (Name second)) (ty U64))))
-      (body
-       ((entry ((name (Name first))))
-        (blocks
-         ((((name (Name first)))
-           ((entry (Block_args (((name (Name arg)) (ty U64)))))
-            (body
-             ((Assign ((name (Name x)) (ty U64)) (Add (ty U64) (v1 _) (v2 _)))))
-            (exit (Control (Ret ())))))))
-        (exit ((name (Name first))))))
-      (return_ty U64))) |}]
+    ((functions
+      (((name (Name testing))
+        (params (((name (Name first)) (ty U64)) ((name (Name second)) (ty U64))))
+        (body
+         ((entry ((name (Name first))))
+          (blocks
+           ((((name (Name first)))
+             ((entry (Block_args (((name (Name arg)) (ty U64)))))
+              (body
+               ((Assign ((name (Name x)) (ty U64)) (Add (ty U64) (v1 _) (v2 _)))))
+              (exit (Control (Ret ())))))))
+          (exit ((name (Name first))))))
+        (return_ty U64))))) |}]

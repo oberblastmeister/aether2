@@ -8,5 +8,10 @@ let compose :
       ('t, 's, 'b, 'a) t -> ('v, 'u, 't, 's) t -> ('v, 'u, 'b, 'a) t =
  fun mf mg a ~f -> mf ~f:(fun s -> mg ~f s) a
 
+let filter : 's. ('s -> bool) -> ('s, 's) t' =
+ fun p a ~f -> if p a then f a else a
+
 let ( & ) = compose
 let of_field field ~f = Field.map field ~f
+(*
+   let reduce : ('t, 's, 'b, 'a) t -> *)

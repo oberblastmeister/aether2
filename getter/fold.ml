@@ -32,3 +32,6 @@ let ix t = premap (fun (_i, x) -> x) t
 let reduce : ('b, 'a) t -> ('c, 'b) Reduce.t -> 'a -> 'c =
  fun (T { f = fold }) (Reduce.T (f, init, extract)) a ->
   fold ~f ~init a |> extract
+
+let iter : ('b, 'a) t -> 'a -> f:('b -> unit) -> unit =
+ fun (T { f = fold }) x ~f -> fold x ~f:(fun () b -> f b) ~init:()

@@ -1,0 +1,4 @@
+(library
+ (name aether_ppx)
+ (kind ppx_rewriter)
+ (libraries ppxlib))
