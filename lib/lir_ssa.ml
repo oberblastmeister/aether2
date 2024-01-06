@@ -1,13 +1,21 @@
 open O
 open Lir_instr
 
+module ValueWithId = struct
+  type t =
+    { value : Value.t
+    ; id : Value.t Union_find.t [@equal.ignore]
+    }
+  [@@deriving equal]
+end
+
 module PhiValue = struct
   type 'v t =
-    { flowed_from_label : Label.t
-    ; dest : 'v
+    { flowed_from_label : Label.t [@equal.ignore]
+    ; dest : 'v [@equal.ignore]
     ; value : 'v
     }
-  [@@deriving sexp, fields]
+  [@@deriving equal, sexp, fields, map]
 end
 
 module Phi = struct
@@ -16,7 +24,9 @@ module Phi = struct
     ; dest : 'v
     ; flow_values : 'v PhiValue.t list
     }
-  [@@deriving sexp, fields]
+  [@@deriving sexp, fields, map]
+
+  let map x ~f = map f x
 end
 
 let or_error_of_list = function
@@ -182,17 +192,78 @@ let convert_naive_ssa (fn : Function.t) : Function.t =
 
 let get_phis (graph : Graph.t) =
   let initial_phis =
-    let res =
-      G.Core.Map.mapi graph.blocks ~f:(fun (label, block) ->
-        let phis =
-          block.entry
-          |> Instr.get_block_args
-          |> List.map ~f:(fun arg : _ Phi.t ->
-            { dest_label = label; dest = arg; flow_values = [] })
-        in
-        todo ())
-    in
-    todo ()
+    G.Core.Map.mapi graph.blocks ~f:(fun (label, block) ->
+      block.entry
+      |> Instr.get_block_args
+      |> List.map ~f:(fun arg : _ Phi.t ->
+        { dest_label = label; dest = arg; flow_values = [] }))
   in
-  todo ()
+  let fold =
+    G.Fold.(
+      G.Core.Map.ifold
+      @> ix (of_fn Block.exit @> of_fn Instr.get_control @> InstrControl.block_calls_fold))
+  in
+  let phis_of_block =
+    G.Fold.fold
+      fold
+      ~init:initial_phis
+      ~f:(fun phi_map (label, (block_call : BlockCall.t)) ->
+        let phis = Map.find_exn phi_map block_call.label in
+        let phis =
+          match List.zip phis block_call.args with
+          | Ok res ->
+            res
+            |> List.map ~f:(fun (phi, value) ->
+              let phi_value : _ PhiValue.t =
+                { flowed_from_label = label; dest = phi.dest; value }
+              in
+              { phi with flow_values = phi_value :: phi.flow_values })
+          | _ -> raise_s [%message "called with more args then the block has"]
+        in
+        Map.set phi_map ~key:block_call.label ~data:phis)
+      graph.blocks
+  in
+  phis_of_block
+;;
+
+type value_id = Value.t Union_find.t
+
+let simplify_phis (phis : Value.t Phi.t list) : Value.t Phi.t list =
+  let phis_with_id : value_id Phi.t list =
+    (List.map & Phi.map) ~f:(fun value -> Union_find.create value) phis
+  in
+  let zonk_phi_final = Phi.map ~f:Union_find.get in
+  let zonk_phi =
+    Phi.map ~f:(fun id : ValueWithId.t -> { value = Union_find.get id; id })
+  in
+  let is_removable (phi : ValueWithId.t Phi.t) =
+    let other_values =
+      List.filter phi.flow_values ~f:(fun phi_value ->
+        not @@ [%equal: ValueWithId.t] phi.dest phi_value.value)
+    in
+    List.all_equal other_values ~equal:(fun x y -> [%equal: ValueWithId.t PhiValue.t] x y)
+  in
+  let rec try_remove (phis : Value.t Union_find.t Phi.t list) =
+    match phis with
+    | [] -> false, []
+    | phi :: phis ->
+      (match is_removable (zonk_phi phi) with
+       | None ->
+         let changed, phis = try_remove phis in
+         changed, phi :: phis
+       | Some replacement ->
+         assert (not ([%equal: Value.t] (Union_find.get phi.dest) replacement.value.value));
+         Union_find.union phi.dest replacement.value.id;
+         Union_find.set phi.dest replacement.value.value;
+         (* the phi variable is not consed back on here, we removed it *)
+         true, phis)
+  in
+  let rec fixpoint phis =
+    match try_remove phis with
+    | false, phis -> phis
+    | true, phis -> fixpoint phis
+  in
+  (* probably need to create a substitution at the end eventually *)
+  let simplified_phis = fixpoint phis_with_id |> List.map ~f:zonk_phi_final in
+  simplified_phis
 ;;

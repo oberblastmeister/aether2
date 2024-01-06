@@ -45,6 +45,8 @@ let reduce : ('b, 'a) t -> ('c, 'b) Reduce.t -> 'a -> 'c =
   fun (T { f = fold }) (Reduce.T (f, init, extract)) a -> fold ~f ~init a |> extract
 ;;
 
+let fold fold ~init ~f x = reduce fold (Reduce.T (f, init, Fn.id)) x
+
 let iter : ('b, 'a) t -> 'a -> f:('b -> unit) -> unit =
   fun (T { f = fold }) x ~f -> fold x ~f:(fun () b -> f b) ~init:()
 ;;
