@@ -80,15 +80,24 @@ let%expect_test "dominators" =
      (((name (Name start))) (((name (Name start)))))) |}]
 ;;
 
-let%expect_test "dom tree" =
+let%expect_test "idoms" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
-  let dom_tree = Lir.Dominators.run fn.body |> Cfg.Dominators.compute_tree in
-  print_s [%sexp (dom_tree : Cfg.DominatorFact.t Lir.Label.Map.t)];
-  [%expect
-    {|
-    ((((name (Name loop))) (((name (Name body))) ((name (Name done)))))
-     (((name (Name start)))
-      (((name (Name body))) ((name (Name done))) ((name (Name loop)))))) |}]
+  let dominators = Lir.Dominators.run fn.body in
+  let idoms = dominators |> Cfg.Dominators.compute_idoms_from_facts fn.body.entry in
+  let idom_tree =
+    dominators |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
+  in
+  print_s [%sexp "idoms", (idoms : Lir.Label.t Lir.Label.Map.t)];
+  print_s [%sexp "idom_tree", (idom_tree : Cfg.DominatorFact.t Lir.Label.Map.t)];
+  [%expect {|
+    (idoms
+     ((((name (Name body))) ((name (Name loop))))
+      (((name (Name done))) ((name (Name loop))))
+      (((name (Name loop))) ((name (Name start))))
+      (((name (Name start))) ((name (Name start))))))
+    (idom_tree
+     ((((name (Name loop))) (((name (Name body))) ((name (Name done)))))
+      (((name (Name start))) (((name (Name loop))))))) |}]
 ;;
 
 let%expect_test "naive ssa" =

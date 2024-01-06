@@ -28,6 +28,16 @@ let sum = T (( + ), 0, Fn.id)
 let count = T ((fun z _ -> z + 1), 0, Fn.id)
 let to_list = T ((fun z x -> x :: z), [], List.rev)
 
+let to_map_combine empty ~combine =
+  T
+    ( (fun z (key, data) ->
+        Map.update z key ~f:(function
+          | None -> data
+          | Some data' -> combine data' data))
+    , empty
+    , Fn.id )
+;;
+
 let to_map_with_combine empty ~f ~combine =
   T
     ( (fun z x ->

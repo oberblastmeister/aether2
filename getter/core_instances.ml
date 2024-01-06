@@ -8,6 +8,10 @@ module Array = struct
   let fold = Fold.T { f = Array.fold }
 end
 
+module Set = struct
+  let fold = Fold.T { f = Set.fold }
+end
+
 module Map = struct
   let fold =
     Fold.T

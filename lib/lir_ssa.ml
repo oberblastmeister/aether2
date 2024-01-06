@@ -65,12 +65,15 @@ let validate_ssa_function (fn : Function.t) =
   let open Or_error.Let_syntax in
   Graph.validate fn.body;
   let%bind () = check_all_temps_unique fn in
-  let dom_tree = Dominators.run fn.body |> Cfg.Dominators.compute_tree in
+  let dom_tree =
+    Dominators.run fn.body |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
+  in
   let errors : Error.t Stack.t = Stack.create () in
   let defined_in_dominators =
     List.fold fn.params ~init:Value.Set.empty ~f:(fun z param -> Set.add z param)
   in
   (* traverse the dominator tree *)
+  (* it will terminated because it is a tree not a graph *)
   let rec go label defined_in_dominators =
     let block = Map.find_exn fn.body.blocks label in
     let defined_in_dominators =
@@ -97,7 +100,6 @@ let validate_ssa_function (fn : Function.t) =
           in
           defined_in_dominators)
     in
-    (* dom tree may not have key when the only child is itself *)
     let children =
       Map.find dom_tree label |> Option.value ~default:Label.Set.empty |> Set.to_list
     in
@@ -228,7 +230,7 @@ let get_phis (graph : Graph.t) =
 
 type value_id = Value.t Union_find.t
 
-let simplify_phis (phis : Value.t Phi.t list) : Value.t Phi.t list =
+let simplify_phis (phis : Value.t Phi.t list) =
   let phis_with_id : value_id Phi.t list =
     (List.map & Phi.map) ~f:(fun value -> Union_find.create value) phis
   in
@@ -243,27 +245,30 @@ let simplify_phis (phis : Value.t Phi.t list) : Value.t Phi.t list =
     in
     List.all_equal other_values ~equal:(fun x y -> [%equal: ValueWithId.t PhiValue.t] x y)
   in
-  let rec try_remove (phis : Value.t Union_find.t Phi.t list) =
+  let subst = Value.Hashtbl.create () in
+  let rec try_remove (phis : value_id Phi.t list) =
     match phis with
-    | [] -> false, []
+    | [] -> `Didn'tRemove, []
     | phi :: phis ->
-      (match is_removable (zonk_phi phi) with
+      let zonked_phi = zonk_phi phi in
+      (match is_removable zonked_phi with
        | None ->
-         let changed, phis = try_remove phis in
-         changed, phi :: phis
+         let removed, phis = try_remove phis in
+         removed, phi :: phis
        | Some replacement ->
-         assert (not ([%equal: Value.t] (Union_find.get phi.dest) replacement.value.value));
          Union_find.union phi.dest replacement.value.id;
          Union_find.set phi.dest replacement.value.value;
+         Hashtbl.set ~key:zonked_phi.dest.value ~data:replacement.value.id subst;
          (* the phi variable is not consed back on here, we removed it *)
-         true, phis)
+         `Removed, phis)
   in
   let rec fixpoint phis =
     match try_remove phis with
-    | false, phis -> phis
-    | true, phis -> fixpoint phis
+    | `Didn'tRemove, phis -> phis
+    | `Removed, phis -> fixpoint phis
   in
   (* probably need to create a substitution at the end eventually *)
   let simplified_phis = fixpoint phis_with_id |> List.map ~f:zonk_phi_final in
-  simplified_phis
+  let zonked_subst = Hashtbl.map subst ~f:Union_find.get in
+  zonked_subst, simplified_phis
 ;;
