@@ -22,7 +22,9 @@ module type InstrLike = sig
 end
 
 module Direction = struct
-  type t = Forward | Backward
+  type t =
+    | Forward
+    | Backward
 end
 
 module type InstrTransfer = sig
@@ -40,15 +42,20 @@ module type BlockTransfer = sig
   type block
   type domain [@@deriving sexp_of]
 
-  val transfer :
-    Label.t ->
-    block ->
-    other_facts:domain list ->
-    current_fact:domain ->
-    domain Option.t
+  val transfer
+    :  Label.t
+    -> block
+    -> other_facts:domain list
+    -> current_fact:domain
+    -> domain Option.t
 
   val empty : domain
   val direction : Direction.t
+end
+
+module type ConvertedInstrTransfer = sig
+  include BlockTransfer
+  module InstrTransfer : InstrTransfer
 end
 
 module type BlockRewriteTransfer = sig
@@ -59,22 +66,27 @@ end
 module InstrToBlockTransfer
     (Block : BlockLike)
     (Transfer : InstrTransfer with type instr = Block.instr) :
-  BlockTransfer with type block = Block.t and type domain = Transfer.domain =
-struct
+  ConvertedInstrTransfer
+  with type block = Block.t
+   and type domain = Transfer.domain
+   and module InstrTransfer = Transfer = struct
   type block = Block.t
   type domain = Transfer.domain [@@deriving sexp_of]
+
+  module InstrTransfer = Transfer
 
   let transfer _label block ~other_facts ~current_fact =
     (* print_s [%message "on label" ~label:(label : Label.t)]; *)
     let new_fact =
       (match Transfer.direction with
-      | Direction.Forward -> Block.fold_instrs_forward
-      | Direction.Backward -> Block.fold_instrs_backward)
+       | Direction.Forward -> Block.fold_instrs_forward
+       | Direction.Backward -> Block.fold_instrs_backward)
         ~init:(Transfer.combine other_facts)
         ~f:(Fn.flip Transfer.transfer)
         block
     in
-    if Transfer.changed ~current_fact ~new_fact then
+    if Transfer.changed ~current_fact ~new_fact
+    then
       (* print_s
          [%message
            "changed"
@@ -83,6 +95,7 @@ struct
       Some new_fact
     else (* print_s [%message "didn't change"]; *)
       None
+  ;;
 
   let empty = Transfer.empty
   let direction = Transfer.direction
@@ -95,74 +108,69 @@ module Dataflow = struct
 end
 
 module MakeDataflowForBlock (Block : BlockLike) = struct
-  (* module Graph = Cfg_graph.MakeGraph (Block) *)
   module Graph = struct
     type t = Block.t Cfg_graph.Graph.t
+
+    include Cfg_graph.Graph.Stuff
   end
 
   module MakeRun (Transfer : BlockTransfer with type block = Block.t) = struct
     let run (graph : Graph.t) : Transfer.domain Label.Map.t =
-      let initial_facts =
-        Label.Map.map ~f:(fun _ -> Transfer.empty) graph.blocks
-      in
-      let transpose =
-        graph.blocks |> Map.to_alist
-        |> List.bind ~f:(fun (jumped_from, block) ->
-               Block.jumps block
-               |> List.map ~f:(fun jumped_to -> (jumped_to, jumped_from)))
-        |> Label.Map.of_alist_multi
-      in
+      let initial_facts = Label.Map.map ~f:(fun _ -> Transfer.empty) graph.blocks in
+      let predecessors_of_label = Graph.predecessors_of_label ~jumps:Block.jumps graph in
       let queue = LabelQueue.create () in
       let _ =
-        LabelQueue.enqueue_exn queue `back
+        LabelQueue.enqueue_exn
+          queue
+          `back
           (match Transfer.direction with
-          | Forward -> graph.entry
-          | Backward -> graph.exit)
+           | Forward -> graph.entry
+           | Backward -> graph.exit)
           ()
       in
       let rec go fact_base =
         match LabelQueue.dequeue_with_key queue `front with
         | None -> fact_base
-        | Some (label, ()) -> (
-            let current_block = Map.find_exn graph.blocks label in
-            let current_fact = Map.find_exn fact_base label in
-            let other_labels =
-              match Transfer.direction with
-              | Forward ->
-                  (* Option.value with default because the start has no predecessors *)
-                  Map.find transpose label |> Option.value ~default:[]
-              | Backward -> Block.jumps (Map.find_exn graph.blocks label)
-            in
-            let other_facts =
-              (* safe because we should have initialized empty fact for all labels *)
-              List.map ~f:(Map.find_exn fact_base) other_labels
-            in
-            let maybe_new_facts =
-              Transfer.transfer label current_block ~other_facts ~current_fact
-            in
-            match maybe_new_facts with
-            | Some new_fact ->
-                (* the fact changed, so we need to add all labels that depend on the current label *)
-                let labels_todo =
-                  match Transfer.direction with
-                  | Forward -> Block.jumps current_block
-                  | Backward ->
-                      Map.find transpose label |> Option.value ~default:[]
-                in
-                List.iter labels_todo ~f:(fun label ->
-                    ignore (LabelQueue.enqueue queue `back label ()));
-                let fact_base = Map.set fact_base ~key:label ~data:new_fact in
-                go fact_base
-            | None -> go fact_base)
+        | Some (label, ()) ->
+          let current_block = Map.find_exn graph.blocks label in
+          let current_fact = Map.find_exn fact_base label in
+          let other_labels =
+            match Transfer.direction with
+            | Forward ->
+              (* Option.value with default because the start has no predecessors *)
+              Map.find predecessors_of_label label |> Option.value ~default:[]
+            | Backward -> Block.jumps (Map.find_exn graph.blocks label)
+          in
+          let other_facts =
+            (* safe because we should have initialized empty fact for all labels *)
+            List.map ~f:(Map.find_exn fact_base) other_labels
+          in
+          let maybe_new_facts =
+            Transfer.transfer label current_block ~other_facts ~current_fact
+          in
+          (match maybe_new_facts with
+           | Some new_fact ->
+             (* the fact changed, so we need to add all labels that depend on the current label *)
+             let labels_todo =
+               match Transfer.direction with
+               | Forward -> Block.jumps current_block
+               | Backward ->
+                 Map.find predecessors_of_label label |> Option.value ~default:[]
+             in
+             List.iter labels_todo ~f:(fun label ->
+               ignore (LabelQueue.enqueue queue `back label ()));
+             let fact_base = Map.set fact_base ~key:label ~data:new_fact in
+             go fact_base
+           | None -> go fact_base)
       in
       go initial_facts
+    ;;
   end
 end
 
 module MakeLivenessInstrTransfer (Instr : InstrLike) :
-  InstrTransfer
-    with type instr = Instr.t
-    with type domain = Set.Make(Instr.Value).t = struct
+  InstrTransfer with type instr = Instr.t with type domain = Set.Make(Instr.Value).t =
+struct
   module DomainSet = Set.Make (Instr.Value)
 
   type instr = Instr.t [@@deriving sexp_of]
@@ -181,20 +189,20 @@ module MakeLivenessInstrTransfer (Instr : InstrLike) :
            ~prev_facts:(prev_facts : domain)
            ~new_facts:(new_facts : domain)]; *)
     new_facts
+  ;;
 
   let direction = Direction.Backward
   let empty = DomainSet.empty
-
-  let changed ~current_fact ~new_fact =
-    Set.length new_fact > Set.length current_fact
-
+  let changed ~current_fact ~new_fact = Set.length new_fact > Set.length current_fact
   let combine = List.fold_left ~init:DomainSet.empty ~f:Set.union
 end
 
+module DominatorFact = Label.Set
+
 module MakeDominatorsBlockTransfer (Block : BlockLike) :
-  BlockTransfer with type block = Block.t = struct
+  BlockTransfer with type block = Block.t and type domain = DominatorFact.t = struct
   type block = Block.t
-  type domain = Label.Set.t [@@deriving sexp_of]
+  type domain = DominatorFact.t [@@deriving sexp_of]
 
   (* normally you use the set of all labels, but we use the empty set to make the sets smaller *)
   (* this means that we have to make sure that we aren't doing the intersection of some set with the empty set *)
@@ -212,10 +220,27 @@ module MakeDominatorsBlockTransfer (Block : BlockLike) :
       |> Fn.flip Set.add label
     in
     Option.some_if (Set.length new_fact > Set.length current_fact) new_fact
+  ;;
 end
 
-module Make (Instr : InstrLike) (Block : BlockLike with type instr = Instr.t) =
-struct
+module Dominators = struct
+  (* same as graph transpose *)
+  (* because the dataflow analysis gives a mapping from label to all other labels that dominate that label *)
+  let compute_tree (d : DominatorFact.t Label.Map.t) =
+    Map.fold d ~init:Label.Map.empty ~f:(fun ~key:label ~data:dominated_by z ->
+      Set.fold dominated_by ~init:z ~f:(fun z dominated_by ->
+        (* don't add the current label as a child of itself in the domtree *)
+        (* even though the current child is a valid dominator of itself *)
+        if [%equal: Label.t] label dominated_by
+        then z
+        else
+          Map.update z dominated_by ~f:(function
+            | None -> Label.Set.singleton label
+            | Some ds -> Set.add ds label)))
+  ;;
+end
+
+module Make (Instr : InstrLike) (Block : BlockLike with type instr = Instr.t) = struct
   include MakeDataflowForBlock (Block)
 
   module Dominators = struct

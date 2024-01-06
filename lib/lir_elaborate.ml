@@ -3,66 +3,70 @@ open Lir_instr
 
 exception Exn of Error.t
 
-let run f = try Ok (f ()) with Exn e -> Error e
+let run f =
+  try Ok (f ()) with
+  | Exn e -> Error e
+;;
+
 let elaborate_error e = raise (Exn e)
 
 let collect_types (fn : Name.t Function.t') =
   let add_instr z (Instr.Some.T i) =
     match i with
     | Instr.Assign (v, _) ->
-        Map.change z v.name ~f:(function
-          | None -> Some (List1.singleton v.ty)
-          | Some at -> Some List1.(v.ty |: at))
+      Map.update z v.name ~f:(function
+        | None -> List1.singleton v.ty
+        | Some at -> List1.(v.ty |: at))
     | _ -> z
   in
   let tys_of_name =
     G.Fold.reduce
-      (G.Core.Map.ifold @> G.Fold.ix Block.instrs_forward_fold)
+      (G.Core.Map.fold @> Block.instrs_forward_fold)
       (G.Reduce.T (add_instr, Name.Map.empty, Fn.id))
       fn.body.blocks
   in
   let tys_of_name_with_fn_params =
-    List.fold_left ~init:tys_of_name
+    List.fold_left
+      ~init:tys_of_name
       ~f:(fun m param ->
-        Map.change m param.name ~f:(function
-          | None -> Some (List1.singleton param.ty)
-          | Some at -> Some List1.(param.ty |: at)))
+        Map.update m param.name ~f:(function
+          | None -> List1.singleton param.ty
+          | Some at -> List1.(param.ty |: at)))
       fn.params
   in
   let find_representative_ty name tys =
-    if List1.all_equal [%equal: Ty.t] tys then List1.hd tys
+    if List1.all_equal [%equal: Ty.t] tys
+    then List1.hd tys
     else
       elaborate_error
         (Error.t_of_sexp
            [%message
-             "types weren't all equal"
-               ~name:(name : Name.t)
-               ~tys:(tys : Ty.t List1.t)])
+             "types weren't all equal" ~name:(name : Name.t) ~tys:(tys : Ty.t List1.t)])
   in
   Map.mapi tys_of_name_with_fn_params ~f:(fun ~key ~data ->
-      find_representative_ty key data)
+    find_representative_ty key data)
+;;
 
 let elaborate_instr label ty_of_name instr =
   Instr.map_t'
     ~f:(fun name : Value.t ->
-      {
-        name;
-        ty =
+      { name
+      ; ty =
           Map.find ty_of_name name
           |> Option.value_or_thunk ~default:(fun () ->
-                 elaborate_error
-                   (Error.t_of_sexp
-                      [%message
-                        "name not defined"
-                          ~name:(name : Name.t)
-                          ~block_label:(label : Label.t)]));
+            elaborate_error
+              (Error.t_of_sexp
+                 [%message
+                   "name not defined" ~name:(name : Name.t) ~block_label:(label : Label.t)]))
       })
     instr
+;;
 
 let elaborate_block label ty_of_name block =
   Block.map_instrs_forwards
     { f = (fun instr -> elaborate_instr label ty_of_name instr) }
     block
+;;
 
 let elaborate_function (fn : Name.t Function.t') : Function.t =
   let ty_of_name = collect_types fn in
@@ -72,19 +76,20 @@ let elaborate_function (fn : Name.t Function.t') : Function.t =
     & (fun (x : _ Graph.t') ~f -> { x with blocks = f x.blocks })
     & G.Core.Map.mapi
   in
-  let res =
-    map fn ~f:(fun (label, block) -> elaborate_block label ty_of_name block)
-  in
+  let res = map fn ~f:(fun (label, block) -> elaborate_block label ty_of_name block) in
   res
+;;
 
 let elaborate_single fn = run (fun () -> elaborate_function fn)
 
 let elaborate_program (program : Name.t Program.t') =
   let new_functions = List.map ~f:elaborate_function program.functions in
   { program with functions = new_functions }
+;;
 
 let elaborate (program : Name.t Program.t') : Program.t Or_error.t =
   run (fun () -> elaborate_program program)
+;;
 
 let%expect_test _ =
   let s =
@@ -125,3 +130,4 @@ u64
     (define (another) u64
       (label (start)
         (ret))) |}]
+;;

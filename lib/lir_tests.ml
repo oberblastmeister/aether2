@@ -24,14 +24,19 @@ let loop_lir =
     )
   )
 |}
-   |> Lir.parse |> Or_error.ok_exn)
+     |> Lir.parse
+     |> Or_error.ok_exn)
+;;
 
 let%expect_test "uses" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let p =
     Lir.(
-      G.Fold.of_fn Function.body @> G.Fold.of_fn Graph.blocks @> G.Core.Map.fold
-      @> Block.instrs_forward_fold @> Instr.uses_fold)
+      G.Fold.of_fn Function.body
+      @> G.Fold.of_fn Graph.blocks
+      @> G.Core.Map.fold
+      @> Block.instrs_forward_fold
+      @> Instr.uses_fold)
   in
   let uses = G.Fold.reduce p G.Reduce.to_list_rev fn in
   print_s [%sexp (uses : Lir.Value.t list)];
@@ -41,6 +46,7 @@ let%expect_test "uses" =
      ((name (Name e)) (ty U64)) ((name (Name r)) (ty U64))
      ((name (Name one)) (ty U64)) ((name (Name e)) (ty U64))
      ((name (Name b)) (ty U64)) ((name (Name r)) (ty U64))) |}]
+;;
 
 let%expect_test "liveness" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
@@ -58,6 +64,7 @@ let%expect_test "liveness" =
        ((name (Name r)) (ty U64))))
      (((name (Name start)))
       (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))))) |}]
+;;
 
 let%expect_test "dominators" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
@@ -71,12 +78,25 @@ let%expect_test "dominators" =
       (((name (Name done))) ((name (Name loop))) ((name (Name start)))))
      (((name (Name loop))) (((name (Name loop))) ((name (Name start)))))
      (((name (Name start))) (((name (Name start)))))) |}]
+;;
+
+let%expect_test "dom tree" =
+  let fn = List.hd_exn (Lazy.force loop_lir).functions in
+  let dom_tree = Lir.Dominators.run fn.body |> Cfg.Dominators.compute_tree in
+  print_s [%sexp (dom_tree : Cfg.DominatorFact.t Lir.Label.Map.t)];
+  [%expect
+    {|
+    ((((name (Name loop))) (((name (Name body))) ((name (Name done)))))
+     (((name (Name start)))
+      (((name (Name body))) ((name (Name done))) ((name (Name loop)))))) |}]
+;;
 
 let%expect_test "naive ssa" =
   let program = Lazy.force loop_lir in
   let res =
     (Field.map Lir.Program.Fields.functions & List.map)
-      ~f:Lir.Ssa.convert_naive_ssa program
+      ~f:Lir.Ssa.convert_naive_ssa
+      program
   in
   print_endline @@ Lir.pretty res;
   [%expect
@@ -96,3 +116,4 @@ let%expect_test "naive ssa" =
         (cond_jump f.0 (done r.3) (body b.2 e.3 r.3)))
       (label (done (r.4 u64))
         (ret r.4))) |}]
+;;

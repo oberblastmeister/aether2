@@ -8,3 +8,4 @@ let parse s =
   let%bind fns = Lir_parse.parse s in
   let%bind fns = Lir_elaborate.elaborate fns in
   return fns
+;;

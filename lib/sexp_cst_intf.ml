@@ -2,19 +2,33 @@ open O
 
 module T = struct
   type t =
-    | Atom of { span : Span.t; value : string }
-    | List of { span : Span.t; items : t list }
+    | Atom of
+        { span : Span.t
+        ; value : string
+        }
+    | List of
+        { span : Span.t
+        ; items : t list
+        }
   [@@deriving equal, compare, sexp]
 end
 
 include T
 
 module Token = struct
-  type t = LParen | RParen | Atom of string [@@deriving sexp]
+  type t =
+    | LParen
+    | RParen
+    | Atom of string
+  [@@deriving sexp]
 end
 
 module SpannedToken = struct
-  type t = { token : Token.t; span : Span.t } [@@deriving sexp]
+  type t =
+    { token : Token.t
+    ; span : Span.t
+    }
+  [@@deriving sexp]
 end
 
 module type Sexp_cst = sig

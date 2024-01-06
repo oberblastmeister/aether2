@@ -1,9 +1,15 @@
 open O
 
-type ann = Line | IndentLine [@@deriving equal, compare, sexp]
+type ann =
+  | Line
+  | IndentLine
+[@@deriving equal, compare, sexp]
 
 module T = struct
-  type t = List of t list | Atom of string | Ann of ann
+  type t =
+    | List of t list
+    | Atom of string
+    | Ann of ann
   [@@deriving equal, compare, sexp, variants]
 end
 

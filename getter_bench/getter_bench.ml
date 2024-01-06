@@ -16,6 +16,7 @@ module These = struct
     | That x -> [ x ]
     | These (x, y) -> [ x; y ]
     | Those (a, b, c, d) -> [ a; b; c; d ]
+  ;;
 
   let fold t ~init ~f =
     match t with
@@ -23,16 +24,26 @@ module These = struct
     | That x -> f init x
     | These (x, y) -> f (f init x) y
     | Those (a, b, c, d) -> f (f (f (f init a) b) c) d
+  ;;
 
   let folder = G.Fold.T { f = fold }
 end
 
 module MyRecord = struct
-  type t = { first : int; second : int; third : int } [@@deriving fields]
+  type t =
+    { first : int
+    ; second : int
+    ; third : int
+    }
+  [@@deriving fields]
 end
 
 module MyRecordA = struct
-  type t = { first : int; second : int; third : int }
+  type t =
+    { first : int
+    ; second : int
+    ; third : int
+    }
 end
 
 let insert_list xs create set find =
@@ -40,6 +51,7 @@ let insert_list xs create set find =
   let t = create () in
   List.iter xs ~f:(fun x -> set t ~key:q ~data:x);
   ()
+;;
 
 let main () =
   Random.self_init ();
@@ -69,52 +81,48 @@ let main () =
     |> Sequence.to_list
   in
   let ls =
-    Sequence.repeat [ (1, 2); (3, 4); (5, 6) ]
+    Sequence.repeat [ 1, 2; 3, 4; 5, 6 ]
     |> Fn.flip Sequence.take 10000
     |> Sequence.to_list
   in
   Bench.make_command
-    [
-      Bench.Test.create ~name:"folder to list" (fun () ->
-          let res =
-            G.Fold.reduce (G.Core.List.fold @> These.folder) G.Reduce.to_list xs
-          in
-          ());
-      Bench.Test.create ~name:"normal to list" (fun () ->
-          let res = List.concat_map ~f:These.to_list xs in
-          ());
-      Bench.Test.create ~name:"double map combinators" (fun () ->
-          let res = (List.map & List.map & Tuple2.map) ~f:(fun x -> x + 1) ls in
-          ());
-      Bench.Test.create ~name:"fold sum" (fun () ->
-          let res =
-            List.fold
-              ~f:(fun z x -> These.fold ~f:(fun z x -> x + z) ~init:z x)
-              xs ~init:0
-          in
-          ());
-      Bench.Test.create ~name:"fold sum with fields" (fun () ->
-          let res =
-            G.Fold.reduce
-              (G.Core.List.fold @> These.folder @> G.Fold.of_fn MyRecord.first)
-              G.Reduce.sum rs
-          in
-          ());
-      Bench.Test.create ~name:"combinator fold sum" (fun () ->
-          let res =
-            G.Fold.reduce (G.Core.List.fold @> These.folder) G.Reduce.sum xs
-          in
-          ());
-      Bench.Test.create ~name:"fold mut sum" (fun () ->
-          let i = ref 0 in
-          let res =
-            List.fold
-              ~f:(fun z x -> These.fold ~f:(fun _ x -> i := !i + 1) ~init:z x)
-              xs ~init:()
-          in
-          let res = !i in
-          ());
+    [ Bench.Test.create ~name:"folder to list" (fun () ->
+        let res = G.Fold.reduce (G.Core.List.fold @> These.folder) G.Reduce.to_list xs in
+        ())
+    ; Bench.Test.create ~name:"normal to list" (fun () ->
+        let res = List.concat_map ~f:These.to_list xs in
+        ())
+    ; Bench.Test.create ~name:"double map combinators" (fun () ->
+        let res = (List.map & List.map & Tuple2.map) ~f:(fun x -> x + 1) ls in
+        ())
+    ; Bench.Test.create ~name:"fold sum" (fun () ->
+        let res =
+          List.fold ~f:(fun z x -> These.fold ~f:(fun z x -> x + z) ~init:z x) xs ~init:0
+        in
+        ())
+    ; Bench.Test.create ~name:"fold sum with fields" (fun () ->
+        let res =
+          G.Fold.reduce
+            (G.Core.List.fold @> These.folder @> G.Fold.of_fn MyRecord.first)
+            G.Reduce.sum
+            rs
+        in
+        ())
+    ; Bench.Test.create ~name:"combinator fold sum" (fun () ->
+        let res = G.Fold.reduce (G.Core.List.fold @> These.folder) G.Reduce.sum xs in
+        ())
+    ; Bench.Test.create ~name:"fold mut sum" (fun () ->
+        let i = ref 0 in
+        let res =
+          List.fold
+            ~f:(fun z x -> These.fold ~f:(fun _ x -> i := !i + 1) ~init:z x)
+            xs
+            ~init:()
+        in
+        let res = !i in
+        ())
     ]
   |> Command_unix.run
+;;
 
 let () = main ()

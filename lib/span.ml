@@ -1,6 +1,9 @@
 open O
 
-type t = { start : int; stop : int }
+type t =
+  { start : int
+  ; stop : int
+  }
 [@@deriving sexp, equal, compare, hash, fields]
 
 let empty = { start = 0; stop = 0 }
