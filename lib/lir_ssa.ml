@@ -66,7 +66,7 @@ let validate_ssa_function (fn : Function.t) =
   Graph.validate fn.body;
   let%bind () = check_all_temps_unique fn in
   let dom_tree =
-    Dominators.run fn.body |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
+    DataflowDominators.run fn.body |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
   in
   let errors : Error.t Stack.t = Stack.create () in
   let defined_in_dominators =

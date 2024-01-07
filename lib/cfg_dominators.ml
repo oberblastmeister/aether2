@@ -1,6 +1,5 @@
 open O
 open Instr_types
-
 module DominatorFact = Cfg_dataflow.DominatorFact
 
 (* the idom for start always points to start *)

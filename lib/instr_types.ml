@@ -23,7 +23,7 @@ module Name = struct
 
   include T
   module Hashtbl = Hashtbl.Make (T)
-  module Map = Map.Make (T)
+  include Comparable.Make (T)
 
   let of_string s = Name s
 
@@ -41,8 +41,7 @@ module Label = struct
   include T
   module Hashtbl = Hashtbl.Make (T)
   module Hash_set = Hash_set.Make (T)
-  module Map = Map.Make (T)
-  module Set = Set.Make (T)
+  include Comparable.Make (T)
 
   let of_string s = { name = Name.of_string s }
 end

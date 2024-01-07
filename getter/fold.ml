@@ -24,7 +24,7 @@ let map : ('b -> 'c) -> ('b, 'a) t -> ('c, 'a) t =
 
 let rmap = map
 
-let premap : ('a -> 'b) -> ('c, 'b) t -> ('c, 'a) t =
+let premap : 'a 'b 'c. ('a -> 'b) -> ('c, 'b) t -> ('c, 'a) t =
   fun f (T { f = fold }) ->
   T { f = (fun a ~init ~f:step -> fold (f a) ~init ~f:(fun z b -> step z b)) }
 ;;

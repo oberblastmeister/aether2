@@ -68,8 +68,8 @@ let%expect_test "liveness" =
 
 let%expect_test "dominators" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
-  let res = Lir.Dominators.run fn.body in
-  print_s [%sexp (res : Lir.Dominators.BlockTransfer.domain Lir.Label.Map.t)];
+  let res = Lir.DataflowDominators.run fn.body in
+  print_s [%sexp (res : Lir.DataflowDominators.BlockTransfer.domain Lir.Label.Map.t)];
   [%expect
     {|
     ((((name (Name body)))
@@ -82,7 +82,7 @@ let%expect_test "dominators" =
 
 let%expect_test "idoms" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
-  let dominators = Lir.Dominators.run fn.body in
+  let dominators = Lir.DataflowDominators.run fn.body in
   let idoms = dominators |> Cfg.Dominators.compute_idoms_from_facts fn.body.entry in
   let idom_tree =
     dominators |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
@@ -99,6 +99,17 @@ let%expect_test "idoms" =
      ((((name (Name loop))) (((name (Name body))) ((name (Name done)))))
       (((name (Name start))) (((name (Name loop))))))) |}]
 ;;
+
+let%expect_test "idoms fast" =
+  let fn = List.hd_exn (Lazy.force loop_lir).functions in
+  let idoms = Lir.Dominators.get_idoms fn.body in
+  print_s [%sexp (idoms : Lir.Label.t Lir.Label.Hashtbl.t)];
+  ();
+  [%expect {|
+    ((((name (Name body))) ((name (Name loop))))
+     (((name (Name done))) ((name (Name loop))))
+     (((name (Name loop))) ((name (Name start))))
+     (((name (Name start))) ((name (Name start))))) |}]
 
 let%expect_test "naive ssa" =
   let program = Lazy.force loop_lir in

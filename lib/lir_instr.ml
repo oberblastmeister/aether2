@@ -322,14 +322,14 @@ module Block = struct
 
   let instrs_forward_fold = G.Fold.T { f = fold_instrs_forward }
 
-  let jumps (b : t) =
-    G.Fold.reduce
-      (G.Fold.of_fn Instr.get_control
-       @> InstrControl.jumps_fold
-       @> G.Fold.of_fn BlockCall.label)
-      G.Reduce.to_list_rev
-      b.exit
+  let jumps_fold =
+    G.Fold.of_fn (fun (b : t) -> b.exit)
+    @> G.Fold.of_fn Instr.get_control
+    @> InstrControl.jumps_fold
+    @> G.Fold.of_fn BlockCall.label
   ;;
+
+  let jumps (b : t) = G.Fold.reduce jumps_fold G.Reduce.to_list_rev b
 end
 
 let%expect_test _ =
@@ -365,6 +365,15 @@ module Graph = struct
       raise_s
         [%message "the entry label should have no predecessors" ~got:(ls : Label.t list)]
   ;;
+
+  module DataGraph = struct
+    include MakeDataGraph (struct
+        type t = Block.t [@@deriving sexp_of]
+
+        let jumps_fold = Block.jumps_fold
+        let jumps = Block.jumps
+      end)
+  end
 end
 
 module Function = struct
@@ -415,10 +424,12 @@ module Liveness = struct
   include Dataflow.MakeRun (BlockTransfer)
 end
 
-module Dominators = struct
+module DataflowDominators = struct
   module BlockTransfer = Cfg.MakeDominatorsBlockTransfer (DataflowBlock)
   include Dataflow.MakeRun (BlockTransfer)
 end
+
+module Dominators = Dominators.MakeDominators (Graph.DataGraph)
 
 let%expect_test _ =
   let v : Value.t = { name = Name.of_string "x"; ty = Ty.U64 } in

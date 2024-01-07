@@ -237,13 +237,9 @@ module Dominators = struct
     (* d is label l -> labels l' s.t. l' > l *)
     (* inverted_facts is label l -> labels l' s.t. l > l' *)
     let inverted_facts =
-      G.Fold.reduce
-        G.Fold.(
-          G.Core.Map.ifold
-          @> ix G.Core.Set.fold
-          @> of_fn (fun (x, y) -> y, x)
-          @> ix (of_fn Label.Set.singleton))
-        (G.Reduce.to_map_combine Label.Map.empty ~combine:Set.union)
+      Data_graph.predecessors_of_map_graph
+        ~empty:Label.Map.empty
+        ~singleton:Label.Set.singleton
         d
     in
     (* print_s
