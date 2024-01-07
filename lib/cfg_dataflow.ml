@@ -300,12 +300,3 @@ module Dominators = struct
     idom_tree
   ;;
 end
-
-module Make (Instr : InstrLike) (Block : BlockLike with type instr = Instr.t) = struct
-  include MakeDataflowForBlock (Block)
-
-  module Dominators = struct
-    module BlockTransfer = MakeDominatorsBlockTransfer (Block)
-    include MakeRun (BlockTransfer)
-  end
-end
