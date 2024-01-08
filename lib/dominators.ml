@@ -20,6 +20,7 @@ module MakeDominators (Graph : Data_graph.SingleEntryGraph) = struct
     let rec add_until node node_idom runner =
       if not @@ [%equal: Node.t] runner node_idom
       then (
+        (* add node to runner's frontier set because runner doesn't dominate node *)
         Hashtbl.update frontier_of_node runner ~f:(function
           | None -> Node_hash_set.create ()
           | Some fs ->

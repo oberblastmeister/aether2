@@ -1,5 +1,5 @@
 include Core
-include Getter.O
-module G = Getter
+include Folds.O
+module F = Folds
 
 let todo () = failwith "TODO"

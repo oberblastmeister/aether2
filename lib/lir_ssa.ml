@@ -52,9 +52,9 @@ let check_all_temps_unique (fn : Function.t) =
   in
   List.iter fn.params ~f:(check_define None None);
   let fold =
-    G.Fold.(G.Core.Map.ifold @> ix (dup Block.instrs_forward_fold) @> ix2 Instr.defs_fold)
+    F.Fold.(F.Core.Map.foldi @> ix (dup Block.instrs_forward_fold) @> ix2 Instr.defs_fold)
   in
-  G.Fold.iter
+  F.Fold.iter
     fold
     ~f:(fun (label, (i, def)) -> check_define (Some label) (Some i) def)
     fn.body.blocks;
@@ -66,7 +66,8 @@ let validate_ssa_function (fn : Function.t) =
   Graph.validate fn.body;
   let%bind () = check_all_temps_unique fn in
   let dom_tree =
-    DataflowDominators.run fn.body |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
+    DataflowDominators.run fn.body
+    |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
   in
   let errors : Error.t Stack.t = Stack.create () in
   let defined_in_dominators =
@@ -194,19 +195,19 @@ let convert_naive_ssa (fn : Function.t) : Function.t =
 
 let get_phis (graph : Graph.t) =
   let initial_phis =
-    G.Core.Map.mapi graph.blocks ~f:(fun (label, block) ->
+    F.Core.Map.mapi graph.blocks ~f:(fun (label, block) ->
       block.entry
       |> Instr.get_block_args
       |> List.map ~f:(fun arg : _ Phi.t ->
         { dest_label = label; dest = arg; flow_values = [] }))
   in
   let fold =
-    G.Fold.(
-      G.Core.Map.ifold
+    F.Fold.(
+      F.Core.Map.foldi
       @> ix (of_fn Block.exit @> of_fn Instr.get_control @> InstrControl.block_calls_fold))
   in
   let phis_of_block =
-    G.Fold.fold
+    F.Fold.fold
       fold
       ~init:initial_phis
       ~f:(fun phi_map (label, (block_call : BlockCall.t)) ->
@@ -271,4 +272,12 @@ let simplify_phis (phis : Value.t Phi.t list) =
   let simplified_phis = fixpoint phis_with_id |> List.map ~f:zonk_phi_final in
   let zonked_subst = Hashtbl.map subst ~f:Union_find.get in
   zonked_subst, simplified_phis
+;;
+
+(* List.sort *)
+
+let put_phis (phis : Value.t Phi.t list) (graph : Graph.t) =
+  let fold = F.Fold.(F.Core.List.fold @> of_fn Phi.flow_values @> F.Core.List.fold) in
+  let flowed_values_of_label = () in
+  todo ()
 ;;

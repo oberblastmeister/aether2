@@ -92,28 +92,24 @@ module InstrControl = struct
 
   type t = Value.t t' [@@deriving sexp]
 
-  let jumps_fold =
-    G.Fold.T
-      { f =
-          (fun i ~init ~f ->
-            match i with
-            | Jump j -> f init j
-            | CondJump (_, j1, j2) -> f (f init j1) j2
-            | Ret _ -> init)
-      }
+  let jumps_fold i k =
+    match i with
+    | Jump j -> k j
+    | CondJump (_, j1, j2) ->
+      k j1;
+      k j2
+    | Ret _ -> ()
   ;;
 
-  let jumps i = G.Fold.reduce jumps_fold G.Reduce.to_list_rev i
+  let jumps i = F.Fold.reduce jumps_fold F.Reduce.to_list_rev i
 
-  let block_calls_fold =
-    G.Fold.T
-      { f =
-          (fun i ~init ~f ->
-            match i with
-            | Jump j -> f init j
-            | CondJump (_, j1, j2) -> f (f init j1) j2
-            | Ret _ -> init)
-      }
+  let block_calls_fold i k =
+    match i with
+    | Jump j -> k j
+    | CondJump (_, j1, j2) ->
+      k j1;
+      k j2
+    | Ret _ -> ()
   ;;
 
   let map_block_calls i ~f =
@@ -247,7 +243,7 @@ module Instr = struct
   ;;
 
   let to_some i = Some.T i
-  let uses_fold = G.Fold.T { f = (fun (Some.T i) -> fold_t' i) }
+  let uses_fold (Some.T i) k = fold_t' i ~init:() ~f:(fun () u -> k u)
   let uses i = fold_t' ~init:[] ~f:(Fn.flip List.cons) i
   let map_uses = map_t'
 
@@ -259,18 +255,14 @@ module Instr = struct
     | Control c -> Control c
   ;;
 
-  let defs_fold =
-    G.Fold.T
-      { f =
-          (fun (Some.T i) ~init ~f ->
-            match i with
-            | Block_args vs -> List.fold ~init ~f vs
-            | Assign (v, _) -> f init v
-            | Control _ -> init)
-      }
+  let defs_fold (Some.T i) k =
+    match i with
+    | Block_args vs -> List.iter ~f:k vs
+    | Assign (v, _) -> k v
+    | Control _ -> ()
   ;;
 
-  let defs i = G.Fold.reduce defs_fold G.Reduce.to_list_rev (Some.T i)
+  let defs i = F.Fold.reduce defs_fold F.Reduce.to_list_rev (Some.T i)
   let jumps i = InstrControl.jumps @@ get_control i
 end
 
@@ -320,16 +312,18 @@ module Block = struct
     f init (Instr.to_some entry)
   ;;
 
-  let instrs_forward_fold = G.Fold.T { f = fold_instrs_forward }
-
-  let jumps_fold =
-    G.Fold.of_fn (fun (b : t) -> b.exit)
-    @> G.Fold.of_fn Instr.get_control
-    @> InstrControl.jumps_fold
-    @> G.Fold.of_fn BlockCall.label
+  let instrs_forward_fold block k =
+    fold_instrs_forward block ~init:() ~f:(fun () i -> k i)
   ;;
 
-  let jumps (b : t) = G.Fold.reduce jumps_fold G.Reduce.to_list_rev b
+  let jumps_fold =
+    F.Fold.of_fn (fun (b : t) -> b.exit)
+    @> F.Fold.of_fn Instr.get_control
+    @> InstrControl.jumps_fold
+    @> F.Fold.of_fn BlockCall.label
+  ;;
+
+  let jumps (b : t) = F.Fold.reduce jumps_fold F.Reduce.to_list_rev b
 end
 
 let%expect_test _ =

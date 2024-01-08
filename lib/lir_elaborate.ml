@@ -20,9 +20,9 @@ let collect_types (fn : Name.t Function.t') =
     | _ -> z
   in
   let tys_of_name =
-    G.Fold.reduce
-      (G.Core.Map.fold @> Block.instrs_forward_fold)
-      (G.Reduce.T (add_instr, Name.Map.empty, Fn.id))
+    F.Fold.reduce
+      (F.Core.Map.fold @> Block.instrs_forward_fold)
+      (F.Reduce.T (add_instr, Name.Map.empty, Fn.id))
       fn.body.blocks
   in
   let tys_of_name_with_fn_params =
@@ -74,7 +74,7 @@ let elaborate_function (fn : Name.t Function.t') : Function.t =
   let map =
     (fun (x : _ Function.t') ~f -> { x with body = f x.body })
     & (fun (x : _ Graph.t') ~f -> { x with blocks = f x.blocks })
-    & G.Core.Map.mapi
+    & F.Core.Map.mapi
   in
   let res = map fn ~f:(fun (label, block) -> elaborate_block label ty_of_name block) in
   res

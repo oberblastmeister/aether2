@@ -1,8 +1,8 @@
 open Core
 open Core
 open Core_bench
-open Getter.O
-module G = Getter
+open Folds.O
+module F = Folds
 
 module These = struct
   type ('a, 'b) t =
@@ -26,7 +26,7 @@ module These = struct
     | Those (a, b, c, d) -> f (f (f (f init a) b) c) d
   ;;
 
-  let folder = G.Fold.T { f = fold }
+  let folder t k = fold t ~init:() ~f:(fun () x -> k x)
 end
 
 module MyRecord = struct
@@ -81,16 +81,28 @@ let main () =
     |> Sequence.to_list
   in
   let ls =
-    Sequence.repeat [ 1, 2; 3, 4; 5, 6 ]
+    Sequence.repeat [ 1, 2; 3, 4; 5, 6; 7, 8; 9, 10; 11, 12 ]
     |> Fn.flip Sequence.take 10000
     |> Sequence.to_list
   in
   Bench.make_command
-    [ Bench.Test.create ~name:"folder to list" (fun () ->
-        let res = G.Fold.reduce (G.Core.List.fold @> These.folder) G.Reduce.to_list xs in
+    [ Bench.Test.create ~name:"fold to list" (fun () ->
+        let res =
+          F.Fold.reduce
+            (F.Core.List.fold @> F.Core.List.fold @> F.Fold.of_fn fst)
+            F.Reduce.to_list_rev
+            ls
+        in
         ())
     ; Bench.Test.create ~name:"normal to list" (fun () ->
-        let res = List.concat_map ~f:These.to_list xs in
+        let res = List.concat_map ~f:(fun l -> List.map l ~f:(fun (x, y) -> x)) ls in
+        ())
+    ; Bench.Test.create ~name:"sequence to list" (fun () ->
+        let res =
+          Sequence.of_list ls
+          |> Sequence.concat_map ~f:(fun l -> Sequence.of_list l |> Sequence.map ~f:fst)
+          |> Sequence.to_list
+        in
         ())
     ; Bench.Test.create ~name:"double map combinators" (fun () ->
         let res = (List.map & List.map & Tuple2.map) ~f:(fun x -> x + 1) ls in
@@ -102,14 +114,14 @@ let main () =
         ())
     ; Bench.Test.create ~name:"fold sum with fields" (fun () ->
         let res =
-          G.Fold.reduce
-            (G.Core.List.fold @> These.folder @> G.Fold.of_fn MyRecord.first)
-            G.Reduce.sum
+          F.Fold.reduce
+            (F.Core.List.fold @> These.folder @> F.Fold.of_fn MyRecord.first)
+            F.Reduce.sum
             rs
         in
         ())
     ; Bench.Test.create ~name:"combinator fold sum" (fun () ->
-        let res = G.Fold.reduce (G.Core.List.fold @> These.folder) G.Reduce.sum xs in
+        let res = F.Fold.reduce (F.Core.List.fold @> These.folder) F.Reduce.sum xs in
         ())
     ; Bench.Test.create ~name:"fold mut sum" (fun () ->
         let i = ref 0 in

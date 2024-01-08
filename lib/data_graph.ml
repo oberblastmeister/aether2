@@ -13,7 +13,7 @@ end
 module type Graph = sig
   include GraphTypes
 
-  val successors_fold : Node.t -> (Node.t, t) G.Fold.t
+  val successors_fold : Node.t -> (Node.t, t) F.Fold.t
   val successors : t -> Node.t -> Node.t list
   val predecessors_staged : t -> (Node.t -> Node.t list) Staged.t
 end
@@ -30,7 +30,7 @@ module Dfs (Graph : Graph) = struct
     let rec go node =
       Hash_set.add visited node;
       visitor (`Enter node);
-      G.Fold.iter (Graph.successors_fold node) graph ~f:(fun node ->
+      F.Fold.iter (Graph.successors_fold node) graph ~f:(fun node ->
         if Hash_set.mem visited node then visitor (`Cycle node) else go node);
       visitor (`Exit node)
     in
@@ -76,21 +76,21 @@ let predecessors_of_map_graph_generic
   ~fold_inner
   graph
   =
-  G.Fold.reduce
-    G.Fold.(
+  F.Fold.reduce
+    F.Fold.(
       fold_outer @> ix fold_inner @> of_fn (fun (x, y) -> y, x) @> ix (of_fn singleton))
-    (G.Reduce.to_map_combine empty ~combine)
+    (F.Reduce.to_map_combine empty ~combine)
     graph
 ;;
 
 let predecessors_of_map_graph ~empty ~singleton graph =
-  G.Fold.reduce
-    G.Fold.(
-      G.Core.Map.ifold
-      @> ix G.Core.Set.fold
+  F.Fold.reduce
+    F.Fold.(
+      F.Core.Map.foldi
+      @> ix F.Core.Set.fold
       @> of_fn (fun (x, y) -> y, x)
       @> ix (of_fn singleton))
-    (G.Reduce.to_map_combine empty ~combine:Set.union)
+    (F.Reduce.to_map_combine empty ~combine:Set.union)
     graph
 ;;
 
@@ -105,7 +105,7 @@ module Make_map_graph_using_comparator (Node : sig
   let successors graph node = Map.find_exn graph node |> Set.to_list
 
   let successors_fold node =
-    G.Fold.premap (fun graph -> Map.find_exn graph node) @@ G.Core.Set.fold
+    F.Fold.premap (fun graph -> Map.find_exn graph node) @@ F.Core.Set.fold
   ;;
 
   let predecessors_staged graph =

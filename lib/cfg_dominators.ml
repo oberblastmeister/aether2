@@ -15,13 +15,13 @@ let compute_idoms_from_facts (start_label : Label.t) (d : DominatorFact.t Label.
   (* d is label l -> labels l' s.t. l' > l *)
   (* inverted_facts is label l -> labels l' s.t. l > l' *)
   let inverted_facts =
-    G.Fold.reduce
-      G.Fold.(
-        G.Core.Map.ifold
-        @> ix G.Core.Set.fold
+    F.Fold.reduce
+      F.Fold.(
+        F.Core.Map.foldi
+        @> ix F.Core.Set.fold
         @> of_fn (fun (x, y) -> y, x)
         @> ix (of_fn Label.Set.singleton))
-      (G.Reduce.to_map_combine Label.Map.empty ~combine:Set.union)
+      (F.Reduce.to_map_combine Label.Map.empty ~combine:Set.union)
       d
   in
   (* print_s
@@ -61,9 +61,9 @@ let assert_is_tree start_label tree =
 let compute_idom_tree_from_facts start_label d =
   let idoms = compute_idoms_from_facts start_label d in
   let idom_tree =
-    G.Fold.reduce
-      G.Fold.(
-        G.Core.Map.ifold
+    F.Fold.reduce
+      F.Fold.(
+        F.Core.Map.foldi
         @> of_fn (fun (label, dominates_label) -> dominates_label, label)
         @> ix
              (of_fn (fun label ->
@@ -71,7 +71,7 @@ let compute_idom_tree_from_facts start_label d =
                 if [%equal: Label.t] start_label label
                 then Label.Set.empty
                 else Label.Set.singleton label)))
-      (G.Reduce.to_map_combine Label.Map.empty ~combine:Set.union)
+      (F.Reduce.to_map_combine Label.Map.empty ~combine:Set.union)
       idoms
   in
   assert_is_tree start_label idom_tree;

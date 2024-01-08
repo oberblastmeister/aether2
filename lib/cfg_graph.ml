@@ -39,7 +39,7 @@ module Graph = struct
         Map.find_exn graph.blocks graph.entry |> fun block -> f (graph.entry, block)
       in
       let blocks =
-        G.Core.Map.mapi
+        F.Core.Map.mapi
           ~f:(fun (label, block) ->
             if [%equal: Label.t] label graph.entry || [%equal: Label.t] label graph.exit
             then block
@@ -60,7 +60,7 @@ module Graph = struct
     module MakeDataGraph (Block : sig
         type t [@@deriving sexp_of]
 
-        val jumps_fold : (Label.t, t) G.Fold.t
+        val jumps_fold : (Label.t, t) F.Fold.t
         val jumps : t -> Label.t list
       end) :
       Data_graph.SingleEntryGraph with type t = Block.t T.t and module Node = Label =
@@ -72,7 +72,7 @@ module Graph = struct
       let entry graph = graph.entry
 
       let successors_fold label =
-        G.Fold.premap (fun graph -> Map.find_exn graph.blocks label) Block.jumps_fold
+        F.Fold.premap (fun graph -> Map.find_exn graph.blocks label) Block.jumps_fold
       ;;
 
       let successors graph label =

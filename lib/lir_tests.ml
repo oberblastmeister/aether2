@@ -32,13 +32,13 @@ let%expect_test "uses" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let p =
     Lir.(
-      G.Fold.of_fn Function.body
-      @> G.Fold.of_fn Graph.blocks
-      @> G.Core.Map.fold
+      F.Fold.of_fn Function.body
+      @> F.Fold.of_fn Graph.blocks
+      @> F.Core.Map.fold
       @> Block.instrs_forward_fold
       @> Instr.uses_fold)
   in
-  let uses = G.Fold.reduce p G.Reduce.to_list_rev fn in
+  let uses = F.Fold.reduce p F.Reduce.to_list_rev fn in
   print_s [%sexp (uses : Lir.Value.t list)];
   [%expect
     {|
@@ -89,7 +89,8 @@ let%expect_test "idoms" =
   in
   print_s [%sexp "idoms", (idoms : Lir.Label.t Lir.Label.Map.t)];
   print_s [%sexp "idom_tree", (idom_tree : Cfg.DominatorFact.t Lir.Label.Map.t)];
-  [%expect {|
+  [%expect
+    {|
     (idoms
      ((((name (Name body))) ((name (Name loop))))
       (((name (Name done))) ((name (Name loop))))
@@ -105,11 +106,13 @@ let%expect_test "idoms fast" =
   let idoms = Lir.Dominators.get_idoms fn.body in
   print_s [%sexp (idoms : Lir.Label.t Lir.Label.Hashtbl.t)];
   ();
-  [%expect {|
+  [%expect
+    {|
     ((((name (Name body))) ((name (Name loop))))
      (((name (Name done))) ((name (Name loop))))
      (((name (Name loop))) ((name (Name start))))
      (((name (Name start))) ((name (Name start))))) |}]
+;;
 
 let%expect_test "naive ssa" =
   let program = Lazy.force loop_lir in

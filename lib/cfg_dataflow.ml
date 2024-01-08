@@ -279,9 +279,9 @@ module Dominators = struct
   let compute_idom_tree_from_facts start_label d =
     let idoms = compute_idoms_from_facts start_label d in
     let idom_tree =
-      G.Fold.reduce
-        G.Fold.(
-          G.Core.Map.ifold
+      F.Fold.reduce
+        F.Fold.(
+          F.Core.Map.foldi
           @> of_fn (fun (label, dominates_label) -> dominates_label, label)
           @> ix
                (of_fn (fun label ->
@@ -289,7 +289,7 @@ module Dominators = struct
                   if [%equal: Label.t] start_label label
                   then Label.Set.empty
                   else Label.Set.singleton label)))
-        (G.Reduce.to_map_combine Label.Map.empty ~combine:Set.union)
+        (F.Reduce.to_map_combine Label.Map.empty ~combine:Set.union)
         idoms
     in
     assert_is_tree start_label idom_tree;
