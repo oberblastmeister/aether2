@@ -165,8 +165,8 @@ let parse_function =
         name, params)
     in
     let return_ty = Parser.item xs parse_ty in
-    let body = parse_graph !xs in
-    ({ name; params; return_ty; body } : _ Function.t'))
+    let graph = parse_graph !xs in
+    ({ name; params; return_ty; graph; unique_label = 0; unique_name = 0 } : _ Function.t'))
 ;;
 
 let parse_program xs =
@@ -201,7 +201,7 @@ let%expect_test _ =
     ((functions
       (((name testing)
         (params (((name (Name first)) (ty U64)) ((name (Name second)) (ty U64))))
-        (body
+        (graph
          ((entry ((name (Name first))))
           (blocks
            ((((name (Name first)))
@@ -210,5 +210,5 @@ let%expect_test _ =
                ((Assign ((name (Name x)) (ty U64)) (Add (ty U64) (v1 _) (v2 _)))))
               (exit (Control (Ret ())))))))
           (exit ((name (Name first))))))
-        (return_ty U64))))) |}]
+        (return_ty U64) (unique_label 0) (unique_name 0))))) |}]
 ;;

@@ -284,6 +284,8 @@ module Block = struct
 
   type t = Value.t t'
 
+  let map_exit t ~f = { t with exit = Instr.map_control t.exit ~f }
+
   let sexp_of_t' f ({ entry; body; exit } : 'v t') =
     [%sexp
       ("entry", (Instr.sexp_of_t' f entry : Sexp.t))
@@ -337,13 +339,13 @@ module Graph = struct
 
   include Cfg_graph.Graph.Stuff
 
-  type t = Value.t t' [@@deriving sexp_of]
+  let predecessors_of_label = predecessors_of_label ~jumps:Block.jumps
 
-  let map_blocks (g : _ t') ~f = { g with blocks = f g.blocks }
+  type t = Value.t t' [@@deriving sexp_of]
 
   let validate graph =
     validate graph;
-    let preds = predecessors_of_label ~jumps:Block.jumps graph in
+    let preds = predecessors_of_label graph in
     let res = Map.find preds graph.entry in
     match res with
     | None -> ()
@@ -367,12 +369,42 @@ module Graph = struct
   end
 end
 
+module MutFunction = struct
+  type 'v t' =
+    { name : string
+    ; params : Value.t list
+    ; mutable graph : 'v Graph.t'
+    ; return_ty : Ty.t
+    ; mutable unique_label : int
+    ; mutable unique_name : int
+    }
+
+  type t = Value.t t'
+
+  let fresh_name fn s =
+    let unique = fn.unique_name in
+    fn.unique_name <- unique + 1;
+    Name.Unique { name = s; unique }
+  ;;
+
+  let fresh_label fn s =
+    let unique = fn.unique_label in
+    fn.unique_label <- unique + 1;
+    { Label.name = Name.Unique { name = s; unique } }
+  ;;
+
+  let set_block fn label block = fn.graph <- Graph.set_block fn.graph label block
+  let add_block_exn fn label block = fn.graph <- Graph.add_block_exn fn.graph label block
+end
+
 module Function = struct
   type 'v t' =
     { name : string
     ; params : Value.t list
-    ; body : 'v Graph.t'
+    ; graph : 'v Graph.t'
     ; return_ty : Ty.t
+    ; unique_label : int
+    ; unique_name : int
     }
   [@@deriving sexp_of, fields]
 
@@ -380,11 +412,37 @@ module Function = struct
 
   type t = Value.t t' [@@deriving sexp_of]
 
-  let map_body fn ~f = { fn with body = f fn.body }
+  let map_body fn ~f = { fn with graph = f fn.graph }
   let map_blocks fn = (map_body & Graph.map_blocks) fn
 
   let instrs_forward_fold fn =
-    F.Fold.(FC.Map.fold @> Block.instrs_forward_fold) fn.body.blocks
+    F.Fold.(FC.Map.fold @> Block.instrs_forward_fold) fn.graph.blocks
+  ;;
+
+  let thaw fn =
+    { MutFunction.name = fn.name
+    ; params = fn.params
+    ; graph = fn.graph
+    ; return_ty = fn.return_ty
+    ; unique_label = fn.unique_label
+    ; unique_name = fn.unique_name
+    }
+  ;;
+
+  let freeze fn =
+    { name = fn.MutFunction.name
+    ; params = fn.params
+    ; graph = fn.graph
+    ; return_ty = fn.return_ty
+    ; unique_label = fn.unique_label
+    ; unique_name = fn.unique_name
+    }
+  ;;
+
+  let with_mut fn f =
+    let mut_fn = thaw fn in
+    f mut_fn;
+    freeze mut_fn
   ;;
 end
 

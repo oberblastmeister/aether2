@@ -23,7 +23,7 @@ let collect_types (fn : Name.t Function.t') =
     F.Fold.reduce
       (F.Core.Map.fold @> Block.instrs_forward_fold)
       (F.Reduce.T (add_instr, Name.Map.empty, Fn.id))
-      fn.body.blocks
+      fn.graph.blocks
   in
   let tys_of_name_with_fn_params =
     List.fold_left
@@ -70,9 +70,8 @@ let elaborate_block label ty_of_name block =
 
 let elaborate_function (fn : Name.t Function.t') : Function.t =
   let ty_of_name = collect_types fn in
-  (* let p = Function.body @> Graph.blocks @> A.Map.eachi in *)
   let map =
-    (fun (x : _ Function.t') ~f -> { x with body = f x.body })
+    (fun (x : _ Function.t') ~f -> { x with graph = f x.graph })
     & (fun (x : _ Graph.t') ~f -> { x with blocks = f x.blocks })
     & F.Core.Map.mapi
   in

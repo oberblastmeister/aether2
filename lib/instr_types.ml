@@ -13,11 +13,21 @@ module SControl = struct
     | SE : Control.e t
 end
 
+module UniqueName = struct
+  type t =
+    { name : string [@compare.ignore] [@equal.ignore] [@hash.ignore]
+    ; unique : int
+    }
+  [@@deriving sexp, equal, compare, hash]
+
+  let to_string name = name.name ^ "." ^ string_of_int name.unique
+end
+
 module Name = struct
   module T = struct
     type t =
       | Name of string
-      | GenName of (string * int)
+      | Unique of UniqueName.t
     [@@deriving sexp, equal, compare, hash]
   end
 
@@ -30,7 +40,7 @@ module Name = struct
 
   let pretty = function
     | Name s -> s
-    | GenName (s, i) -> s ^ "." ^ string_of_int i
+    | Unique name -> UniqueName.to_string name
   ;;
 end
 
@@ -45,6 +55,7 @@ module Label = struct
   include Comparable.Make (T)
 
   let of_string s = { name = Name.of_string s }
+  let to_string { name } = Name.pretty name
 end
 
 let%expect_test "testing" =

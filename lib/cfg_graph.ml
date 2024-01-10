@@ -20,6 +20,16 @@ module Graph = struct
 
     module Fields = Fields
 
+    let map_blocks graph ~f = { graph with blocks = f graph.blocks }
+
+    let set_block graph label block =
+      map_blocks graph ~f:(fun blocks -> Map.set ~key:label ~data:block blocks)
+    ;;
+
+    let add_block_exn graph label block =
+      map_blocks graph ~f:(Map.add_exn ~key:label ~data:block)
+    ;;
+
     let validate graph =
       let _ = Map.find_exn graph.blocks graph.entry in
       let _ = Map.find_exn graph.blocks graph.exit in

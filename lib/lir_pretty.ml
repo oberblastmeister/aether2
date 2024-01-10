@@ -114,7 +114,7 @@ let pretty_function cx (fn : _ Function.t') =
            ; pretty_ty fn.return_ty
            ]
          ; [ Ann IndentLine ]
-         ; pretty_graph cx fn.body
+         ; pretty_graph cx fn.graph
          ])
 ;;
 

@@ -59,57 +59,36 @@ let check_all_temps_unique (fn : Function.t) =
   F.Fold.iter
     fold
     ~f:(fun (label, (i, def)) -> check_define (Some label) (Some i) def)
-    fn.body.blocks;
+    fn.graph.blocks;
   Stack.to_list errors |> or_error_of_list
 ;;
 
-(* no need for dom tree here, just use preorder traversal *)
 let validate_ssa_function (fn : Function.t) =
   let open Or_error.Let_syntax in
-  Graph.validate fn.body;
+  Graph.validate fn.graph;
   let%bind () = check_all_temps_unique fn in
-  let dom_tree =
-    DataflowDominators.run fn.body
-    |> Cfg.Dominators.compute_idom_tree_from_facts fn.body.entry
-  in
+  let labels = Graph.Dfs.preorder [ fn.graph.entry ] fn.graph in
   let errors : Error.t Stack.t = Stack.create () in
-  let defined_in_dominators =
-    List.fold fn.params ~init:Value.Set.empty ~f:(fun z param -> Set.add z param)
-  in
-  (* traverse the dominator tree *)
-  (* it will terminated because it is a tree not a graph *)
-  let rec go label defined_in_dominators =
-    let block = Map.find_exn fn.body.blocks label in
-    let defined_in_dominators =
-      Block.fold_instrs_forward
-        block
-        ~init:defined_in_dominators
-        ~f:(fun defined_in_dominators (Instr.Some.T instr as i) ->
-          let uses = Instr.uses instr in
-          List.iter uses ~f:(fun use ->
-            if Set.mem defined_in_dominators use |> not
-            then
-              Stack.push
-                errors
-                (Error.t_of_sexp
-                   [%message
-                     "a use was not dominated by a define"
-                       ~instr:(i : Instr.Some.t)
-                       ~use:(use : Value.t)
-                       ~label:(label : Label.t)
-                       ~defines:(defined_in_dominators : Value.Set.t)]));
-          let defs = Instr.defs instr in
-          let defined_in_dominators =
-            List.fold defs ~init:defined_in_dominators ~f:(fun z def -> Set.add z def)
-          in
-          defined_in_dominators)
-    in
-    let children =
-      Map.find dom_tree label |> Option.value ~default:Label.Set.empty |> Set.to_list
-    in
-    List.iter children ~f:(fun child -> go child defined_in_dominators)
-  in
-  go fn.body.entry defined_in_dominators;
+  let defined = Value.Hash_set.create () in
+  List.iter fn.params ~f:(fun param -> Hash_set.add defined param);
+  Vec.iter labels ~f:(fun label ->
+    let block = Map.find_exn fn.graph.blocks label in
+    F.Fold.iter Block.instrs_forward_fold block ~f:(fun (Instr.Some.T instr as i) ->
+      let uses = Instr.uses instr in
+      List.iter uses ~f:(fun use ->
+        if not @@ Hash_set.mem defined use
+        then
+          Stack.push
+            errors
+            (Error.t_of_sexp
+               [%message
+                 "a use was not dominated by a define"
+                   ~instr:(i : Instr.Some.t)
+                   ~use:(use : Value.t)
+                   ~label:(label : Label.t)
+                   ~defines:(defined : Value.Hash_set.t)]));
+      let defs = Instr.defs instr in
+      List.iter defs ~f:(fun def -> Hash_set.add defined def)));
   Stack.to_list errors
   |> or_error_of_list
   |> Result.map_error ~f:(Error.tag_s ~tag:[%message "in function" (fn.name : string)])
@@ -124,15 +103,22 @@ module Rename : sig
 end = struct
   module StringHashtbl = Hashtbl.Make (String)
 
-  type t = { generation_of_name : int StringHashtbl.t }
+  type t =
+    { mutable unique_name : int
+    ; generation_of_name : int StringHashtbl.t
+    }
+
+  let fresh_name (st : t) =
+    let name = st.unique_name in
+    st.unique_name <- name + 1;
+    name
+  ;;
 
   let rename_def (st : t) (def : Value.t) =
     let s = Name.pretty def.name in
-    Hashtbl.update st.generation_of_name s ~f:(function
-      | None -> 0
-      | Some i -> i + 1);
-    let gen = Hashtbl.find_exn st.generation_of_name s in
-    { def with name = Name.GenName (s, gen) }
+    let fresh = fresh_name st in
+    Hashtbl.set st.generation_of_name ~key:s ~data:fresh;
+    { def with name = Name.Unique { name = s; unique = fresh } }
   ;;
 
   let rename_use (st : t) (use : Value.t) =
@@ -140,8 +126,8 @@ end = struct
     (* the use should always be in the map because we renamed defs before uses *)
     (* we also made sure that each block had all the live variables as block args which are defs *)
     (* this means that this should never panic *)
-    let gen = Hashtbl.find_exn st.generation_of_name s in
-    { use with name = Name.GenName (s, gen) }
+    let unique = Hashtbl.find_exn st.generation_of_name s in
+    { use with name = Name.Unique { name = s; unique } }
   ;;
 
   let rename_block (st : t) (block : Block.t) =
@@ -160,22 +146,24 @@ end = struct
     Graph.map_simple_order graph ~f:(fun (_label, block) -> rename_block st block)
   ;;
 
-  let new_state () = { generation_of_name = StringHashtbl.create () }
+  let new_state unique_name =
+    { generation_of_name = StringHashtbl.create (); unique_name }
+  ;;
 
   let rename_function (fn : Function.t) =
-    let st = new_state () in
+    let st = new_state fn.unique_name in
     let params = List.map ~f:(rename_def st) fn.params in
-    let body = rename_graph st fn.body in
-    { fn with params; body }
+    let graph = rename_graph st fn.graph in
+    { fn with params; graph; unique_name = st.unique_name }
   ;;
 end
 
 let convert_naive_ssa (fn : Function.t) : Function.t =
-  let liveness = Liveness.run fn.body in
+  let liveness = Liveness.run fn.graph in
   let add_block_args_and_calls label (block : Block.t) =
     let new_entry_instr =
       Instr.Block_args
-        (if [%equal: Label.t] label fn.body.entry
+        (if [%equal: Label.t] label fn.graph.entry
          then []
          else Map.find_exn liveness label |> Set.to_list)
     in
@@ -187,7 +175,7 @@ let convert_naive_ssa (fn : Function.t) : Function.t =
     { block with entry = new_entry_instr; exit = new_exit_instr }
   in
   let function_with_block_args =
-    (Field.map Function.Fields.body & Graph.map_simple_order)
+    (Field.map Function.Fields.graph & Graph.map_simple_order)
       ~f:(fun (label, block) -> add_block_args_and_calls label block)
       fn
   in
@@ -322,17 +310,21 @@ let subst_graph subst (graph : Graph.t) =
 
 let convert_ssa_function (fn : Function.t) =
   let fn = convert_naive_ssa fn in
-  let phis = get_phis fn.body in
+  let phis = get_phis fn.graph in
   let subst, simplified_phis =
     F.Core.Map.fold @> F.Core.List.fold
     |> (fun f -> F.Fold.reduce f F.Reduce.to_list_rev phis)
     |> simplify_phis
   in
-  let graph = subst_graph subst fn.body in
+  let graph = subst_graph subst fn.graph in
   let graph = put_phis simplified_phis graph in
-  { fn with body = graph }
+  { fn with graph }
 ;;
 
 let convert_ssa (program : Program.t) =
-  (Field.map Program.Fields.functions & List.map) ~f:convert_ssa_function program
+  let program =
+    (Field.map Program.Fields.functions & List.map) ~f:convert_ssa_function program
+  in
+  validate_ssa program;
+  program
 ;;
