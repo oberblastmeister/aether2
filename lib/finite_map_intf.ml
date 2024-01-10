@@ -20,14 +20,14 @@ module type Finite_map = sig
 end
 
 (* module FromJsMap (M : Map.S) : S with module Key = M.Key and type 'a t = 'a M.t = struct
-  module Key = M.Key
+   module Key = M.Key
 
-  type 'a t = 'a M.t
+   type 'a t = 'a M.t
 
-  let empty = M.empty
-  let singleton = M.singleton
-  let find = Map.find
-  let set = Map.set
-  let remove = Map.remove
-  let foldi = F.Core.Map.foldi
-end *)
+   let empty = M.empty
+   let singleton = M.singleton
+   let find = Map.find
+   let set = Map.set
+   let remove = Map.remove
+   let foldi = F.Core.Map.foldi
+   end *)

@@ -58,6 +58,16 @@ module InstrOp = struct
         { ty : Ty.t
         ; v : 'v
         }
+    | Alloca of { ty : Ty.t }
+    | Load of
+        { ty : Ty.t
+        ; v : 'v
+        }
+    | Store of
+        { ty : Ty.t
+        ; dest : 'v
+        ; src : 'v
+        }
   [@@deriving equal, compare, sexp, map, iter, fold]
 
   let get_ty = function
@@ -66,9 +76,14 @@ module InstrOp = struct
     | Const { ty; _ } -> ty
     | Cmp { ty; _ } -> ty
     | Val { ty; _ } -> ty
+    | Alloca { ty; _ } -> todo ()
+    | Load { ty; _ } -> todo ()
+    | Store { ty; _ } -> todo ()
   ;;
 
   type t = Value.t t' [@@deriving equal, compare, sexp]
+
+  let uses_fold i k = fold_t' (fun () u -> k u) () i
 end
 
 module BlockCall = struct
@@ -92,17 +107,6 @@ module InstrControl = struct
 
   type t = Value.t t' [@@deriving sexp]
 
-  let jumps_fold i k =
-    match i with
-    | Jump j -> k j
-    | CondJump (_, j1, j2) ->
-      k j1;
-      k j2
-    | Ret _ -> ()
-  ;;
-
-  let jumps i = F.Fold.reduce jumps_fold F.Reduce.to_list_rev i
-
   let block_calls_fold i k =
     match i with
     | Jump j -> k j
@@ -111,6 +115,8 @@ module InstrControl = struct
       k j2
     | Ret _ -> ()
   ;;
+
+  let block_calls i = F.Fold.reduce block_calls_fold F.Reduce.to_list_rev i
 
   let map_block_calls i ~f =
     match i with
@@ -225,7 +231,7 @@ module Instr = struct
   let tag_equal (type c d) (i1 : c t) (i2 : d t) = type_equal i1 i2 |> Option.is_some
 
   module Some = struct
-    type 'v t' = T : ('v, 'c) T.t' -> 'v t'
+    type 'v t' = T : ('v, 'c) T.t' -> 'v t' [@@unboxed]
     type t = Value.t t'
 
     let sexp_of_t' f (T s) = sexp_of_t' f s
@@ -263,7 +269,7 @@ module Instr = struct
   ;;
 
   let defs i = F.Fold.reduce defs_fold F.Reduce.to_list_rev (Some.T i)
-  let jumps i = InstrControl.jumps @@ get_control i
+  let jumps i = InstrControl.block_calls @@ get_control i
 end
 
 module Block = struct
@@ -319,27 +325,12 @@ module Block = struct
   let jumps_fold =
     F.Fold.of_fn (fun (b : t) -> b.exit)
     @> F.Fold.of_fn Instr.get_control
-    @> InstrControl.jumps_fold
+    @> InstrControl.block_calls_fold
     @> F.Fold.of_fn BlockCall.label
   ;;
 
   let jumps (b : t) = F.Fold.reduce jumps_fold F.Reduce.to_list_rev b
 end
-
-let%expect_test _ =
-  let (b : Block.t) =
-    { entry = Block_args []
-    ; body = []
-    ; exit =
-        Instr.Control (InstrControl.Ret (Some { name = Name.of_string "x"; ty = U64 }))
-    }
-  in
-  [%sexp_of: Block.t] b |> print_s;
-  [%expect
-    {|
-    ((entry (Block_args ())) (body ())
-     (exit (Control (Ret (((name (Name x)) (ty U64))))))) |}]
-;;
 
 module Graph = struct
   type 'v t' = 'v Block.t' Cfg_graph.Graph.t [@@deriving sexp_of]
@@ -347,6 +338,8 @@ module Graph = struct
   include Cfg_graph.Graph.Stuff
 
   type t = Value.t t' [@@deriving sexp_of]
+
+  let map_blocks (g : _ t') ~f = { g with blocks = f g.blocks }
 
   let validate graph =
     validate graph;
@@ -368,6 +361,10 @@ module Graph = struct
         let jumps = Block.jumps
       end)
   end
+
+  module Dfs = struct
+    include Data_graph.Dfs (DataGraph)
+  end
 end
 
 module Function = struct
@@ -382,12 +379,21 @@ module Function = struct
   module Fields = Fields_of_t'
 
   type t = Value.t t' [@@deriving sexp_of]
+
+  let map_body fn ~f = { fn with body = f fn.body }
+  let map_blocks fn = (map_body & Graph.map_blocks) fn
+
+  let instrs_forward_fold fn =
+    F.Fold.(FC.Map.fold @> Block.instrs_forward_fold) fn.body.blocks
+  ;;
 end
 
 module Program = struct
   type 'v t' = { functions : 'v Function.t' list } [@@deriving sexp_of, fields]
 
   module Fields = Fields_of_t'
+
+  let map_functions p ~f = { p with functions = f p.functions }
 
   type t = Value.t t' [@@deriving sexp_of]
 end

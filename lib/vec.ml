@@ -48,7 +48,7 @@ let pop t =
   then None
   else (
     t.size <- t.size - 1;
-    Some (Option_array.unsafe_get_some_exn t.data t.size))
+    Some (Option_array.get_some_exn t.data t.size))
 ;;
 
 let pop_exn t =
@@ -56,7 +56,7 @@ let pop_exn t =
   then raise (Invalid_argument "empty Array_list")
   else (
     t.size <- t.size - 1;
-    Option_array.unsafe_get_some_exn t.data t.size)
+    Option_array.get_some_exn t.data t.size)
 ;;
 
 let unsafe_swap t i j =

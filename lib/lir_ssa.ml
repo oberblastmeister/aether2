@@ -7,6 +7,8 @@ module ValueWithId = struct
     ; id : Value.t Union_find.t [@equal.ignore]
     }
   [@@deriving equal]
+
+  let sexp_of_t v = [%sexp (v.value : Value.t)]
 end
 
 module PhiValue = struct
@@ -61,6 +63,7 @@ let check_all_temps_unique (fn : Function.t) =
   Stack.to_list errors |> or_error_of_list
 ;;
 
+(* no need for dom tree here, just use preorder traversal *)
 let validate_ssa_function (fn : Function.t) =
   let open Or_error.Let_syntax in
   Graph.validate fn.body;
@@ -232,8 +235,14 @@ let get_phis (graph : Graph.t) =
 type value_id = Value.t Union_find.t
 
 let simplify_phis (phis : Value.t Phi.t list) =
+  (* todo, only need to create a unification variable for each phi dest, not every value *)
+  (* some PhiValue s will not be actuall phi destinations, therefore cannot change *)
+  let subst = Value.Hashtbl.create () in
   let phis_with_id : value_id Phi.t list =
-    (List.map & Phi.map) ~f:(fun value -> Union_find.create value) phis
+    (List.map & Phi.map)
+      ~f:(fun value ->
+        Hashtbl.find_or_add subst value ~default:(fun () -> Union_find.create value))
+      phis
   in
   let zonk_phi_final = Phi.map ~f:Union_find.get in
   let zonk_phi =
@@ -244,9 +253,9 @@ let simplify_phis (phis : Value.t Phi.t list) =
       List.filter phi.flow_values ~f:(fun phi_value ->
         not @@ [%equal: ValueWithId.t] phi.dest phi_value.value)
     in
-    List.all_equal other_values ~equal:(fun x y -> [%equal: ValueWithId.t PhiValue.t] x y)
+    List.all_equal other_values ~equal:[%equal: ValueWithId.t PhiValue.t]
   in
-  let subst = Value.Hashtbl.create () in
+  (* todo: use more efficient bag data structure *)
   let rec try_remove (phis : value_id Phi.t list) =
     match phis with
     | [] -> `Didn'tRemove, []
@@ -259,7 +268,6 @@ let simplify_phis (phis : Value.t Phi.t list) =
        | Some replacement ->
          Union_find.union phi.dest replacement.value.id;
          Union_find.set phi.dest replacement.value.value;
-         Hashtbl.set ~key:zonked_phi.dest.value ~data:replacement.value.id subst;
          (* the phi variable is not consed back on here, we removed it *)
          `Removed, phis)
   in
@@ -268,16 +276,63 @@ let simplify_phis (phis : Value.t Phi.t list) =
     | `Didn'tRemove, phis -> phis
     | `Removed, phis -> fixpoint phis
   in
-  (* probably need to create a substitution at the end eventually *)
   let simplified_phis = fixpoint phis_with_id |> List.map ~f:zonk_phi_final in
   let zonked_subst = Hashtbl.map subst ~f:Union_find.get in
   zonked_subst, simplified_phis
 ;;
 
-(* List.sort *)
-
 let put_phis (phis : Value.t Phi.t list) (graph : Graph.t) =
-  let fold = F.Fold.(F.Core.List.fold @> of_fn Phi.flow_values @> F.Core.List.fold) in
-  let flowed_values_of_label = () in
-  todo ()
+  let phis_of_label = Label.Hashtbl.create () in
+  List.iter phis ~f:(fun phi ->
+    Hashtbl.update
+      phis_of_label
+      phi.dest_label
+      ~f:(Option.value_map ~default:[ phi ] ~f:(List.cons phi)));
+  (Field.map Graph.Fields.blocks & F.Core.Map.mapi) graph ~f:(fun (label, block) ->
+    let phis = Hashtbl.find phis_of_label label |> Option.value ~default:[] in
+    let entry = Instr.Block_args (List.map phis ~f:(fun phi -> phi.dest)) in
+    let exit =
+      (Instr.map_control & InstrControl.map_block_calls) block.exit ~f:(fun block_call ->
+        let phis_for_call =
+          Hashtbl.find phis_of_label block_call.label |> Option.value ~default:[]
+        in
+        let call_args =
+          List.map phis_for_call ~f:(fun phi ->
+            let flow_value =
+              List.find_exn phi.flow_values ~f:(fun flow_value ->
+                [%equal: Label.t] label flow_value.flowed_from_label)
+            in
+            flow_value.value)
+        in
+        { block_call with args = call_args })
+    in
+    { block with entry; exit })
+;;
+
+let subst_graph subst (graph : Graph.t) =
+  (Field.map Graph.Fields.blocks & F.Core.Map.map) graph ~f:(fun block ->
+    Block.map_instrs_forwards
+      { f =
+          (fun instr ->
+            Instr.map_uses instr ~f:(fun use ->
+              Hashtbl.find subst use |> Option.value ~default:use))
+      }
+      block)
+;;
+
+let convert_ssa_function (fn : Function.t) =
+  let fn = convert_naive_ssa fn in
+  let phis = get_phis fn.body in
+  let subst, simplified_phis =
+    F.Core.Map.fold @> F.Core.List.fold
+    |> (fun f -> F.Fold.reduce f F.Reduce.to_list_rev phis)
+    |> simplify_phis
+  in
+  let graph = subst_graph subst fn.body in
+  let graph = put_phis simplified_phis graph in
+  { fn with body = graph }
+;;
+
+let convert_ssa (program : Program.t) =
+  (Field.map Program.Fields.functions & List.map) ~f:convert_ssa_function program
 ;;

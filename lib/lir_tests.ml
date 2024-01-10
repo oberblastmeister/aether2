@@ -140,3 +140,41 @@ let%expect_test "naive ssa" =
       (label (done (r.4 u64))
         (ret r.4))) |}]
 ;;
+
+let%expect_test "ssa" =
+  let program = Lazy.force loop_lir |> Lir.Ssa.convert_ssa in
+  print_endline @@ Lir.pretty program;
+  [%expect
+    {|
+    (define (pow (b.0 u64) (e.0 u64)) u64
+      (label (start)
+        (set r.0 (const u64 1))
+        (jump (loop e.0 r.0)))
+      (label (body)
+        (set r.2 (add u64 r.3 b.0))
+        (set one.0 (const u64 1))
+        (set e.2 (add u64 e.3 one.0))
+        (jump (loop e.2 r.2)))
+      (label (loop (e.3 u64) (r.3 u64))
+        (set z.0 (const u64 0))
+        (set f.0 (cmp u64 gt e.3 z.0))
+        (cond_jump f.0 (done) (body)))
+      (label (done)
+        (ret r.3))) |}]
+;;
+
+let%expect_test "lower" =
+  let program = Lazy.force loop_lir |> Lir.Ssa.convert_ssa |> Lir.Lower.lower_program in
+  print_endline @@ Lir.Lower.pretty program;
+  [%expect
+    {|
+    (define (pow (b.0 u64) (e.0 u64)) u64
+      (label (start)
+        (jump (loop e.0 (const u64 1))))
+      (label (body)
+        (jump (loop (add u64 e.3 (const u64 1)) (add u64 r.3 b.0))))
+      (label (loop (e.3 u64) (r.3 u64))
+        (cond_jump (cmp u64 gt e.3 (const u64 0)) (done) (body)))
+      (label (done)
+        (ret r.3))) |}]
+;;

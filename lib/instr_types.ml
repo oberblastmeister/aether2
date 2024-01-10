@@ -23,6 +23,7 @@ module Name = struct
 
   include T
   module Hashtbl = Hashtbl.Make (T)
+  module Hash_set = Hash_set.Make (T)
   include Comparable.Make (T)
 
   let of_string s = Name s
