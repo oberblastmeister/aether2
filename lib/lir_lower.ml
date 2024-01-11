@@ -24,7 +24,7 @@ let pretty = Lir_pretty.pretty' { pretty_value }
 
 (* let get_instr_uses (fn : Vir.Function.t) =
   let instr_uses = Lir.Value.Hashtbl.create () in
-  let fold = F.Fold.(Lir.Function.instrs_forward_fold @> Lir.SomeInstr.uses_fold) in
+  let fold = F.Fold.(Lir.Function.instrs_forward_fold @> Lir.Some_instr.uses_fold) in
   F.Fold.iter fold fn ~f:(fun (use : Lir.Value.t) ->
     Hashtbl.update instr_uses use ~f:(Option.value_map ~default:1 ~f:succ));
   instr_uses

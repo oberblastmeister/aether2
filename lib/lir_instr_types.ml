@@ -16,11 +16,11 @@ module Value = struct
   [@@deriving equal, compare, hash, sexp, fields]
 end
 
-module CmpOp = struct
+module Cmp_op = struct
   type t = Gt [@@deriving sexp]
 end
 
-module BinOp = struct
+module Bin_op = struct
   type t =
     | Add
     | Sub
@@ -31,7 +31,7 @@ module Expr = struct
   type 'v t =
     | Bin of
         { ty : Ty.t
-        ; op : BinOp.t
+        ; op : Bin_op.t
         ; v1 : 'v
         ; v2 : 'v
         }
@@ -41,7 +41,7 @@ module Expr = struct
         }
     | Cmp of
         { ty : Ty.t
-        ; op : CmpOp.t
+        ; op : Cmp_op.t
         ; v1 : 'v
         ; v2 : 'v
         }
@@ -63,16 +63,6 @@ module Instr = struct
         { dst : Value.t
         ; expr : 'v Expr.t
         }
-    (* | Add of
-        { ty : Ty.t
-        ; v1 : 'v
-        ; v2 : 'v
-        }
-    | Sub of
-        { ty : Ty.t
-        ; v1 : 'v
-        ; v2 : 'v
-        } *)
     | Store of
         { ty : Ty.t
         ; pointer : 'v
@@ -80,7 +70,7 @@ module Instr = struct
   [@@deriving sexp, fold, map, iter]
 end
 
-module BlockCall = struct
+module Block_call = struct
   type 'v t =
     { label : Label.t
     ; args : 'v list
@@ -88,43 +78,43 @@ module BlockCall = struct
   [@@deriving sexp, fields, fold, map, iter]
 end
 
-module BlockArgs = struct
+module Block_args = struct
   type t = Value.t list [@@deriving sexp]
 end
 
-module InstrControl = struct
+module Control_instr = struct
   type 'v t =
-    | Jump of 'v BlockCall.t
-    | CondJump of ('v * 'v BlockCall.t * 'v BlockCall.t)
+    | Jump of 'v Block_call.t
+    | CondJump of ('v * 'v Block_call.t * 'v Block_call.t)
     | Ret of 'v option
   [@@deriving sexp, fold, map, iter]
 end
 
-module InstrGeneric = struct
+module Generic_instr = struct
   type ('v, 'c) t =
-    | Block_args : BlockArgs.t -> ('v, Control.e) t
+    | Block_args : Block_args.t -> ('v, Control.e) t
     | Instr : 'v Instr.t -> ('v, Control.o) t
-    | Control : 'v InstrControl.t -> ('v, Control.c) t
+    | Control : 'v Control_instr.t -> ('v, Control.c) t
 
   let sexp_of_t (type c v) (f : v -> Sexp.t) (i : (v, c) t) =
     match i with
-    | Control c -> [%sexp "Control", (InstrControl.sexp_of_t f c : Sexp.t)]
+    | Control c -> [%sexp "Control", (Control_instr.sexp_of_t f c : Sexp.t)]
     | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
     | Instr op -> [%sexp "Instr", (Instr.sexp_of_t f op : Sexp.t)]
   ;;
 end
 
-module SomeInstr = struct
-  type 'v t = T : ('v, 'c) InstrGeneric.t -> 'v t [@@unboxed]
+module Some_instr = struct
+  type 'v t = T : ('v, 'c) Generic_instr.t -> 'v t [@@unboxed]
 
-  let sexp_of_t f (T s) = InstrGeneric.sexp_of_t f s
+  let sexp_of_t f (T s) = Generic_instr.sexp_of_t f s
 end
 
 module Block = struct
   type 'v t =
     { entry : Value.t list
     ; body : 'v Instr.t list
-    ; exit : 'v InstrControl.t
+    ; exit : 'v Control_instr.t
     }
   [@@deriving fields]
 
@@ -132,7 +122,7 @@ module Block = struct
     [%sexp
       ("entry", (entry : Value.t list))
       , ("body", (List.sexp_of_t (Instr.sexp_of_t f) body : Sexp.t))
-      , ("exit", (InstrControl.sexp_of_t f exit : Sexp.t))]
+      , ("exit", (Control_instr.sexp_of_t f exit : Sexp.t))]
   ;;
 end
 
@@ -140,7 +130,7 @@ module Graph = struct
   type 'v t = 'v Block.t Cfg_graph.Graph.t [@@deriving sexp_of]
 end
 
-module MutFunction = struct
+module Mut_function = struct
   type 'v t' =
     { name : string
     ; params : Value.t list

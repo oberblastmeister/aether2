@@ -8,12 +8,12 @@ let split pred (fn : Vir.Function.t) =
       if pred block
       then (
         let block_calls_count =
-          F.Fold.reduce InstrControl.block_calls_fold F.Reduce.count block.exit
+          F.Fold.reduce Control_instr.block_calls_fold F.Reduce.count block.exit
         in
         if block_calls_count > 1
         then (
           let block =
-            (Block.map_exit & InstrControl.map_block_calls) block ~f:(fun block_call ->
+            (Block.map_exit & Control_instr.map_block_calls) block ~f:(fun block_call ->
               let num_preds_target =
                 Map.find predecessors block_call.label
                 |> Option.value ~default:[]
@@ -22,15 +22,15 @@ let split pred (fn : Vir.Function.t) =
               if num_preds_target > 1
               then (
                 let new_label =
-                  MutFunction.fresh_label mut_fn (Label.to_string block_call.label)
+                  Mut_function.fresh_label mut_fn (Label.to_string block_call.label)
                 in
                 let new_block =
-                  { entry = []; Block.body = []; exit = InstrControl.Jump block_call }
+                  { entry = []; Block.body = []; exit = Control_instr.Jump block_call }
                 in
-                MutFunction.add_block_exn mut_fn new_label new_block;
-                { BlockCall.label = new_label; args = [] })
+                Mut_function.add_block_exn mut_fn new_label new_block;
+                { Block_call.label = new_label; args = [] })
               else block_call)
           in
-          MutFunction.set_block mut_fn label block))
+          Mut_function.set_block mut_fn label block))
       else ()))
 ;;

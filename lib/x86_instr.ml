@@ -1,4 +1,6 @@
+(* TODO: remove generic types and stuff *)
 open O
+
 open Instr_types
 
 module Ty = struct
@@ -90,7 +92,7 @@ module Operand = struct
   ;;
 end
 
-module CmpOp = struct
+module Cmp_op = struct
   type t = Gt [@@deriving equal, compare, sexp]
 end
 
@@ -152,7 +154,7 @@ module InstrNormal = struct
     | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn Mov.dst @> O.reg_val_fold) movs k
     | Add { dst; _ } -> O.reg_val_fold dst k
     | Lea { dst; _ } -> k dst
-    | Cmp _ -> ()
+    | Cmp _ | _ -> ()
   ;;
 
   let uses_fold i k =
@@ -169,10 +171,11 @@ module InstrNormal = struct
       O.any_regs_fold src k
     | Lea { src; _ } -> Address.regs_fold src k
     | Def { dst } -> O.mem_regs_fold dst k
+    | _ -> ()
   ;;
 end
 
-module BlockCall = struct
+module Block_call = struct
   type 'reg t =
     { label : Label.t
     ; args : 'reg list
@@ -182,15 +185,15 @@ module BlockCall = struct
   let uses_fold block_call k = fold (fun () reg -> k reg) () block_call
 end
 
-module InstrControl = struct
+module Control_instr = struct
   type 'v t =
-    | Jump of 'v BlockCall.t
+    | Jump of 'v Block_call.t
     | CondJump of (Label.t * Label.t)
   [@@deriving sexp, map, iter, fold]
 
   let uses_fold i k =
     match i with
-    | Jump block_call -> BlockCall.uses_fold block_call k
+    | Jump block_call -> Block_call.uses_fold block_call k
     | CondJump _ -> ()
   ;;
 
@@ -208,14 +211,14 @@ module Instr = struct
     type ('v, 'c) t =
       | Block_args : 'v list -> ('v, Control.e) t
       | Normal : 'v InstrNormal.t -> ('v, Control.o) t
-      | Control : 'v InstrControl.t -> ('v, Control.c) t
+      | Control : 'v Control_instr.t -> ('v, Control.c) t
   end
 
   include T
 
   let sexp_of_t (type c v) (f : v -> Sexp.t) (i : (v, c) t) =
     match i with
-    | Control c -> [%sexp "Control", (InstrControl.sexp_of_t f c : Sexp.t)]
+    | Control c -> [%sexp "Control", (Control_instr.sexp_of_t f c : Sexp.t)]
     | Block_args regs -> [%sexp "Block_args", (List.sexp_of_t f regs : Sexp.t)]
     | Normal n -> [%sexp "Assign", (InstrNormal.sexp_of_t f n : Sexp.t)]
   ;;
@@ -224,7 +227,7 @@ module Instr = struct
     match i with
     | Block_args _ -> ()
     | Normal instr -> InstrNormal.uses_fold instr k
-    | Control c -> InstrControl.uses_fold c k
+    | Control c -> Control_instr.uses_fold c k
   ;;
 
   let defs_fold (type c v) (i : (v, c) t) k =
@@ -242,13 +245,13 @@ module Instr = struct
 
   let to_some i = Some.T i
 
-  let get_control : type v. (v, Control.c) t -> v InstrControl.t = function
+  let get_control : type v. (v, Control.c) t -> v Control_instr.t = function
     | Control c -> c
     (* ocaml can't refute this for some reason? *)
     | _ -> assert false
   ;;
 
-  let set_control : type v. (v, Control.c) t -> v InstrControl.t -> (v, Control.c) t =
+  let set_control : type v. (v, Control.c) t -> v Control_instr.t -> (v, Control.c) t =
     fun i c ->
     match i with
     | Control _ -> Control c
@@ -257,7 +260,7 @@ module Instr = struct
 
   let map_control
     : type v.
-      (v, Control.c) t -> f:(v InstrControl.t -> v InstrControl.t) -> (v, Control.c) t
+      (v, Control.c) t -> f:(v Control_instr.t -> v Control_instr.t) -> (v, Control.c) t
     =
     fun i ~f -> get_control i |> f |> set_control i
   ;;
@@ -327,7 +330,7 @@ module Block = struct
   let jumps_fold block =
     (F.Fold.of_fn (fun (b : _ t) -> b.exit)
      @> F.Fold.of_fn Instr.get_control
-     @> InstrControl.jumps_fold)
+     @> Control_instr.jumps_fold)
       block
   ;;
 
@@ -400,14 +403,14 @@ end
 
 (* module Dataflow = Cfg.MakeDataflowForBlock (Block.Dataflow)
 
-module DataflowInstr = struct
-  (* type t = Instr.Some.t [@@deriving sexp_of]
+   module DataflowInstr = struct
+   (* type t = Instr.Some.t [@@deriving sexp_of]
 
-     module Value = Instr.Value
+   module Value = Instr.Value
 
-     let uses (Instr.Some.T i) = Instr.uses i
-     let defs (Instr.Some.T i) = Instr.defs i *)
-end *)
+   let uses (Instr.Some.T i) = Instr.uses i
+   let defs (Instr.Some.T i) = Instr.defs i *)
+   end *)
 
 (* module Liveness = struct
    module InstrTransfer = Cfg.MakeLivenessInstrTransfer (DataflowInstr)

@@ -17,12 +17,12 @@ module Value = struct
   include Comparable.Make (T.Value)
 end
 
-module CmpOp = struct
-  include T.CmpOp
+module Cmp_op = struct
+  include T.Cmp_op
 end
 
-module BinOp = struct
-  include T.BinOp
+module Bin_op = struct
+  include T.Bin_op
 end
 
 module Expr = struct
@@ -59,15 +59,15 @@ module Instr = struct
   ;;
 
   let uses_fold i k = fold (fun () u -> k u) () i
-  let to_some i = T.SomeInstr.T (Instr i)
+  let to_some i = T.Some_instr.T (Instr i)
 end
 
-module BlockCall = struct
-  include T.BlockCall
+module Block_call = struct
+  include T.Block_call
 end
 
-module InstrControl = struct
-  include T.InstrControl
+module Control_instr = struct
+  include T.Control_instr
 
   let block_calls_fold i k =
     match i with
@@ -87,39 +87,39 @@ module InstrControl = struct
     | Ret v -> Ret v
   ;;
 
-  let to_some i = T.SomeInstr.T (Control i)
+  let to_some i = T.Some_instr.T (Control i)
 end
 
-module BlockArgs = struct
-  include T.BlockArgs
+module Block_args = struct
+  include T.Block_args
 
-  let to_some args = T.SomeInstr.T (Block_args args)
+  let to_some args = T.Some_instr.T (Block_args args)
 end
 
-module InstrGeneric = struct
-  include T.InstrGeneric
+module Generic_instr = struct
+  include T.Generic_instr
 
   let fold (type c v) (i : (v, c) t) ~(init : 'a) ~(f : 'a -> v -> 'a) : 'a =
     match i with
     | Block_args _ -> init
     | Instr instr -> Instr.fold f init instr
-    | Control c -> InstrControl.fold f init c
+    | Control c -> Control_instr.fold f init c
   ;;
 
   let map (type c v u) (f : v -> u) (i : (v, c) t) : (u, c) t =
     match i with
     | Block_args vs -> Block_args vs
     | Instr instr -> Instr (Instr.map f instr)
-    | Control c -> Control (InstrControl.map f c)
+    | Control c -> Control (Control_instr.map f c)
   ;;
 
-  let get_control : type v. (v, Control.c) t -> v InstrControl.t = function
+  let get_control : type v. (v, Control.c) t -> v Control_instr.t = function
     | Control c -> c
     (* ocaml can't refute this for some reason? *)
     | _ -> assert false
   ;;
 
-  let set_control : type v. (v, Control.c) t -> v InstrControl.t -> (v, Control.c) t =
+  let set_control : type v. (v, Control.c) t -> v Control_instr.t -> (v, Control.c) t =
     fun i c ->
     match i with
     | Control _ -> Control c
@@ -128,7 +128,7 @@ module InstrGeneric = struct
 
   let map_control
     : type v.
-      (v, Control.c) t -> f:(v InstrControl.t -> v InstrControl.t) -> (v, Control.c) t
+      (v, Control.c) t -> f:(v Control_instr.t -> v Control_instr.t) -> (v, Control.c) t
     =
     fun i ~f -> get_control i |> f |> set_control i
   ;;
@@ -169,27 +169,15 @@ module InstrGeneric = struct
     fun i ~f -> get_block_args i |> fun vs -> set_block_args i (f vs)
   ;;
 
-  (* let type_equal (type c d) (i1 : c t) (i2 : d t) : (c, d) Type_equal.t Option.t =
-     match i1, i2 with
-     | Control _, Control _ -> Some Type_equal.refl
-     | Block_args _, Block_args _ -> Some Type_equal.refl
-     | Assign _, Assign _ -> Some Type_equal.refl
-     | _ -> None
-     ;;
-
-     let tag_equal (type c d) (i1 : c t) (i2 : d t) = type_equal i1 i2 |> Option.is_some *)
-
-  module Value = Value
-
   let map : type a b c. (a, c) t -> f:(a -> b) -> (b, c) t =
     fun i ~f ->
     match i with
     | Block_args vs -> Block_args vs
     | Instr instr -> Instr (Instr.map f instr)
-    | Control c -> Control (InstrControl.map f c)
+    | Control c -> Control (Control_instr.map f c)
   ;;
 
-  let to_some i = T.SomeInstr.T i
+  let to_some i = T.Some_instr.T i
   let uses_fold i k = fold i ~init:() ~f:(fun () u -> k u)
   let uses i = fold ~init:[] ~f:(Fn.flip List.cons) i
   let map_uses = map
@@ -210,14 +198,14 @@ module InstrGeneric = struct
   ;;
 
   let defs i = F.Fold.reduce defs_fold F.Reduce.to_list_rev i
-  let jumps i = InstrControl.block_calls @@ get_control i
+  let jumps i = Control_instr.block_calls @@ get_control i
 end
 
-module SomeInstr = struct
-  include T.SomeInstr
+module Some_instr = struct
+  include T.Some_instr
 
-  let uses_fold (T i) = InstrGeneric.uses_fold i
-  let defs_fold (T i) = InstrGeneric.defs_fold i
+  let uses_fold (T i) = Generic_instr.uses_fold i
+  let defs_fold (T i) = Generic_instr.defs_fold i
   let uses i = F.Fold.reduce uses_fold F.Reduce.to_list_rev i
   let defs i = F.Fold.reduce defs_fold F.Reduce.to_list_rev i
 end
@@ -228,32 +216,32 @@ module Block = struct
   let map_exit t ~f = { t with exit = f t.exit }
 
   module Mapper = struct
-    type ('a, 'b) t = { f : 'c. ('a, 'c) InstrGeneric.t -> ('b, 'c) InstrGeneric.t }
+    type ('a, 'b) t = { f : 'c. ('a, 'c) Generic_instr.t -> ('b, 'c) Generic_instr.t }
   end
 
   let map_instrs_forwards (m : _ Mapper.t) { entry; body; exit } =
-    let entry = m.f (InstrGeneric.Block_args entry) |> InstrGeneric.get_block_args in
+    let entry = m.f (Generic_instr.Block_args entry) |> Generic_instr.get_block_args in
     let body =
       List.map
-        ~f:(fun body -> InstrGeneric.Instr body |> m.f |> InstrGeneric.get_assign)
+        ~f:(fun body -> Generic_instr.Instr body |> m.f |> Generic_instr.get_assign)
         body
     in
-    let exit = m.f (InstrGeneric.Control exit) |> InstrGeneric.get_control in
+    let exit = m.f (Generic_instr.Control exit) |> Generic_instr.get_control in
     { entry; body; exit }
   ;;
 
   let fold_instrs_forward ({ entry; body; exit } : _ t) ~init ~f =
-    let init = f init (BlockArgs.to_some entry) in
+    let init = f init (Block_args.to_some entry) in
     let init = List.fold_left ~init ~f:(fun z i -> f z (Instr.to_some i)) body in
-    f init (InstrControl.to_some exit)
+    f init (Control_instr.to_some exit)
   ;;
 
   let fold_instrs_backward ({ entry; body; exit } : _ t) ~init ~f =
-    let init = f init (InstrControl.to_some exit) in
+    let init = f init (Control_instr.to_some exit) in
     let init =
       List.rev body |> List.fold_left ~init ~f:(fun z i -> f z (Instr.to_some i))
     in
-    f init (BlockArgs.to_some entry)
+    f init (Block_args.to_some entry)
   ;;
 
   let instrs_forward_fold block k =
@@ -261,7 +249,7 @@ module Block = struct
   ;;
 
   let jumps_fold (b : _ t) =
-    F.Fold.(of_fn exit @> InstrControl.block_calls_fold @> of_fn BlockCall.label) b
+    F.Fold.(of_fn exit @> Control_instr.block_calls_fold @> of_fn Block_call.label) b
   ;;
 
   let jumps (b : _ t) = F.Fold.reduce jumps_fold F.Reduce.to_list_rev b
@@ -307,7 +295,7 @@ module Graph = struct
   end
 end
 
-module MutFunction = struct
+module Mut_function = struct
   type 'v t =
     { name : string
     ; params : Value.t list
@@ -353,7 +341,7 @@ module Function = struct
   ;;
 
   let thaw fn =
-    { MutFunction.name = fn.name
+    { Mut_function.name = fn.name
     ; params = fn.params
     ; graph = fn.graph
     ; return_ty = fn.return_ty
@@ -363,7 +351,7 @@ module Function = struct
   ;;
 
   let freeze fn =
-    { name = fn.MutFunction.name
+    { name = fn.Mut_function.name
     ; params = fn.params
     ; graph = fn.graph
     ; return_ty = fn.return_ty
@@ -393,20 +381,20 @@ struct
     type t = V.t Instr.t [@@deriving sexp_of]
   end
 
-  module BlockCall = struct
-    type t = V.t BlockCall.t [@@deriving sexp_of]
+  module Block_call = struct
+    type t = V.t Block_call.t [@@deriving sexp_of]
   end
 
-  module InstrControl = struct
-    type t = V.t InstrControl.t [@@deriving sexp_of]
+  module Control_instr = struct
+    type t = V.t Control_instr.t [@@deriving sexp_of]
   end
 
-  module SomeInstr = struct
-    type t = V.t SomeInstr.t [@@deriving sexp_of]
+  module Some_instr = struct
+    type t = V.t Some_instr.t [@@deriving sexp_of]
   end
 
-  module InstrGeneric = struct
-    type 'c t = ('c, V.t) InstrGeneric.t
+  module Generic_instr = struct
+    type 'c t = ('c, V.t) Generic_instr.t
   end
 
   module Block = struct
@@ -420,8 +408,8 @@ struct
     type t = V.t Graph.t [@@deriving sexp_of]
   end
 
-  module MutFunction = struct
-    type t = V.t MutFunction.t
+  module Mut_function = struct
+    type t = V.t Mut_function.t
   end
 
   module Function = struct
@@ -445,10 +433,10 @@ struct
     module Instr = struct
       module Value = V
 
-      type t = V.t SomeInstr.t [@@deriving sexp_of]
+      type t = V.t Some_instr.t [@@deriving sexp_of]
 
-      let uses = SomeInstr.uses
-      let defs = SomeInstr.defs
+      let uses = Some_instr.uses
+      let defs = Some_instr.defs
     end
 
     module Block = struct

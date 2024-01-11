@@ -19,7 +19,7 @@ let pretty_value_typed (value : Value.t) =
 ;;
 
 let cmp_op_to_string = function
-  | CmpOp.Gt -> "gt"
+  | Cmp_op.Gt -> "gt"
 ;;
 
 let pretty_expr cx =
@@ -50,7 +50,7 @@ let pretty_expr cx =
   | _ -> failwith "don't know how to print"
 ;;
 
-let pretty_block_call cx ({ label; args } : _ BlockCall.t) =
+let pretty_block_call cx ({ label; args } : _ Block_call.t) =
   let pretty_value = cx.Context.pretty_value in
   Pretty.(
     List (List.concat [ [ pretty_name label.name ]; List.map ~f:pretty_value args ]))
@@ -59,8 +59,8 @@ let pretty_block_call cx ({ label; args } : _ BlockCall.t) =
 let pretty_instr_control cx i =
   let pretty_value = cx.Context.pretty_value in
   match i with
-  | InstrControl.Jump v -> Pretty.(List [ Atom "jump"; pretty_block_call cx v ])
-  | InstrControl.CondJump (v, j1, j2) ->
+  | Control_instr.Jump v -> Pretty.(List [ Atom "jump"; pretty_block_call cx v ])
+  | Control_instr.CondJump (v, j1, j2) ->
     Pretty.(
       List
         [ Atom "cond_jump"
@@ -68,7 +68,7 @@ let pretty_instr_control cx i =
         ; pretty_block_call cx j1
         ; pretty_block_call cx j2
         ])
-  | InstrControl.Ret v ->
+  | Control_instr.Ret v ->
     Pretty.(List ([ Atom "ret" ] @ (Option.map ~f:pretty_value v |> Option.to_list)))
 ;;
 

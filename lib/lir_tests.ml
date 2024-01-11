@@ -37,7 +37,7 @@ let%expect_test "uses" =
       @> F.Fold.of_fn Graph.blocks
       @> F.Core.Map.fold
       @> Block.instrs_forward_fold
-      @> SomeInstr.uses_fold)
+      @> Some_instr.uses_fold)
   in
   let uses = F.Fold.reduce p F.Reduce.to_list_rev fn in
   print_s [%sexp (uses : Lir.Value.t list)];

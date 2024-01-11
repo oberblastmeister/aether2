@@ -48,14 +48,14 @@ let check_all_temps_unique (fn : Value.t Function.t) =
            [%message
              "a temporary was defined more than once"
                ~label:(label : Label.t option)
-               ~instr:(instr : Value.t SomeInstr.t option)
+               ~instr:(instr : Value.t Some_instr.t option)
                ~def:(def : Value.t)]);
     Hash_set.add defines def
   in
   List.iter fn.params ~f:(check_define None None);
   let fold =
     F.Fold.(
-      F.Core.Map.foldi @> ix (dup Block.instrs_forward_fold) @> ix2 SomeInstr.defs_fold)
+      F.Core.Map.foldi @> ix (dup Block.instrs_forward_fold) @> ix2 Some_instr.defs_fold)
   in
   F.Fold.iter
     fold
@@ -74,8 +74,8 @@ let validate_ssa_function (fn : Vir.Function.t) =
   List.iter fn.params ~f:(fun param -> Hash_set.add defined param);
   Vec.iter labels ~f:(fun label ->
     let block = Map.find_exn fn.graph.blocks label in
-    F.Fold.iter Block.instrs_forward_fold block ~f:(fun (SomeInstr.T instr as i) ->
-      let uses = InstrGeneric.uses instr in
+    F.Fold.iter Block.instrs_forward_fold block ~f:(fun (Some_instr.T instr as i) ->
+      let uses = Generic_instr.uses instr in
       List.iter uses ~f:(fun use ->
         if not @@ Hash_set.mem defined use
         then
@@ -84,11 +84,11 @@ let validate_ssa_function (fn : Vir.Function.t) =
             (Error.t_of_sexp
                [%message
                  "a use was not dominated by a define"
-                   ~instr:(i : Vir.SomeInstr.t)
+                   ~instr:(i : Vir.Some_instr.t)
                    ~use:(use : Value.t)
                    ~label:(label : Label.t)
                    ~defines:(defined : Value.Hash_set.t)]));
-      let defs = InstrGeneric.defs instr in
+      let defs = Generic_instr.defs instr in
       List.iter defs ~f:(fun def -> Hash_set.add defined def)));
   Stack.to_list errors
   |> or_error_of_list
@@ -135,8 +135,8 @@ end = struct
     Block.map_instrs_forwards
       { f =
           (fun i ->
-            let i = InstrGeneric.map_uses i ~f:(rename_use st) in
-            let i = InstrGeneric.map_defs i ~f:(rename_def st) in
+            let i = Generic_instr.map_uses i ~f:(rename_use st) in
+            let i = Generic_instr.map_defs i ~f:(rename_def st) in
             i)
       }
       block
@@ -169,7 +169,7 @@ let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
     in
     let new_exit_instr =
       block.exit
-      |> InstrControl.map_block_calls ~f:(fun block_call ->
+      |> Control_instr.map_block_calls ~f:(fun block_call ->
         { block_call with args = Map.find_exn liveness block_call.label |> Set.to_list })
     in
     { block with entry = new_entry_instr; exit = new_exit_instr }
@@ -192,13 +192,13 @@ let get_phis (graph : Vir.Graph.t) =
         { dest_label = label; dest = arg; flow_values = [] }))
   in
   let fold =
-    F.Fold.(F.Core.Map.foldi @> ix (of_fn Block.exit @> InstrControl.block_calls_fold))
+    F.Fold.(F.Core.Map.foldi @> ix (of_fn Block.exit @> Control_instr.block_calls_fold))
   in
   let phis_of_block =
     F.Fold.fold
       fold
       ~init:initial_phis
-      ~f:(fun phi_map (label, (block_call : Vir.BlockCall.t)) ->
+      ~f:(fun phi_map (label, (block_call : Vir.Block_call.t)) ->
         let phis = Map.find_exn phi_map block_call.label in
         let phis =
           match List.zip phis block_call.args with
@@ -277,7 +277,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
     let phis = Hashtbl.find phis_of_label label |> Option.value ~default:[] in
     let entry = List.map phis ~f:(fun phi -> phi.dest) in
     let exit =
-      InstrControl.map_block_calls block.exit ~f:(fun block_call ->
+      Control_instr.map_block_calls block.exit ~f:(fun block_call ->
         let phis_for_call =
           Hashtbl.find phis_of_label block_call.label |> Option.value ~default:[]
         in
@@ -299,7 +299,7 @@ let subst_graph subst (graph : Vir.Graph.t) =
     Block.map_instrs_forwards
       { f =
           (fun instr ->
-            InstrGeneric.map_uses instr ~f:(fun use ->
+            Generic_instr.map_uses instr ~f:(fun use ->
               Hashtbl.find subst use |> Option.value ~default:use))
       }
       block)
