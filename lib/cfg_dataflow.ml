@@ -1,6 +1,6 @@
 open O
 open Instr_types
-include Dataflow_intf
+include Cfg_dataflow_intf
 
 module InstrToBlockTransfer
     (Block : Block)

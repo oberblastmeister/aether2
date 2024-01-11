@@ -369,57 +369,6 @@ module Program = struct
   let map_functions p ~f = { p with functions = f p.functions }
 end
 
-(* module DataflowBlock = struct
-   type t = Block.t [@@deriving sexp_of]
-   type instr = Instr.Some.t
-
-   let fold_instrs_forward = Block.fold_instrs_forward
-   let fold_instrs_backward = Block.fold_instrs_backward
-   let jumps = Block.jumps
-   end *)
-
-(* module DataflowInstr = struct
-   type t = Value.t Instr.Some.t [@@deriving sexp_of]
-
-   module Value = Instr.Value
-
-   let uses (Instr.Some.T i) = Instr.uses i
-   let defs (Instr.Some.T i) = Instr.defs i
-   end
-
-   module DataflowBlock = struct
-   include Block
-
-   type t = Value.t Block.t [@@deriving sexp_of]
-
-   module Node = Label
-
-   module Instr = struct
-   type t = Value.t Instr.Some.t [@@deriving sexp_of]
-   end
-   end *)
-
-(* module Dataflow2 = Dataflow.Make (struct
-   include Graph.DataGraph
-   module Block = DataflowBlock
-
-   let entry (graph : _ Graph.t) = graph.entry
-   let exit (graph : _ Graph.t) = graph.exit
-   let get_block (graph : _ Graph.t) label = Map.find_exn graph.blocks label
-   end)
-
-   module Liveness = struct
-   module InstrTransfer = Dataflow.Liveness.Make (DataflowInstr)
-   module BlockTransfer = Dataflow.InstrToBlockTransfer (DataflowBlock) (InstrTransfer)
-   include Dataflow2.MakeAnalysis (BlockTransfer)
-   end
-
-   module DataflowDominators = struct
-   module BlockTransfer = Dataflow.Dominators.Make (DataflowBlock)
-   include Dataflow.Dominators.MakeHelpers (DataflowBlock)
-   include Dataflow2.MakeAnalysis (BlockTransfer)
-   end *)
-
 let%expect_test _ =
   let v : Value.t = { name = Name.of_string "x"; ty = Ty.U64 } in
   [%sexp_of: Value.t Instr.t] (Assign (v, Add { ty = Ty.U64; v1 = v; v2 = v }))
@@ -507,7 +456,7 @@ struct
       module Instr = Instr
     end
 
-    module Framework = Dataflow.Make (struct
+    module Framework = Cfg.Dataflow.Make (struct
         include M.DataGraph
         module Block = Block
 
@@ -515,17 +464,12 @@ struct
         let exit (graph : M.Graph.t) = graph.exit
         let get_block (graph : M.Graph.t) label = Map.find_exn graph.blocks label
       end)
+  end
 
-    (* module Liveness = struct
-       module InstrTransfer = Dataflow.Liveness.Make (Instr)
-       module BlockTransfer = Dataflow.InstrToBlockTransfer (Block) (InstrTransfer)
-       include Framework.MakeAnalysis (BlockTransfer)
-       end *)
-    module Dominators = struct
-      module BlockTransfer = Dataflow.Dominators.Make (Block)
-      include Dataflow.Dominators.MakeHelpers (Block)
-      include Framework.MakeAnalysis (BlockTransfer)
-    end
+  module DataflowDominators = struct
+    module BlockTransfer = Cfg.Dataflow.Dominators.Make (Dataflow.Block)
+    include Cfg.Dataflow.Dominators.MakeHelpers (Dataflow.Block)
+    include Dataflow.Framework.MakeAnalysis (BlockTransfer)
   end
 
   module Dominators = Dominators.MakeDominators (Graph.DataGraph)
@@ -533,20 +477,18 @@ struct
 end
 
 module Vir = struct
-  module Mod = InstantiateWithDataflow (struct
+  include InstantiateWithDataflow (struct
       include Value
     end)
 
   module Liveness = struct
-    module InstrTransfer = Dataflow.Liveness.Make (Mod.Dataflow.Instr)
+    module InstrTransfer = Cfg.Dataflow.Liveness.Make (Dataflow.Instr)
 
     module BlockTransfer =
-      Dataflow.InstrToBlockTransfer (Mod.Dataflow.Block) (InstrTransfer)
+      Cfg.Dataflow.InstrToBlockTransfer (Dataflow.Block) (InstrTransfer)
 
-    include Mod.Dataflow.Framework.MakeAnalysis (BlockTransfer)
+    include Dataflow.Framework.MakeAnalysis (BlockTransfer)
   end
-
-  include Mod
 end
 
 module Dominators = Dominators.MakeDominators (Graph.DataGraph)
