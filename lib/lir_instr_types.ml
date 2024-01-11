@@ -131,7 +131,7 @@ module Graph = struct
 end
 
 module Mut_function = struct
-  type 'v t' =
+  type 'v t =
     { name : string
     ; params : Value.t list
     ; mutable graph : 'v Graph.t
@@ -139,12 +139,10 @@ module Mut_function = struct
     ; mutable unique_label : int
     ; mutable unique_name : int
     }
-
-  type t = Value.t t'
 end
 
 module Function = struct
-  type 'v t' =
+  type 'v t =
     { name : string
     ; params : Value.t list
     ; graph : 'v Graph.t
@@ -153,12 +151,8 @@ module Function = struct
     ; unique_name : int
     }
   [@@deriving sexp_of, fields]
-
-  module Fields = Fields_of_t'
 end
 
 module Program = struct
-  type 'v t' = { functions : 'v Function.t' list } [@@deriving sexp_of, fields]
-
-  module Fields = Fields_of_t'
+  type 'v t = { functions : 'v Function.t list } [@@deriving sexp_of, fields]
 end

@@ -1,5 +1,4 @@
 open O
-module Vir = Lir.Vir
 
 let loop_lir =
   lazy
@@ -109,7 +108,7 @@ let%expect_test "idoms" =
 
 let%expect_test "idoms fast" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
-  let idoms = Lir.Dominators.get_idoms fn.graph in
+  let idoms = Vir.Dominators.get_idoms fn.graph in
   print_s [%sexp (idoms : Lir.Label.t Lir.Label.Hashtbl.t)];
   ();
   [%expect

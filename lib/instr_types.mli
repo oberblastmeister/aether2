@@ -15,7 +15,7 @@ end
 
 module UniqueName : sig
   type t =
-    { name : string
+    { name : string [@equal.ignore] [@compare.ignore] [@hash.ignore]
     ; unique : int
     }
   [@@deriving sexp, equal, compare, hash]

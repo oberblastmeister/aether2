@@ -1,6 +1,5 @@
 open O
 module Lir = Lir_instr
-module Vir = Lir.Vir
 
 module Value = struct
   type t =
@@ -9,7 +8,7 @@ module Value = struct
   [@@deriving sexp_of]
 end
 
-include Lir.Instantiate (Value)
+include Lir_instantiate.Instantiate (Value)
 
 let rec pretty_value = function
   | Value.V v -> Lir_pretty.pretty_value v
