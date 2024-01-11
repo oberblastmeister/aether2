@@ -1,11 +1,9 @@
 open O
 open Instr_types
+module T = Lir_instr_types
 
 module Ty = struct
-  type t =
-    | U1
-    | U64
-  [@@deriving equal, compare, sexp, hash, variants]
+  include T.Ty
 end
 
 module Name = Name
@@ -13,62 +11,18 @@ module Label = Label
 module Control = Control
 
 module Value = struct
-  module T = struct
-    type t =
-      { name : Name.t
-      ; ty : Ty.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
-      }
-    [@@deriving equal, compare, hash, sexp, fields]
-  end
-
-  include T
-  module Hashtbl = Hashtbl.Make (T)
-  module Hash_set = Hash_set.Make (T)
-  module Map = Map.Make (T)
-  module Set = Set.Make (T)
+  include T.Value
+  module Hashtbl = Hashtbl.Make (T.Value)
+  module Hash_set = Hash_set.Make (T.Value)
+  include Comparable.Make (T.Value)
 end
 
 module CmpOp = struct
-  type t = Gt [@@deriving equal, compare, sexp]
+  include T.CmpOp
 end
 
 module InstrOp = struct
-  type 'v t' =
-    | Add of
-        { ty : Ty.t
-        ; v1 : 'v
-        ; v2 : 'v
-        }
-    | Sub of
-        { ty : Ty.t
-        ; v1 : 'v
-        ; v2 : 'v
-        }
-    | Const of
-        { ty : Ty.t
-        ; const : int64
-        }
-    | Cmp of
-        { ty : Ty.t
-        ; op : CmpOp.t
-        ; v1 : 'v
-        ; v2 : 'v
-        }
-    | Val of
-        { ty : Ty.t
-        ; v : 'v
-        }
-    | Alloca of { ty : Ty.t }
-    | Load of
-        { ty : Ty.t
-        ; v : 'v
-        }
-    | Store of
-        { ty : Ty.t
-        ; dest : 'v
-        ; src : 'v
-        }
-  [@@deriving equal, compare, sexp, map, iter, fold]
+  include T.InstrOp
 
   let get_ty = function
     | Add { ty; _ } -> ty
@@ -81,31 +35,19 @@ module InstrOp = struct
     | Store { ty; _ } -> todo ()
   ;;
 
-  type t = Value.t t' [@@deriving equal, compare, sexp]
+  type t = Value.t t' [@@deriving sexp]
 
   let uses_fold i k = fold_t' (fun () u -> k u) () i
 end
 
 module BlockCall = struct
-  type 'v t' =
-    { label : Label.t
-    ; args : 'v list
-    }
-  [@@deriving sexp, fields, map, iter, fold]
-
-  module Fields = Fields_of_t'
+  include T.BlockCall
 
   type t = Value.t t' [@@deriving sexp]
 end
 
 module InstrControl = struct
-  type 'v t' =
-    | Jump of 'v BlockCall.t'
-    | CondJump of ('v * 'v BlockCall.t' * 'v BlockCall.t')
-    | Ret of 'v option
-  [@@deriving sexp, map, iter, fold]
-
-  type t = Value.t t' [@@deriving sexp]
+  include T.InstrControl
 
   let block_calls_fold i k =
     match i with
@@ -127,14 +69,7 @@ module InstrControl = struct
 end
 
 module Instr = struct
-  module T = struct
-    type ('v, 'c) t' =
-      | Block_args : Value.t list -> ('v, Control.e) t'
-      | Assign : (Value.t * 'v InstrOp.t') -> ('v, Control.o) t'
-      | Control : 'v InstrControl.t' -> ('v, Control.c) t'
-  end
-
-  include T
+  include T.Instr
 
   let fold_t' (type c v) (i : (v, c) t') ~(init : 'a) ~(f : 'a -> v -> 'a) : 'a =
     match i with
@@ -149,8 +84,6 @@ module Instr = struct
     | Assign (v, op) -> Assign (v, InstrOp.map_t' f op)
     | Control c -> Control (InstrControl.map_t' f c)
   ;;
-
-  type 'c t = (Value.t, 'c) t'
 
   let get_control : type v. (v, Control.c) t' -> v InstrControl.t' = function
     | Control c -> c
@@ -231,7 +164,7 @@ module Instr = struct
   let tag_equal (type c d) (i1 : c t) (i2 : d t) = type_equal i1 i2 |> Option.is_some
 
   module Some = struct
-    type 'v t' = T : ('v, 'c) T.t' -> 'v t' [@@unboxed]
+    type 'v t' = T : ('v, 'c) T.Instr.t' -> 'v t' [@@unboxed]
     type t = Value.t t'
 
     let sexp_of_t' f (T s) = sexp_of_t' f s
@@ -273,16 +206,7 @@ module Instr = struct
 end
 
 module Block = struct
-  type 'c i = 'c Instr.t
-
-  type 'v t' =
-    { entry : ('v, Control.e) Instr.t'
-    ; body : ('v, Control.o) Instr.t' list
-    ; exit : ('v, Control.c) Instr.t'
-    }
-  [@@deriving fields]
-
-  type t = Value.t t'
+  include T.Block
 
   let map_exit t ~f = { t with exit = Instr.map_control t.exit ~f }
 
@@ -324,24 +248,23 @@ module Block = struct
     fold_instrs_forward block ~init:() ~f:(fun () i -> k i)
   ;;
 
-  let jumps_fold =
-    F.Fold.of_fn (fun (b : t) -> b.exit)
-    @> F.Fold.of_fn Instr.get_control
-    @> InstrControl.block_calls_fold
-    @> F.Fold.of_fn BlockCall.label
+  let jumps_fold (b : _ t') =
+    F.Fold.(
+      of_fn exit
+      @> of_fn Instr.get_control
+      @> InstrControl.block_calls_fold
+      @> of_fn BlockCall.label)
+      b
   ;;
 
-  let jumps (b : t) = F.Fold.reduce jumps_fold F.Reduce.to_list_rev b
+  let jumps (b : _ t') = F.Fold.reduce jumps_fold F.Reduce.to_list_rev b
 end
 
 module Graph = struct
-  type 'v t' = 'v Block.t' Cfg_graph.Graph.t [@@deriving sexp_of]
-
+  include T.Graph
   include Cfg_graph.Graph.Stuff
 
-  let predecessors_of_label = predecessors_of_label ~jumps:Block.jumps
-
-  type t = Value.t t' [@@deriving sexp_of]
+  let predecessors_of_label b = predecessors_of_label ~jumps:Block.jumps b
 
   let validate graph =
     validate graph;
@@ -355,12 +278,20 @@ module Graph = struct
         [%message "the entry label should have no predecessors" ~got:(ls : Label.t list)]
   ;;
 
-  module DataGraph = struct
-    include MakeDataGraph (struct
-        type t = Block.t [@@deriving sexp_of]
+  module MakeDataGraph (V : sig
+      type t [@@deriving sexp_of]
+    end) : Data_graph.SingleEntryGraph with type t = V.t t' and module Node = Label =
+  MakeDataGraph (struct
+      type t = V.t Block.t' [@@deriving sexp_of]
 
-        let jumps_fold = Block.jumps_fold
-        let jumps = Block.jumps
+      let jumps_fold b = Block.jumps_fold b
+      let jumps b = Block.jumps b
+    end)
+
+  module DataGraph :
+    Data_graph.SingleEntryGraph with type t = Value.t t' and module Node = Label = struct
+    include MakeDataGraph (struct
+        type t = Value.t [@@deriving sexp_of]
       end)
   end
 
@@ -456,14 +387,14 @@ module Program = struct
   type t = Value.t t' [@@deriving sexp_of]
 end
 
-module DataflowBlock = struct
-  type t = Block.t [@@deriving sexp_of]
-  type instr = Instr.Some.t
+(* module DataflowBlock = struct
+   type t = Block.t [@@deriving sexp_of]
+   type instr = Instr.Some.t
 
-  let fold_instrs_forward = Block.fold_instrs_forward
-  let fold_instrs_backward = Block.fold_instrs_backward
-  let jumps = Block.jumps
-end
+   let fold_instrs_forward = Block.fold_instrs_forward
+   let fold_instrs_backward = Block.fold_instrs_backward
+   let jumps = Block.jumps
+   end *)
 
 module DataflowInstr = struct
   type t = Instr.Some.t [@@deriving sexp_of]
@@ -474,17 +405,31 @@ module DataflowInstr = struct
   let defs (Instr.Some.T i) = Instr.defs i
 end
 
-module Dataflow = Cfg.MakeDataflowForBlock (DataflowBlock)
+module DataflowBlock = struct
+  include Block
+  module Node = Label
+  module Instr = Instr.Some
+end
+
+module Dataflow2 = Dataflow.Make (struct
+    include Graph.DataGraph
+    module Block = DataflowBlock
+
+    let entry (graph : Graph.t) = graph.entry
+    let exit (graph : Graph.t) = graph.exit
+    let get_block (graph : Graph.t) label = Map.find_exn graph.blocks label
+  end)
 
 module Liveness = struct
-  module InstrTransfer = Cfg.MakeLivenessInstrTransfer (DataflowInstr)
-  module BlockTransfer = Cfg.InstrToBlockTransfer (DataflowBlock) (InstrTransfer)
-  include Dataflow.MakeRun (BlockTransfer)
+  module InstrTransfer = Dataflow.Liveness.Make (DataflowInstr)
+  module BlockTransfer = Dataflow.InstrToBlockTransfer (DataflowBlock) (InstrTransfer)
+  include Dataflow2.MakeAnalysis (BlockTransfer)
 end
 
 module DataflowDominators = struct
-  module BlockTransfer = Cfg.MakeDominatorsBlockTransfer (DataflowBlock)
-  include Dataflow.MakeRun (BlockTransfer)
+  module BlockTransfer = Dataflow.Dominators.Make (DataflowBlock)
+  include Dataflow.Dominators.MakeHelpers (DataflowBlock)
+  include Dataflow2.MakeAnalysis (BlockTransfer)
 end
 
 module Dominators = Dominators.MakeDominators (Graph.DataGraph)

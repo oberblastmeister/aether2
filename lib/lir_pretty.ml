@@ -6,7 +6,7 @@ module Context = struct
   type 'v t = { pretty_value : 'v -> Sexp_pretty.t }
 end
 
-let pretty_name = Fn.compose Pretty.atom Name.pretty
+let pretty_name = Fn.compose Pretty.atom Name.to_string
 let pretty_value (value : Value.t) = pretty_name value.name
 
 let pretty_ty = function

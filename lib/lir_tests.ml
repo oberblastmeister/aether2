@@ -51,7 +51,7 @@ let%expect_test "uses" =
 let%expect_test "liveness" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let res = Lir.Liveness.run fn.graph in
-  print_s [%sexp (res : Lir.Liveness.InstrTransfer.domain Lir.Label.Map.t)];
+  print_s [%sexp (res : Lir.Liveness.InstrTransfer.Domain.t Lir.Label.Map.t)];
   ();
   [%expect
     {|
@@ -69,7 +69,7 @@ let%expect_test "liveness" =
 let%expect_test "dominators" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let res = Lir.DataflowDominators.run fn.graph in
-  print_s [%sexp (res : Lir.DataflowDominators.BlockTransfer.domain Lir.Label.Map.t)];
+  print_s [%sexp (res : Lir.DataflowDominators.BlockTransfer.Domain.t Lir.Label.Map.t)];
   [%expect
     {|
     ((((name (Name body)))

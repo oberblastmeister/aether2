@@ -2,16 +2,16 @@ open O
 
 module type NodeType = sig
   type t [@@deriving equal, hash, sexp, compare]
+
+  include Comparable.S with type t := t
 end
 
-module type GraphTypes = sig
-  module Node : NodeType
-
-  type t [@@deriving sexp_of]
-end
+module type GraphTypes = sig end
 
 module type Graph = sig
-  include GraphTypes
+  type t [@@deriving sexp_of]
+
+  module Node : NodeType
 
   val successors : t -> Node.t -> Node.t list
   val predecessors_staged : t -> (Node.t -> Node.t list) Staged.t

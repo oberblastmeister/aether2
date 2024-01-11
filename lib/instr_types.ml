@@ -38,7 +38,7 @@ module Name = struct
 
   let of_string s = Name s
 
-  let pretty = function
+  let to_string = function
     | Name s -> s
     | Unique name -> UniqueName.to_string name
   ;;
@@ -55,7 +55,7 @@ module Label = struct
   include Comparable.Make (T)
 
   let of_string s = { name = Name.of_string s }
-  let to_string { name } = Name.pretty name
+  let to_string { name } = Name.to_string name
 end
 
 let%expect_test "testing" =

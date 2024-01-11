@@ -115,14 +115,14 @@ end = struct
   ;;
 
   let rename_def (st : t) (def : Value.t) =
-    let s = Name.pretty def.name in
+    let s = Name.to_string def.name in
     let fresh = fresh_name st in
     Hashtbl.set st.generation_of_name ~key:s ~data:fresh;
     { def with name = Name.Unique { name = s; unique = fresh } }
   ;;
 
   let rename_use (st : t) (use : Value.t) =
-    let s = Name.pretty use.name in
+    let s = Name.to_string use.name in
     (* the use should always be in the map because we renamed defs before uses *)
     (* we also made sure that each block had all the live variables as block args which are defs *)
     (* this means that this should never panic *)

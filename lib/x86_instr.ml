@@ -31,17 +31,13 @@ module Scale = struct
 end
 
 module MachReg = struct
-  type t =
-    | Reg of Register.t
-    | StackOffEnd of int32
-  [@@deriving sexp]
+  type t = Reg of Register.t [@@deriving sexp]
 end
 
 module AllocReg = struct
   type t =
     | Reg of Register.t
     | Stack
-    | StackOffEnd of int32
   [@@deriving sexp]
 end
 
@@ -49,8 +45,6 @@ module VReg = struct
   type t =
     | Temp of Name.t
     | PreColored of Name.t * Register.t
-    | Stack of Name.t
-    | StackOffEnd of Name.t * int32
   [@@deriving equal, compare, sexp, hash]
 end
 
@@ -76,6 +70,8 @@ module Size = struct
 end
 
 module Operand = struct
+  (* todo: add virtual stack offset thingy here *)
+  (* so we don't need separate stack instructions *)
   type 'reg t =
     | Imm of int32
     | Reg of 'reg
@@ -126,6 +122,16 @@ module InstrNormal = struct
         ; dst : 'reg Operand.t
         ; src1 : 'reg Operand.t
         ; src2 : 'reg Operand.t
+        }
+    | StoreStack of
+        { s : Size.t
+        ; dst : int32
+        ; src : 'reg Operand.t
+        }
+    | LoadStack of
+        { s : Size.t
+        ; dst : 'reg Operand.t
+        ; src : int32
         }
     | Mov of 'reg Mov.t
     | Par_mov of 'reg Mov.t list
