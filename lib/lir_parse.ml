@@ -70,11 +70,11 @@ let parse_block_call =
   Parser.list_ref (fun xs ->
     let label = Parser.item xs parse_label in
     let args = Parser.rest !xs parse_var in
-    ({ label; args } : _ BlockCall.t'))
+    ({ label; args } : _ BlockCall.t))
 ;;
 
 module Some = struct
-  type t = T : (Name.t, 'c) Instr.t' -> t
+  type t = T : (Name.t, 'c) Instr.t -> t
 end
 
 let parse_instr =
@@ -126,7 +126,7 @@ let parse_block =
           Parser.parse_error
             [%message
               "instructions before the end must be op instrs"
-                ~got:(Instr.sexp_of_t' Name.sexp_of_t i : Sexp.t)])
+                ~got:(Instr.sexp_of_t Name.sexp_of_t i : Sexp.t)])
     in
     let last_instr =
       let (Some.T i) = last_instr in
@@ -136,10 +136,10 @@ let parse_block =
         Parser.parse_error
           [%message
             "last instruction must be control instruction"
-              ~got:(Instr.sexp_of_t' Name.sexp_of_t i : Sexp.t)]
+              ~got:(Instr.sexp_of_t Name.sexp_of_t i : Sexp.t)]
     in
     ( label
-    , ({ entry = Instr.Block_args args; body = instrs; exit = last_instr } : _ Block.t') ))
+    , ({ entry = Instr.Block_args args; body = instrs; exit = last_instr } : _ Block.t) ))
 ;;
 
 let parse_graph xs =
@@ -150,7 +150,7 @@ let parse_graph xs =
      ; blocks = Label.Map.of_alist_exn blocks
      ; exit = List.last_exn blocks |> fst
      }
-     : _ Graph.t')
+     : _ Graph.t)
   | _ -> Parser.parse_error [%message "graph must have at least one block"]
 ;;
 
@@ -166,12 +166,13 @@ let parse_function =
     in
     let return_ty = Parser.item xs parse_ty in
     let graph = parse_graph !xs in
-    ({ name; params; return_ty; graph; unique_label = 0; unique_name = 0 } : _ Function.t'))
+    ({ name; params; return_ty; graph; unique_label = 0; unique_name = 0 }
+     : _ Function.t))
 ;;
 
 let parse_program xs =
   let functions = Parser.rest xs parse_function in
-  ({ functions } : _ Program.t')
+  ({ functions } : _ Program.t)
 ;;
 
 let parse s =
@@ -194,7 +195,7 @@ let%expect_test _ =
   |}
   in
   let fns = parse s |> Or_error.ok_exn in
-  print_s [%sexp (fns : _ Program.t')];
+  print_s [%sexp (fns : _ Program.t)];
   ();
   [%expect
     {|

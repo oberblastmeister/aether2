@@ -10,7 +10,7 @@ let run f =
 
 let elaborate_error e = raise (Exn e)
 
-let collect_types (fn : Name.t Function.t') =
+let collect_types (fn : Name.t Function.t) =
   let add_instr z (Instr.Some.T i) =
     match i with
     | Instr.Assign (v, _) ->
@@ -48,7 +48,7 @@ let collect_types (fn : Name.t Function.t') =
 ;;
 
 let elaborate_instr label ty_of_name instr =
-  Instr.map_t'
+  Instr.map
     ~f:(fun name : Value.t ->
       { name
       ; ty =
@@ -68,11 +68,11 @@ let elaborate_block label ty_of_name block =
     block
 ;;
 
-let elaborate_function (fn : Name.t Function.t') : Function.t =
+let elaborate_function (fn : Name.t Function.t) : Value.t Function.t =
   let ty_of_name = collect_types fn in
   let map =
-    (fun (x : _ Function.t') ~f -> { x with graph = f x.graph })
-    & (fun (x : _ Graph.t') ~f -> { x with blocks = f x.blocks })
+    (fun (x : _ Function.t) ~f -> { x with graph = f x.graph })
+    & (fun (x : _ Graph.t) ~f -> { x with blocks = f x.blocks })
     & F.Core.Map.mapi
   in
   let res = map fn ~f:(fun (label, block) -> elaborate_block label ty_of_name block) in
@@ -81,12 +81,12 @@ let elaborate_function (fn : Name.t Function.t') : Function.t =
 
 let elaborate_single fn = run (fun () -> elaborate_function fn)
 
-let elaborate_program (program : Name.t Program.t') =
+let elaborate_program (program : Name.t Program.t) =
   let new_functions = List.map ~f:elaborate_function program.functions in
   { program with functions = new_functions }
 ;;
 
-let elaborate (program : Name.t Program.t') : Program.t Or_error.t =
+let elaborate (program : Name.t Program.t) : Value.t Program.t Or_error.t =
   run (fun () -> elaborate_program program)
 ;;
 

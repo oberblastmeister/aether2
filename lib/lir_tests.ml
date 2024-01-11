@@ -1,4 +1,5 @@
 open O
+module Vir = Lir.Vir
 
 let loop_lir =
   lazy
@@ -50,8 +51,8 @@ let%expect_test "uses" =
 
 let%expect_test "liveness" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
-  let res = Lir.Liveness.run fn.graph in
-  print_s [%sexp (res : Lir.Liveness.InstrTransfer.Domain.t Lir.Label.Map.t)];
+  let res = Vir.Liveness.run fn.graph in
+  print_s [%sexp (res : Vir.Liveness.InstrTransfer.Domain.t Lir.Label.Map.t)];
   ();
   [%expect
     {|
@@ -68,8 +69,8 @@ let%expect_test "liveness" =
 
 let%expect_test "dominators" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
-  let res = Lir.DataflowDominators.run fn.graph in
-  print_s [%sexp (res : Lir.DataflowDominators.BlockTransfer.Domain.t Lir.Label.Map.t)];
+  let res = Vir.Dataflow.Dominators.run fn.graph in
+  print_s [%sexp (res : Vir.Dataflow.Dominators.BlockTransfer.Domain.t Lir.Label.Map.t)];
   [%expect
     {|
     ((((name (Name body)))
@@ -82,13 +83,18 @@ let%expect_test "dominators" =
 
 let%expect_test "idoms" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
-  let dominators = Lir.DataflowDominators.run fn.graph in
-  let idoms = dominators |> Cfg.Dominators.compute_idoms_from_facts fn.graph.entry in
+  let dominators = Vir.Dataflow.Dominators.run fn.graph in
+  let idoms =
+    dominators |> Vir.Dataflow.Dominators.compute_idoms_from_facts fn.graph.entry
+  in
   let idom_tree =
-    dominators |> Cfg.Dominators.compute_idom_tree_from_facts fn.graph.entry
+    dominators |> Vir.Dataflow.Dominators.compute_idom_tree_from_facts fn.graph.entry
   in
   print_s [%sexp "idoms", (idoms : Lir.Label.t Lir.Label.Map.t)];
-  print_s [%sexp "idom_tree", (idom_tree : Cfg.DominatorFact.t Lir.Label.Map.t)];
+  print_s
+    [%sexp
+      "idom_tree"
+      , (idom_tree : Vir.Dataflow.Dominators.BlockTransfer.Domain.t Lir.Label.Map.t)];
   [%expect
     {|
     (idoms

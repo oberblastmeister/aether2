@@ -36,7 +36,7 @@ let or_error_of_list = function
   | _ :: _ as es -> Error.of_list es |> Error
 ;;
 
-let check_all_temps_unique (fn : Function.t) =
+let check_all_temps_unique (fn : Value.t Function.t) =
   let errors : Error.t Stack.t = Stack.create () in
   let defines : Value.Hash_set.t = Value.Hash_set.create () in
   let check_define label instr def =
@@ -48,7 +48,7 @@ let check_all_temps_unique (fn : Function.t) =
            [%message
              "a temporary was defined more than once"
                ~label:(label : Label.t option)
-               ~instr:(instr : Instr.Some.t option)
+               ~instr:(instr : Value.t Instr.Some.t option)
                ~def:(def : Value.t)]);
     Hash_set.add defines def
   in
@@ -63,7 +63,7 @@ let check_all_temps_unique (fn : Function.t) =
   Stack.to_list errors |> or_error_of_list
 ;;
 
-let validate_ssa_function (fn : Function.t) =
+let validate_ssa_function (fn : Vir.Function.t) =
   let open Or_error.Let_syntax in
   Graph.validate fn.graph;
   let%bind () = check_all_temps_unique fn in
@@ -83,7 +83,7 @@ let validate_ssa_function (fn : Function.t) =
             (Error.t_of_sexp
                [%message
                  "a use was not dominated by a define"
-                   ~instr:(i : Instr.Some.t)
+                   ~instr:(i : Vir.Instr.Some.t)
                    ~use:(use : Value.t)
                    ~label:(label : Label.t)
                    ~defines:(defined : Value.Hash_set.t)]));
@@ -94,12 +94,12 @@ let validate_ssa_function (fn : Function.t) =
   |> Result.map_error ~f:(Error.tag_s ~tag:[%message "in function" (fn.name : string)])
 ;;
 
-let validate_ssa (prog : Program.t) =
+let validate_ssa (prog : Vir.Program.t) =
   List.iter prog.functions ~f:(fun fn -> validate_ssa_function fn |> Or_error.ok_exn)
 ;;
 
 module Rename : sig
-  val rename_function : Function.t -> Function.t
+  val rename_function : Vir.Function.t -> Vir.Function.t
 end = struct
   module StringHashtbl = Hashtbl.Make (String)
 
@@ -130,7 +130,7 @@ end = struct
     { use with name = Name.Unique { name = s; unique } }
   ;;
 
-  let rename_block (st : t) (block : Block.t) =
+  let rename_block (st : t) (block : Vir.Block.t) =
     Block.map_instrs_forwards
       { f =
           (fun i ->
@@ -141,7 +141,7 @@ end = struct
       block
   ;;
 
-  let rename_graph (st : t) (graph : Graph.t) =
+  let rename_graph (st : t) (graph : Vir.Graph.t) =
     (* very important! we need to rename the start block first because we just renamed the parameters *)
     Graph.map_simple_order graph ~f:(fun (_label, block) -> rename_block st block)
   ;;
@@ -150,7 +150,7 @@ end = struct
     { generation_of_name = StringHashtbl.create (); unique_name }
   ;;
 
-  let rename_function (fn : Function.t) =
+  let rename_function (fn : Vir.Function.t) =
     let st = new_state fn.unique_name in
     let params = List.map ~f:(rename_def st) fn.params in
     let graph = rename_graph st fn.graph in
@@ -158,9 +158,9 @@ end = struct
   ;;
 end
 
-let convert_naive_ssa (fn : Function.t) : Function.t =
-  let liveness = Liveness.run fn.graph in
-  let add_block_args_and_calls label (block : Block.t) =
+let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
+  let liveness = Vir.Liveness.run fn.graph in
+  let add_block_args_and_calls label (block : Vir.Block.t) =
     let new_entry_instr =
       Instr.Block_args
         (if [%equal: Label.t] label fn.graph.entry
@@ -184,7 +184,7 @@ let convert_naive_ssa (fn : Function.t) : Function.t =
   renamed_function
 ;;
 
-let get_phis (graph : Graph.t) =
+let get_phis (graph : Vir.Graph.t) =
   let initial_phis =
     F.Core.Map.mapi graph.blocks ~f:(fun (label, block) ->
       block.entry
@@ -201,7 +201,7 @@ let get_phis (graph : Graph.t) =
     F.Fold.fold
       fold
       ~init:initial_phis
-      ~f:(fun phi_map (label, (block_call : BlockCall.t)) ->
+      ~f:(fun phi_map (label, (block_call : Vir.BlockCall.t)) ->
         let phis = Map.find_exn phi_map block_call.label in
         let phis =
           match List.zip phis block_call.args with
@@ -269,7 +269,7 @@ let simplify_phis (phis : Value.t Phi.t list) =
   zonked_subst, simplified_phis
 ;;
 
-let put_phis (phis : Value.t Phi.t list) (graph : Graph.t) =
+let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
   let phis_of_label = Label.Hashtbl.create () in
   List.iter phis ~f:(fun phi ->
     Hashtbl.update
@@ -297,7 +297,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Graph.t) =
     { block with entry; exit })
 ;;
 
-let subst_graph subst (graph : Graph.t) =
+let subst_graph subst (graph : Vir.Graph.t) =
   (Field.map Graph.Fields.blocks & F.Core.Map.map) graph ~f:(fun block ->
     Block.map_instrs_forwards
       { f =
@@ -308,7 +308,7 @@ let subst_graph subst (graph : Graph.t) =
       block)
 ;;
 
-let convert_ssa_function (fn : Function.t) =
+let convert_ssa_function (fn : Vir.Function.t) =
   let fn = convert_naive_ssa fn in
   let phis = get_phis fn.graph in
   let subst, simplified_phis =
@@ -321,7 +321,7 @@ let convert_ssa_function (fn : Function.t) =
   { fn with graph }
 ;;
 
-let convert_ssa (program : Program.t) =
+let convert_ssa (program : Vir.Program.t) =
   let program =
     (Field.map Program.Fields.functions & List.map) ~f:convert_ssa_function program
   in

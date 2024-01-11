@@ -1,4 +1,4 @@
 open Lir_instr
 
-val convert_naive_ssa : Function.t -> Function.t
-val convert_ssa : Program.t -> Program.t
+val convert_naive_ssa : Value.t Function.t -> Value.t Function.t
+val convert_ssa : Value.t Program.t -> Value.t Program.t

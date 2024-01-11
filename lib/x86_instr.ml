@@ -398,7 +398,7 @@ module Program = struct
   type 'v t' = { functions : 'v Function.t list } [@@deriving sexp_of, fields]
 end
 
-module Dataflow = Cfg.MakeDataflowForBlock (Block.Dataflow)
+(* module Dataflow = Cfg.MakeDataflowForBlock (Block.Dataflow)
 
 module DataflowInstr = struct
   (* type t = Instr.Some.t [@@deriving sexp_of]
@@ -407,7 +407,7 @@ module DataflowInstr = struct
 
      let uses (Instr.Some.T i) = Instr.uses i
      let defs (Instr.Some.T i) = Instr.defs i *)
-end
+end *)
 
 (* module Liveness = struct
    module InstrTransfer = Cfg.MakeLivenessInstrTransfer (DataflowInstr)

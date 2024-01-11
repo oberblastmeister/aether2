@@ -44,7 +44,7 @@ let pretty_instr_op cx =
   | _ -> failwith "don't know how to print"
 ;;
 
-let pretty_block_call cx ({ label; args } : _ BlockCall.t') =
+let pretty_block_call cx ({ label; args } : _ BlockCall.t) =
   let pretty_value = cx.Context.pretty_value in
   Pretty.(
     List (List.concat [ [ pretty_name label.name ]; List.map ~f:pretty_value args ]))
@@ -76,7 +76,7 @@ let pretty_control cx op =
   pretty_instr_control cx op
 ;;
 
-let pretty_block cx (label : Label.t) (block : _ Block.t') =
+let pretty_block cx (label : Label.t) (block : _ Block.t) =
   Pretty.(
     list
     @@ List.concat
@@ -91,7 +91,7 @@ let pretty_block cx (label : Label.t) (block : _ Block.t') =
          ])
 ;;
 
-let pretty_graph cx (graph : _ Graph.t') =
+let pretty_graph cx (graph : _ Graph.t) =
   Pretty.(
     List.concat
       [ [ pretty_block cx graph.entry (Map.find_exn graph.blocks graph.entry) ]
@@ -105,7 +105,7 @@ let pretty_graph cx (graph : _ Graph.t') =
       ])
 ;;
 
-let pretty_function cx (fn : _ Function.t') =
+let pretty_function cx (fn : _ Function.t) =
   Pretty.(
     list
     @@ List.concat
@@ -118,7 +118,7 @@ let pretty_function cx (fn : _ Function.t') =
          ])
 ;;
 
-let pretty' cx (program : _ Program.t') =
+let pretty' cx (program : _ Program.t) =
   program.functions
   |> List.map ~f:(pretty_function cx)
   |> List.map ~f:Pretty.to_string

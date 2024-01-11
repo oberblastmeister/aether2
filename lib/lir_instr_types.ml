@@ -21,7 +21,7 @@ module CmpOp = struct
 end
 
 module InstrOp = struct
-  type 'v t' =
+  type 'v t =
     | Add of
         { ty : Ty.t
         ; v1 : 'v
@@ -57,79 +57,63 @@ module InstrOp = struct
         ; src : 'v
         }
   [@@deriving sexp, fold, map, iter]
-
-  type t = Value.t t'
 end
 
 module BlockCall = struct
-  type 'v t' =
+  type 'v t =
     { label : Label.t
     ; args : 'v list
     }
   [@@deriving sexp, fields, fold, map, iter]
-
-  module Fields = Fields_of_t'
-
-  type t = Value.t t' [@@deriving sexp]
 end
 
 module InstrControl = struct
-  type 'v t' =
-    | Jump of 'v BlockCall.t'
-    | CondJump of ('v * 'v BlockCall.t' * 'v BlockCall.t')
+  type 'v t =
+    | Jump of 'v BlockCall.t
+    | CondJump of ('v * 'v BlockCall.t * 'v BlockCall.t)
     | Ret of 'v option
   [@@deriving sexp, fold, map, iter]
-
-  type t = Value.t t' [@@deriving sexp]
 end
 
 module Instr = struct
-  type ('v, 'c) t' =
-    | Block_args : Value.t list -> ('v, Control.e) t'
-    | Assign : (Value.t * 'v InstrOp.t') -> ('v, Control.o) t'
-    | Control : 'v InstrControl.t' -> ('v, Control.c) t'
+  type ('v, 'c) t =
+    | Block_args : Value.t list -> ('v, Control.e) t
+    | Assign : (Value.t * 'v InstrOp.t) -> ('v, Control.o) t
+    | Control : 'v InstrControl.t -> ('v, Control.c) t
 
-  type 'c t = (Value.t, 'c) t'
-
-  let sexp_of_t' (type c v) (f : v -> Sexp.t) (i : (v, c) t') =
+  let sexp_of_t (type c v) (f : v -> Sexp.t) (i : (v, c) t) =
     match i with
-    | Control c -> [%sexp "Control", (InstrControl.sexp_of_t' f c : Sexp.t)]
+    | Control c -> [%sexp "Control", (InstrControl.sexp_of_t f c : Sexp.t)]
     | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
-    | Assign (v, op) ->
-      [%sexp "Assign", (v : Value.t), (InstrOp.sexp_of_t' f op : Sexp.t)]
+    | Assign (v, op) -> [%sexp "Assign", (v : Value.t), (InstrOp.sexp_of_t f op : Sexp.t)]
   ;;
 end
 
 module Block = struct
-  type 'c i = 'c Instr.t
-
-  type 'v t' =
-    { entry : ('v, Control.e) Instr.t'
-    ; body : ('v, Control.o) Instr.t' list
-    ; exit : ('v, Control.c) Instr.t'
+  type 'v t =
+    { entry : ('v, Control.e) Instr.t
+    ; body : ('v, Control.o) Instr.t list
+    ; exit : ('v, Control.c) Instr.t
     }
   [@@deriving fields]
 
-  type t = Value.t t'
-
-  let sexp_of_t' f ({ entry; body; exit } : 'v t') =
+  let sexp_of_t f ({ entry; body; exit } : 'v t) =
     [%sexp
-      ("entry", (Instr.sexp_of_t' f entry : Sexp.t))
-      , ("body", (List.map ~f:(fun i -> Instr.sexp_of_t' f i) body : Sexp.t list))
-      , ("exit", (Instr.sexp_of_t' f exit : Sexp.t))]
+      ("entry", (Instr.sexp_of_t f entry : Sexp.t))
+      , ("body", (List.map ~f:(fun i -> Instr.sexp_of_t f i) body : Sexp.t list))
+      , ("exit", (Instr.sexp_of_t f exit : Sexp.t))]
   ;;
 end
 
 module Graph = struct
-  type 'v t' = 'v Block.t' Cfg_graph.Graph.t [@@deriving sexp_of]
-  type t = Value.t t' [@@deriving sexp_of]
+  type 'v t = 'v Block.t Cfg_graph.Graph.t [@@deriving sexp_of]
 end
 
 module MutFunction = struct
   type 'v t' =
     { name : string
     ; params : Value.t list
-    ; mutable graph : 'v Graph.t'
+    ; mutable graph : 'v Graph.t
     ; return_ty : Ty.t
     ; mutable unique_label : int
     ; mutable unique_name : int
@@ -142,7 +126,7 @@ module Function = struct
   type 'v t' =
     { name : string
     ; params : Value.t list
-    ; graph : 'v Graph.t'
+    ; graph : 'v Graph.t
     ; return_ty : Ty.t
     ; unique_label : int
     ; unique_name : int

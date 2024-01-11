@@ -1,7 +1,7 @@
 open O
 include Lir_instr
 
-let split pred (fn : Function.t) =
+let split pred (fn : Vir.Function.t) =
   let predecessors = Graph.predecessors_of_label fn.graph in
   Function.with_mut fn (fun mut_fn ->
     Map.iteri mut_fn.graph.blocks ~f:(fun ~key:label ~data:block ->
