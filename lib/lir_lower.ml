@@ -10,36 +10,6 @@ module Value = struct
 end
 
 include Lir.Instantiate (Value)
-(*
-   module Instr = struct
-   include Lir.Instr
-
-   type 'c t = (Value.t, 'c) Lir.Instr.t
-   end
-
-   module Block = struct
-   include Lir.Block
-
-   type t = Value.t t' [@@deriving sexp_of]
-   end
-
-   module Graph = struct
-   include Lir.Graph
-
-   type t = Value.t t' [@@deriving sexp_of]
-   end
-
-   module Function = struct
-   include Lir.Function
-
-   type t = Value.t t' [@@deriving sexp_of]
-   end
-
-   module Program = struct
-   include Lir.Program
-
-   type t = Value.t t' [@@deriving sexp_of]
-   end *)
 
 let rec pretty_value = function
   | Value.V v -> Lir_pretty.pretty_value v

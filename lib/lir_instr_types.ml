@@ -20,9 +20,23 @@ module CmpOp = struct
   type t = Gt [@@deriving sexp]
 end
 
-module InstrOp = struct
+module BinOp = struct
+  type t =
+    | Add
+    | Sub
+  [@@deriving sexp]
+end
+
+module Instr = struct
   type 'v t =
-    | Add of
+    | Bin of
+        { ty : Ty.t
+        ; op : BinOp.t
+        ; dst : 'v
+        ; src1 : 'v
+        ; src2 : 'v
+        }
+    (* | Add of
         { ty : Ty.t
         ; v1 : 'v
         ; v2 : 'v
@@ -31,9 +45,10 @@ module InstrOp = struct
         { ty : Ty.t
         ; v1 : 'v
         ; v2 : 'v
-        }
+        } *)
     | Const of
         { ty : Ty.t
+        ; dst : 'v
         ; const : int64
         }
     | Cmp of
@@ -46,15 +61,18 @@ module InstrOp = struct
         { ty : Ty.t
         ; v : 'v
         }
-    | Alloca of { ty : Ty.t }
+    | Alloca of
+        { ty : Ty.t
+        ; dst : 'v
+        }
     | Load of
         { ty : Ty.t
-        ; v : 'v
+        ; dst : 'v
+        ; pointer : 'v
         }
     | Store of
         { ty : Ty.t
-        ; dest : 'v
-        ; src : 'v
+        ; pointer : 'v
         }
   [@@deriving sexp, fold, map, iter]
 end
@@ -75,33 +93,33 @@ module InstrControl = struct
   [@@deriving sexp, fold, map, iter]
 end
 
-module Instr = struct
+module InstrGeneric = struct
   type ('v, 'c) t =
     | Block_args : Value.t list -> ('v, Control.e) t
-    | Assign : (Value.t * 'v InstrOp.t) -> ('v, Control.o) t
+    | Instr : 'v Instr.t -> ('v, Control.o) t
     | Control : 'v InstrControl.t -> ('v, Control.c) t
 
   let sexp_of_t (type c v) (f : v -> Sexp.t) (i : (v, c) t) =
     match i with
     | Control c -> [%sexp "Control", (InstrControl.sexp_of_t f c : Sexp.t)]
     | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
-    | Assign (v, op) -> [%sexp "Assign", (v : Value.t), (InstrOp.sexp_of_t f op : Sexp.t)]
+    | Instr op -> [%sexp "Instr", (Instr.sexp_of_t f op : Sexp.t)]
   ;;
 end
 
 module Block = struct
   type 'v t =
-    { entry : ('v, Control.e) Instr.t
-    ; body : ('v, Control.o) Instr.t list
-    ; exit : ('v, Control.c) Instr.t
+    { entry : Value.t list
+    ; body : 'v Instr.t list
+    ; exit : 'v InstrControl.t
     }
   [@@deriving fields]
 
   let sexp_of_t f ({ entry; body; exit } : 'v t) =
     [%sexp
-      ("entry", (Instr.sexp_of_t f entry : Sexp.t))
-      , ("body", (List.map ~f:(fun i -> Instr.sexp_of_t f i) body : Sexp.t list))
-      , ("exit", (Instr.sexp_of_t f exit : Sexp.t))]
+      ("entry", (entry : Value.t list))
+      , ("body", (List.sexp_of_t (Instr.sexp_of_t f) body : Sexp.t))
+      , ("exit", (InstrControl.sexp_of_t f exit : Sexp.t))]
   ;;
 end
 

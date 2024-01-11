@@ -25,14 +25,20 @@ module CmpOp = struct
   include T.CmpOp
 end
 
-module InstrOp = struct
-  include T.InstrOp
+module BinOp = struct
+  include T.BinOp
+end
+
+module Instr = struct
+  include T.Instr
+
+  let map_defs _ _ = todo ()
+  let defs_fold _ _ = todo ()
 
   let get_ty = function
-    | Add { ty; _ } -> ty
-    | Sub { ty; _ } -> ty
+    | Bin { ty; _ } -> ty
     | Const { ty; _ } -> ty
-    | Cmp { ty; _ } -> ty
+    | Cmp _ -> U1
     | Val { ty; _ } -> ty
     | Alloca { ty; _ } -> todo ()
     | Load { ty; _ } -> todo ()
@@ -68,20 +74,20 @@ module InstrControl = struct
   ;;
 end
 
-module Instr = struct
-  include T.Instr
+module InstrGeneric = struct
+  include T.InstrGeneric
 
   let fold (type c v) (i : (v, c) t) ~(init : 'a) ~(f : 'a -> v -> 'a) : 'a =
     match i with
     | Block_args _ -> init
-    | Assign (_, op) -> InstrOp.fold f init op
+    | Instr instr -> Instr.fold f init instr
     | Control c -> InstrControl.fold f init c
   ;;
 
   let map (type c v u) (f : v -> u) (i : (v, c) t) : (u, c) t =
     match i with
     | Block_args vs -> Block_args vs
-    | Assign (v, op) -> Assign (v, InstrOp.map f op)
+    | Instr instr -> Instr (Instr.map f instr)
     | Control c -> Control (InstrControl.map f c)
   ;;
 
@@ -105,22 +111,22 @@ module Instr = struct
     fun i ~f -> get_control i |> f |> set_control i
   ;;
 
-  let get_assign : type v. (v, Control.o) t -> Value.t * v InstrOp.t = function
-    | Assign a -> a
+  let get_assign : type v. (v, Control.o) t -> v Instr.t = function
+    | Instr a -> a
     | _ -> assert false
   ;;
 
-  let set_assign : type v. (v, Control.o) t -> Value.t * v InstrOp.t -> (v, Control.o) t =
+  let set_assign : type v. (v, Control.o) t -> v Instr.t -> (v, Control.o) t =
     fun i a ->
     match i with
-    | Assign _ -> Assign a
+    | Instr _ -> Instr a
     | _ -> assert false
   ;;
 
   let map_assign
-    : type v. (v, Control.o) t -> f:(v InstrOp.t -> v InstrOp.t) -> (v, Control.o) t
+    : type v. (v, Control.o) t -> f:(v Instr.t -> v Instr.t) -> (v, Control.o) t
     =
-    fun i ~f -> get_assign i |> fun (v, op) -> set_assign i (v, f op)
+    fun i ~f -> get_assign i |> fun op -> set_assign i (f op)
   ;;
 
   let get_block_args : type v. (v, Control.e) t -> Value.t list = function
@@ -141,13 +147,6 @@ module Instr = struct
     fun i ~f -> get_block_args i |> fun vs -> set_block_args i (f vs)
   ;;
 
-  let sexp_of_t (type c v) (f : v -> Sexp.t) (i : (v, c) t) =
-    match i with
-    | Control c -> [%sexp "Control", (InstrControl.sexp_of_t f c : Sexp.t)]
-    | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
-    | Assign (v, op) -> [%sexp "Assign", (v : Value.t), (InstrOp.sexp_of_t f op : Sexp.t)]
-  ;;
-
   (* let type_equal (type c d) (i1 : c t) (i2 : d t) : (c, d) Type_equal.t Option.t =
      match i1, i2 with
      | Control _, Control _ -> Some Type_equal.refl
@@ -159,7 +158,7 @@ module Instr = struct
      let tag_equal (type c d) (i1 : c t) (i2 : d t) = type_equal i1 i2 |> Option.is_some *)
 
   module Some = struct
-    type 'v t = T : ('v, 'c) T.Instr.t -> 'v t [@@unboxed]
+    type 'v t = T : ('v, 'c) T.InstrGeneric.t -> 'v t [@@unboxed]
 
     let sexp_of_t f (T s) = sexp_of_t f s
   end
@@ -170,7 +169,7 @@ module Instr = struct
     fun i ~f ->
     match i with
     | Block_args vs -> Block_args vs
-    | Assign (v, instr) -> Assign (v, InstrOp.map f instr)
+    | Instr instr -> Instr (Instr.map f instr)
     | Control c -> Control (InstrControl.map f c)
   ;;
 
@@ -183,14 +182,14 @@ module Instr = struct
     fun i ~f ->
     match i with
     | Block_args vs -> Block_args (List.map ~f vs)
-    | Assign (v, op) -> Assign (f v, op)
+    | Instr op -> Instr (Instr.map_defs f op)
     | Control c -> Control c
   ;;
 
   let defs_fold (Some.T i) k =
     match i with
     | Block_args vs -> List.iter ~f:k vs
-    | Assign (v, _) -> k v
+    | Instr instr -> Instr.defs_fold instr k
     | Control _ -> ()
   ;;
 
@@ -201,23 +200,20 @@ end
 module Block = struct
   include T.Block
 
-  let map_exit t ~f = { t with exit = Instr.map_control t.exit ~f }
-
-  let sexp_of_t f ({ entry; body; exit } : 'v t) =
-    [%sexp
-      ("entry", (Instr.sexp_of_t f entry : Sexp.t))
-      , ("body", (List.map ~f:(fun i -> Instr.sexp_of_t f i) body : Sexp.t list))
-      , ("exit", (Instr.sexp_of_t f exit : Sexp.t))]
-  ;;
+  let map_exit t ~f = { t with exit = f t.exit }
 
   module Mapper = struct
-    type ('a, 'b) t = { f : 'c. ('a, 'c) Instr.t -> ('b, 'c) Instr.t }
+    type ('a, 'b) t = { f : 'c. ('a, 'c) InstrGeneric.t -> ('b, 'c) InstrGeneric.t }
   end
 
   let map_instrs_forwards (m : _ Mapper.t) { entry; body; exit } =
-    let entry = m.f entry in
-    let body = List.map ~f:m.f body in
-    let exit = m.f exit in
+    let entry = m.f (InstrGeneric.Block_args entry) |> InstrGeneric.get_block_args in
+    let body =
+      List.map
+        ~f:(fun body -> InstrGeneric.Instr body |> m.f |> InstrGeneric.get_assign)
+        body
+    in
+    let exit = m.f (InstrGeneric.Control exit) |> InstrGeneric.get_control in
     { entry; body; exit }
   ;;
 
@@ -368,18 +364,6 @@ module Program = struct
 
   let map_functions p ~f = { p with functions = f p.functions }
 end
-
-let%expect_test _ =
-  let v : Value.t = { name = Name.of_string "x"; ty = Ty.U64 } in
-  [%sexp_of: Value.t Instr.t] (Assign (v, Add { ty = Ty.U64; v1 = v; v2 = v }))
-  |> Sexp.to_string_hum
-  |> printf "%s";
-  [%expect
-    {|
-    (Assign ((name (Name x)) (ty U64))
-     (Add (ty U64) (v1 ((name (Name x)) (ty U64)))
-      (v2 ((name (Name x)) (ty U64))))) |}]
-;;
 
 module Instantiate (V : sig
     type t [@@deriving sexp_of]
