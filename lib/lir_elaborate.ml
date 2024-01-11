@@ -11,12 +11,12 @@ let run f =
 let elaborate_error e = raise (Exn e)
 
 let collect_types (fn : Name.t Function.t) =
-  let add_instr z (Instr.Some.T i) =
+  let add_instr z (SomeInstr.T i) =
     match i with
-    | Instr.Assign (v, _) ->
-      Map.update z v.name ~f:(function
-        | None -> List1.singleton v.ty
-        | Some at -> List1.(v.ty |: at))
+    | InstrGeneric.Instr (Instr.Assign { dst; _ }) ->
+      Map.update z dst.name ~f:(function
+        | None -> List1.singleton dst.ty
+        | Some at -> List1.(dst.ty |: at))
     | _ -> z
   in
   let tys_of_name =
@@ -48,7 +48,7 @@ let collect_types (fn : Name.t Function.t) =
 ;;
 
 let elaborate_instr label ty_of_name instr =
-  Instr.map
+  InstrGeneric.map
     ~f:(fun name : Value.t ->
       { name
       ; ty =

@@ -25,14 +25,14 @@ let parse_cmp_op = function
   | s -> Parser.parse_error [%message "unknown cmp op" ~op:s]
 ;;
 
-let parse_op_instr =
+let parse_expr =
   Parser.list_ref (fun xs ->
     let name = Parser.item xs parse_ident in
     match name with
     | "val" ->
       let ty = Parser.item xs parse_ty in
       let v = Parser.item xs parse_var in
-      InstrOp.Val { ty; v }
+      Expr.Val { ty; v }
     | "const" ->
       let ty = Parser.item xs parse_ty in
       let const =
@@ -42,18 +42,18 @@ let parse_op_instr =
           |> Option.value_or_thunk ~default:(fun () ->
             Parser.parse_error [%message "couldn't parse number" ~s]))
       in
-      InstrOp.Const { ty; const }
+      Expr.Const { ty; const }
     | "cmp" ->
       let ty = Parser.item xs parse_ty in
       let op = Parser.item xs @@ Parser.atom parse_cmp_op in
       let v1 = Parser.item xs parse_var in
       let v2 = Parser.item xs parse_var in
-      InstrOp.Cmp { ty; op; v1; v2 }
+      Expr.Cmp { ty; op; v1; v2 }
     | "add" ->
       let ty = Parser.item xs parse_ty in
       let v1 = Parser.item xs parse_var in
       let v2 = Parser.item xs parse_var in
-      InstrOp.Add { ty; v1; v2 }
+      Expr.Bin { ty; op = Add; v1; v2 }
     | _ -> Parser.parse_error [%message "unknown op" ~name])
 ;;
 
@@ -73,21 +73,21 @@ let parse_block_call =
     ({ label; args } : _ BlockCall.t))
 ;;
 
-module Some = struct
-  type t = T : (Name.t, 'c) Instr.t -> t
-end
-
-let parse_instr =
-  let instr_o name instr_op : Some.t = Some.T (Instr.Assign (name, instr_op)) in
-  let instr_c instr_control : Some.t = Some.T (Instr.Control instr_control) in
+let parse_instr : Sexp_cst.t -> Name.t SomeInstr.t =
+  let instr_o name instr_op : _ SomeInstr.t =
+    SomeInstr.T (InstrGeneric.Instr (Assign { dst = name; expr = instr_op }))
+  in
+  let instr_c instr_control : _ SomeInstr.t =
+    SomeInstr.T (InstrGeneric.Control instr_control)
+  in
   Parser.list_ref (fun xs ->
     let instr_name = Parser.item xs parse_ident in
     match instr_name with
     | "set" ->
       let name = Parser.item xs parse_var in
-      let instr = Parser.item xs parse_op_instr in
-      let ty = InstrOp.get_ty instr in
-      instr_o { name; ty } instr
+      let expr = Parser.item xs parse_expr in
+      let ty = Expr.get_ty expr in
+      instr_o { Value.name; ty } expr
     | "ret" ->
       let v = Parser.optional_item !xs parse_var in
       instr_c (InstrControl.Ret v)
@@ -119,27 +119,26 @@ let parse_block =
         Parser.parse_error [%message "cannot have empty block"])
     in
     let instrs =
-      List.map instrs ~f:(fun (Some.T i) ->
+      List.map instrs ~f:(fun (SomeInstr.T i) ->
         match i with
-        | Instr.Assign (name, instr_op) -> Instr.Assign (name, instr_op)
+        | InstrGeneric.Instr instr -> instr
         | _ ->
           Parser.parse_error
             [%message
               "instructions before the end must be op instrs"
-                ~got:(Instr.sexp_of_t Name.sexp_of_t i : Sexp.t)])
+                ~got:(InstrGeneric.sexp_of_t Name.sexp_of_t i : Sexp.t)])
     in
     let last_instr =
-      let (Some.T i) = last_instr in
+      let (SomeInstr.T i) = last_instr in
       match i with
-      | Instr.Control i -> Instr.Control i
+      | InstrGeneric.Control i -> i
       | _ ->
         Parser.parse_error
           [%message
             "last instruction must be control instruction"
-              ~got:(Instr.sexp_of_t Name.sexp_of_t i : Sexp.t)]
+              ~got:(InstrGeneric.sexp_of_t Name.sexp_of_t i : Sexp.t)]
     in
-    ( label
-    , ({ entry = Instr.Block_args args; body = instrs; exit = last_instr } : _ Block.t) ))
+    label, ({ entry = args; body = instrs; exit = last_instr } : _ Block.t))
 ;;
 
 let parse_graph xs =
@@ -166,8 +165,7 @@ let parse_function =
     in
     let return_ty = Parser.item xs parse_ty in
     let graph = parse_graph !xs in
-    ({ name; params; return_ty; graph; unique_label = 0; unique_name = 0 }
-     : _ Function.t))
+    ({ name; params; return_ty; graph; unique_label = 0; unique_name = 0 } : _ Function.t))
 ;;
 
 let parse_program xs =
@@ -206,10 +204,11 @@ let%expect_test _ =
          ((entry ((name (Name first))))
           (blocks
            ((((name (Name first)))
-             ((entry (Block_args (((name (Name arg)) (ty U64)))))
+             ((entry (((name (Name arg)) (ty U64))))
               (body
-               ((Assign ((name (Name x)) (ty U64)) (Add (ty U64) (v1 _) (v2 _)))))
-              (exit (Control (Ret ())))))))
+               ((Assign (dst ((name (Name x)) (ty U64)))
+                 (expr (Bin (ty U64) (op Add) (v1 _) (v2 _))))))
+              (exit (Ret ()))))))
           (exit ((name (Name first))))))
         (return_ty U64) (unique_label 0) (unique_name 0))))) |}]
 ;;

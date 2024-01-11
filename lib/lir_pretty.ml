@@ -22,16 +22,22 @@ let cmp_op_to_string = function
   | CmpOp.Gt -> "gt"
 ;;
 
-let pretty_instr_op cx =
+let pretty_expr cx =
   let pretty_value = cx.Context.pretty_value in
   function
-  | InstrOp.Add { ty; v1; v2 } ->
-    Pretty.(List [ Atom "add"; pretty_ty ty; pretty_value v1; pretty_value v2 ])
-  | InstrOp.Sub { ty; v1; v2 } ->
-    Pretty.(List [ Atom "sub"; pretty_ty ty; pretty_value v1; pretty_value v2 ])
-  | InstrOp.Const { ty; const } ->
+  | Expr.Bin { ty; op; v1; v2 } ->
+    Pretty.(
+      List
+        [ (match op with
+           | Add -> Atom "add"
+           | _ -> todo ())
+        ; pretty_ty ty
+        ; pretty_value v1
+        ; pretty_value v2
+        ])
+  | Expr.Const { ty; const } ->
     Pretty.(List [ Atom "const"; pretty_ty ty; Atom (Int64.to_string_hum const) ])
-  | InstrOp.Cmp { ty; op; v1; v2 } ->
+  | Expr.Cmp { ty; op; v1; v2 } ->
     Pretty.(
       List
         [ Atom "cmp"
@@ -40,7 +46,7 @@ let pretty_instr_op cx =
         ; pretty_value v1
         ; pretty_value v2
         ])
-  | InstrOp.Val { ty; v } -> Pretty.(List [ pretty_ty ty; pretty_value v ])
+  | Expr.Val { ty; v } -> Pretty.(List [ pretty_ty ty; pretty_value v ])
   | _ -> failwith "don't know how to print"
 ;;
 
@@ -66,14 +72,11 @@ let pretty_instr_control cx i =
     Pretty.(List ([ Atom "ret" ] @ (Option.map ~f:pretty_value v |> Option.to_list)))
 ;;
 
-let pretty_assign cx i =
-  let name, op = Instr.get_assign i in
-  Pretty.(List [ Atom "set"; pretty_value name; pretty_instr_op cx op ])
-;;
-
-let pretty_control cx op =
-  let op = Instr.get_control op in
-  pretty_instr_control cx op
+let pretty_instr cx i =
+  match i with
+  | Instr.Assign { dst; expr } ->
+    Pretty.(List [ Atom "set"; pretty_value dst; pretty_expr cx expr ])
+  | _ -> todo ()
 ;;
 
 let pretty_block cx (label : Label.t) (block : _ Block.t) =
@@ -81,13 +84,11 @@ let pretty_block cx (label : Label.t) (block : _ Block.t) =
     list
     @@ List.concat
          [ [ Atom "label"
-           ; List
-               ([ pretty_name label.name ]
-                @ List.map ~f:pretty_value_typed (Instr.get_block_args block.entry))
+           ; List ([ pretty_name label.name ] @ List.map ~f:pretty_value_typed block.entry)
            ; Ann IndentLine
            ]
-         ; List.map ~f:(pretty_assign cx) block.body |> List_ext.end_with ~sep:(Ann Line)
-         ; [ pretty_control cx block.exit ]
+         ; List.map ~f:(pretty_instr cx) block.body |> List_ext.end_with ~sep:(Ann Line)
+         ; [ pretty_instr_control cx block.exit ]
          ])
 ;;
 

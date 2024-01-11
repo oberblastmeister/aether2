@@ -8,10 +8,7 @@ let split pred (fn : Vir.Function.t) =
       if pred block
       then (
         let block_calls_count =
-          F.Fold.reduce
-            InstrControl.block_calls_fold
-            F.Reduce.count
-            (block.exit |> Instr.get_control)
+          F.Fold.reduce InstrControl.block_calls_fold F.Reduce.count block.exit
         in
         if block_calls_count > 1
         then (
@@ -28,10 +25,7 @@ let split pred (fn : Vir.Function.t) =
                   MutFunction.fresh_label mut_fn (Label.to_string block_call.label)
                 in
                 let new_block =
-                  { entry = Instr.Block_args []
-                  ; Block.body = []
-                  ; exit = Instr.Control (InstrControl.Jump block_call)
-                  }
+                  { entry = []; Block.body = []; exit = InstrControl.Jump block_call }
                 in
                 MutFunction.add_block_exn mut_fn new_label new_block;
                 { BlockCall.label = new_label; args = [] })

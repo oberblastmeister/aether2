@@ -48,13 +48,14 @@ let check_all_temps_unique (fn : Value.t Function.t) =
            [%message
              "a temporary was defined more than once"
                ~label:(label : Label.t option)
-               ~instr:(instr : Value.t Instr.Some.t option)
+               ~instr:(instr : Value.t SomeInstr.t option)
                ~def:(def : Value.t)]);
     Hash_set.add defines def
   in
   List.iter fn.params ~f:(check_define None None);
   let fold =
-    F.Fold.(F.Core.Map.foldi @> ix (dup Block.instrs_forward_fold) @> ix2 Instr.defs_fold)
+    F.Fold.(
+      F.Core.Map.foldi @> ix (dup Block.instrs_forward_fold) @> ix2 SomeInstr.defs_fold)
   in
   F.Fold.iter
     fold
@@ -73,8 +74,8 @@ let validate_ssa_function (fn : Vir.Function.t) =
   List.iter fn.params ~f:(fun param -> Hash_set.add defined param);
   Vec.iter labels ~f:(fun label ->
     let block = Map.find_exn fn.graph.blocks label in
-    F.Fold.iter Block.instrs_forward_fold block ~f:(fun (Instr.Some.T instr as i) ->
-      let uses = Instr.uses instr in
+    F.Fold.iter Block.instrs_forward_fold block ~f:(fun (SomeInstr.T instr as i) ->
+      let uses = InstrGeneric.uses instr in
       List.iter uses ~f:(fun use ->
         if not @@ Hash_set.mem defined use
         then
@@ -83,11 +84,11 @@ let validate_ssa_function (fn : Vir.Function.t) =
             (Error.t_of_sexp
                [%message
                  "a use was not dominated by a define"
-                   ~instr:(i : Vir.Instr.Some.t)
+                   ~instr:(i : Vir.SomeInstr.t)
                    ~use:(use : Value.t)
                    ~label:(label : Label.t)
                    ~defines:(defined : Value.Hash_set.t)]));
-      let defs = Instr.defs instr in
+      let defs = InstrGeneric.defs instr in
       List.iter defs ~f:(fun def -> Hash_set.add defined def)));
   Stack.to_list errors
   |> or_error_of_list
@@ -134,8 +135,8 @@ end = struct
     Block.map_instrs_forwards
       { f =
           (fun i ->
-            let i = Instr.map_uses i ~f:(rename_use st) in
-            let i = Instr.map_defs i ~f:(rename_def st) in
+            let i = InstrGeneric.map_uses i ~f:(rename_use st) in
+            let i = InstrGeneric.map_defs i ~f:(rename_def st) in
             i)
       }
       block
@@ -162,14 +163,13 @@ let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
   let liveness = Vir.Liveness.run fn.graph in
   let add_block_args_and_calls label (block : Vir.Block.t) =
     let new_entry_instr =
-      Instr.Block_args
-        (if [%equal: Label.t] label fn.graph.entry
-         then []
-         else Map.find_exn liveness label |> Set.to_list)
+      if [%equal: Label.t] label fn.graph.entry
+      then []
+      else Map.find_exn liveness label |> Set.to_list
     in
     let new_exit_instr =
       block.exit
-      |> (Instr.map_control & InstrControl.map_block_calls) ~f:(fun block_call ->
+      |> InstrControl.map_block_calls ~f:(fun block_call ->
         { block_call with args = Map.find_exn liveness block_call.label |> Set.to_list })
     in
     { block with entry = new_entry_instr; exit = new_exit_instr }
@@ -188,14 +188,11 @@ let get_phis (graph : Vir.Graph.t) =
   let initial_phis =
     F.Core.Map.mapi graph.blocks ~f:(fun (label, block) ->
       block.entry
-      |> Instr.get_block_args
       |> List.map ~f:(fun arg : _ Phi.t ->
         { dest_label = label; dest = arg; flow_values = [] }))
   in
   let fold =
-    F.Fold.(
-      F.Core.Map.foldi
-      @> ix (of_fn Block.exit @> of_fn Instr.get_control @> InstrControl.block_calls_fold))
+    F.Fold.(F.Core.Map.foldi @> ix (of_fn Block.exit @> InstrControl.block_calls_fold))
   in
   let phis_of_block =
     F.Fold.fold
@@ -278,9 +275,9 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
       ~f:(Option.value_map ~default:[ phi ] ~f:(List.cons phi)));
   (Field.map Graph.Fields.blocks & F.Core.Map.mapi) graph ~f:(fun (label, block) ->
     let phis = Hashtbl.find phis_of_label label |> Option.value ~default:[] in
-    let entry = Instr.Block_args (List.map phis ~f:(fun phi -> phi.dest)) in
+    let entry = List.map phis ~f:(fun phi -> phi.dest) in
     let exit =
-      (Instr.map_control & InstrControl.map_block_calls) block.exit ~f:(fun block_call ->
+      InstrControl.map_block_calls block.exit ~f:(fun block_call ->
         let phis_for_call =
           Hashtbl.find phis_of_label block_call.label |> Option.value ~default:[]
         in
@@ -302,7 +299,7 @@ let subst_graph subst (graph : Vir.Graph.t) =
     Block.map_instrs_forwards
       { f =
           (fun instr ->
-            Instr.map_uses instr ~f:(fun use ->
+            InstrGeneric.map_uses instr ~f:(fun use ->
               Hashtbl.find subst use |> Option.value ~default:use))
       }
       block)

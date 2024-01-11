@@ -5,7 +5,7 @@ module Vir = Lir.Vir
 module Value = struct
   type t =
     | V of Lir.Value.t
-    | I of t Lir.InstrOp.t
+    | I of t Lir.Instr.t
   [@@deriving sexp_of]
 end
 
@@ -13,7 +13,7 @@ include Lir.Instantiate (Value)
 
 let rec pretty_value = function
   | Value.V v -> Lir_pretty.pretty_value v
-  | Value.I i -> Lir_pretty.pretty_instr_op { pretty_value } i
+  | Value.I i -> Lir_pretty.pretty_instr { pretty_value } i
 ;;
 
 let pretty = Lir_pretty.pretty' { pretty_value }
@@ -21,9 +21,10 @@ let pretty = Lir_pretty.pretty' { pretty_value }
 (* TODO: this is wrong, use the cranelift coloring scheme *)
 (* https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/codegen/src/machinst/lower.rs#L693 *)
 (* the uses should be deep also, because we might want to duplicate compare instructions, which will duplicate their transitive dependencies *)
-let get_instr_uses (fn : Vir.Function.t) =
+
+(* let get_instr_uses (fn : Vir.Function.t) =
   let instr_uses = Lir.Value.Hashtbl.create () in
-  let fold = F.Fold.(Lir.Function.instrs_forward_fold @> Lir.Instr.uses_fold) in
+  let fold = F.Fold.(Lir.Function.instrs_forward_fold @> Lir.SomeInstr.uses_fold) in
   F.Fold.iter fold fn ~f:(fun (use : Lir.Value.t) ->
     Hashtbl.update instr_uses use ~f:(Option.value_map ~default:1 ~f:succ));
   instr_uses
@@ -90,4 +91,4 @@ let lower_function (fn : Vir.Function.t) : Function.t =
 let lower_program (prog : Vir.Program.t) : Program.t =
   let prog = (Lir.Program.map_functions & List.map) prog ~f:lower_function in
   prog
-;;
+;; *)

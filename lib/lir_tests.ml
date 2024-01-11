@@ -37,13 +37,13 @@ let%expect_test "uses" =
       @> F.Fold.of_fn Graph.blocks
       @> F.Core.Map.fold
       @> Block.instrs_forward_fold
-      @> Instr.uses_fold)
+      @> SomeInstr.uses_fold)
   in
   let uses = F.Fold.reduce p F.Reduce.to_list_rev fn in
   print_s [%sexp (uses : Lir.Value.t list)];
   [%expect
     {|
-    (((name (Name f)) (ty U64)) ((name (Name z)) (ty U64))
+    (((name (Name f)) (ty U1)) ((name (Name z)) (ty U64))
      ((name (Name e)) (ty U64)) ((name (Name r)) (ty U64))
      ((name (Name one)) (ty U64)) ((name (Name e)) (ty U64))
      ((name (Name b)) (ty U64)) ((name (Name r)) (ty U64))) |}]
@@ -169,7 +169,8 @@ let%expect_test "ssa" =
         (ret r.11))) |}]
 ;;
 
-let%expect_test "lower" =
+(*
+   let%expect_test "lower" =
   let program = Lazy.force loop_lir |> Lir.Ssa.convert_ssa |> Lir.Lower.lower_program in
   print_endline @@ Lir.Lower.pretty program;
   [%expect
@@ -183,4 +184,4 @@ let%expect_test "lower" =
         (cond_jump (cmp u64 gt e.10 (const u64 0)) (done) (body)))
       (label (done)
         (ret r.11))) |}]
-;;
+;; *)

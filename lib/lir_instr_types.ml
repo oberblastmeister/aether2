@@ -27,28 +27,16 @@ module BinOp = struct
   [@@deriving sexp]
 end
 
-module Instr = struct
+module Expr = struct
   type 'v t =
     | Bin of
         { ty : Ty.t
         ; op : BinOp.t
-        ; dst : 'v
-        ; src1 : 'v
-        ; src2 : 'v
-        }
-    (* | Add of
-        { ty : Ty.t
         ; v1 : 'v
         ; v2 : 'v
         }
-    | Sub of
-        { ty : Ty.t
-        ; v1 : 'v
-        ; v2 : 'v
-        } *)
     | Const of
         { ty : Ty.t
-        ; dst : 'v
         ; const : int64
         }
     | Cmp of
@@ -61,15 +49,30 @@ module Instr = struct
         { ty : Ty.t
         ; v : 'v
         }
-    | Alloca of
-        { ty : Ty.t
-        ; dst : 'v
-        }
+    | Alloca of { ty : Ty.t }
     | Load of
         { ty : Ty.t
-        ; dst : 'v
-        ; pointer : 'v
+        ; v : 'v
         }
+  [@@deriving sexp, fold, map, iter]
+end
+
+module Instr = struct
+  type 'v t =
+    | Assign of
+        { dst : Value.t
+        ; expr : 'v Expr.t
+        }
+    (* | Add of
+        { ty : Ty.t
+        ; v1 : 'v
+        ; v2 : 'v
+        }
+    | Sub of
+        { ty : Ty.t
+        ; v1 : 'v
+        ; v2 : 'v
+        } *)
     | Store of
         { ty : Ty.t
         ; pointer : 'v
@@ -85,6 +88,10 @@ module BlockCall = struct
   [@@deriving sexp, fields, fold, map, iter]
 end
 
+module BlockArgs = struct
+  type t = Value.t list [@@deriving sexp]
+end
+
 module InstrControl = struct
   type 'v t =
     | Jump of 'v BlockCall.t
@@ -95,7 +102,7 @@ end
 
 module InstrGeneric = struct
   type ('v, 'c) t =
-    | Block_args : Value.t list -> ('v, Control.e) t
+    | Block_args : BlockArgs.t -> ('v, Control.e) t
     | Instr : 'v Instr.t -> ('v, Control.o) t
     | Control : 'v InstrControl.t -> ('v, Control.c) t
 
@@ -105,6 +112,12 @@ module InstrGeneric = struct
     | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
     | Instr op -> [%sexp "Instr", (Instr.sexp_of_t f op : Sexp.t)]
   ;;
+end
+
+module SomeInstr = struct
+  type 'v t = T : ('v, 'c) InstrGeneric.t -> 'v t [@@unboxed]
+
+  let sexp_of_t f (T s) = InstrGeneric.sexp_of_t f s
 end
 
 module Block = struct
