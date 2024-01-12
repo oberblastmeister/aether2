@@ -24,3 +24,5 @@ let to_iter fold x = fold x
 let reduce fold (Reduce.T (step, init, extract)) x =
   Iter.fold ~f:step ~init (fold x) |> extract
 ;;
+
+let to_list fold = reduce fold Reduce.to_list_rev

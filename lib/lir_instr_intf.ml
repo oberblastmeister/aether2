@@ -10,6 +10,12 @@ module Name = Name
 module Label = Label
 module Control = Control
 
+module type Value = sig
+  type t [@@deriving sexp_of, compare, hash, equal]
+
+  include Comparator.S with type t := t
+end
+
 module Value = struct
   include T.Value
   module Hashtbl = Hashtbl.Make (T.Value)
@@ -243,6 +249,10 @@ module Block = struct
     fold_instrs_forward block ~init:() ~f:(fun () i -> k i)
   ;;
 
+  let instrs_backward_fold block k =
+    fold_instrs_backward block ~init:() ~f:(fun () i -> k i)
+  ;;
+
   let jumps_fold (b : _ t) =
     F.Fold.(of_fn exit @> Control_instr.block_calls_fold @> of_fn Block_call.label) b
   ;;
@@ -255,6 +265,8 @@ module Graph = struct
   include T.Graph
 
   let predecessors_of_label b = predecessors_of_label ~jumps:Block.jumps b
+  let to_graph g = Cfg_graph.to_graph ~jumps:Block.jumps_fold g
+  let to_double_graph g = to_graph g |> Graphs.double_of_t
 
   let validate graph =
     validate graph;
@@ -268,19 +280,29 @@ module Graph = struct
         [%message "the entry label should have no predecessors" ~got:(ls : Label.t list)]
   ;;
 
-  module DataGraph :
-    Data_graph.SingleEntryGraph with type t = Value.t t and module Node = Label = struct
-    include MakeDataGraph (struct
+  let get_idoms graph = Dominators.get_idoms graph.entry @@ to_double_graph graph
+end
+
+module Dataflow = struct
+  let instr_to_block_transfer (type a) (module Value : Value with type t = a) =
+    Dataflow.instr_to_block_transfer
+      (module struct
         type t = Value.t Block.t [@@deriving sexp_of]
-
-        let jumps_fold b = Block.jumps_fold b
-        let jumps b = Block.jumps b
       end)
-  end
+      { fold_instrs_forward = Block.instrs_forward_fold
+      ; fold_instrs_backward = Block.instrs_backward_fold
+      }
+  ;;
 
-  module Dfs = struct
-    include Data_graph.Dfs (DataGraph)
-  end
+  let run_block_transfer transfer (graph : _ Graph.t) =
+    Dataflow.run_block_transfer
+      transfer
+      { entry = graph.entry
+      ; v = Graph.to_double_graph graph
+      ; exit = graph.exit
+      ; get_block = Map.find_exn graph.blocks
+      }
+  ;;
 end
 
 module Mut_function = struct

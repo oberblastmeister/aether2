@@ -1,16 +1,27 @@
-module Vir = struct
-  include Lir_instantiate.InstantiateWithDataflow (struct
-      include Lir_instr.Value
-    end)
+open O
 
-  module Liveness = struct
-    module InstrTransfer = Cfg.Dataflow.Liveness.Make (Dataflow.Instr)
+include Lir_instantiate.Instantiate (struct
+    include Lir_instr.Value
+  end)
 
-    module BlockTransfer =
-      Cfg.Dataflow.InstrToBlockTransfer (Dataflow.Block) (InstrTransfer)
+module Liveness = struct
+  let dict =
+    { Dataflow.value = (module Lir_instr.Value)
+    ; uses = Lir_instr.Some_instr.uses_fold
+    ; defs = Lir_instr.Some_instr.defs_fold
+    }
+  ;;
 
-    include Dataflow.Framework.MakeAnalysis (BlockTransfer)
-  end
+  let instr_transfer = Dataflow.Liveness.make_transfer (module Some_instr) dict
+
+  let block_transfer =
+    Lir_instr.Dataflow.instr_to_block_transfer (module Lir_instr.Value) instr_transfer
+  ;;
+
+  let run = Lir_instr.Dataflow.run_block_transfer block_transfer
 end
 
-include Vir
+module DataflowDominators = struct
+  let block_transfer = Dataflow.Dominators.make_transfer (module Block)
+  let run = Lir_instr.Dataflow.run_block_transfer block_transfer
+end

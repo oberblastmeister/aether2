@@ -29,16 +29,6 @@ struct
     type t = V.t Lir.Block.t [@@deriving sexp_of]
   end
 
-  (* module DataGraph = Lir.Graph.MakeDataGraph (V) *)
-  module DataGraph = Cfg_graph.MakeDataGraph (struct
-      type t = V.t Lir.Block.t [@@deriving sexp_of]
-
-      let jumps_fold b = Lir.Block.jumps_fold b
-      let jumps b = Lir.Block.jumps b
-    end)
-
-  module Dfs = Data_graph.Dfs (DataGraph)
-
   module Graph = struct
     type t = V.t Lir.Graph.t [@@deriving sexp_of]
   end
@@ -56,7 +46,7 @@ struct
   end
 end
 
-module InstantiateWithDataflow (V : sig
+(* module InstantiateWithDataflow (V : sig
     type t [@@deriving equal, compare, hash, sexp]
 
     include Comparable.S with type t := t
@@ -101,4 +91,4 @@ struct
 
   module Dominators = Dominators.MakeDominators (Lir.Graph.DataGraph)
   include M
-end
+end *)

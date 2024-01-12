@@ -28,6 +28,15 @@ let validate graph =
   ()
 ;;
 
+let to_graph ~jumps graph =
+  { Graphs.node = (module Label)
+  ; succs = (fun label -> jumps (Map.find_exn graph.blocks label))
+  ; all_nodes = (fun k -> Map.iter_keys graph.blocks ~f:k)
+  }
+;;
+
+let to_double_graph ~jumps graph = to_graph ~jumps graph |> Graphs.double_of_t
+
 let predecessors_of_label ~jumps (graph : 'b t) =
   graph.blocks
   |> Map.to_alist
@@ -66,29 +75,6 @@ module type Block = sig
   val jumps : t -> Label.t list
 end
 
-module MakeDataGraph (Block : Block) :
-  Data_graph.SingleEntryGraph with type t = Block.t t and module Node = Label = struct
-  module Node = Label
-
-  type t = Block.t T.t [@@deriving sexp_of]
-
-  let entry graph = graph.entry
-
-  let successors_fold label =
-    F.Fold.premap (fun graph -> Map.find_exn graph.blocks label) Block.jumps_fold
-  ;;
-
-  let successors graph label =
-    let block = Map.find_exn graph.blocks label in
-    Block.jumps block
-  ;;
-
-  let predecessors_staged graph =
-    let predecessors = predecessors_of_label ~jumps:Block.jumps graph in
-    Staged.stage (fun label -> Map.find predecessors label |> Option.value ~default:[])
-  ;;
-end
-
 module type Intf = sig
   type 'b t =
     { entry : Label.t
@@ -97,6 +83,7 @@ module type Intf = sig
     }
   [@@deriving sexp_of, fields]
 
+  val to_graph : jumps:('b -> Label.t F.Iter.t) -> 'b t -> Label.t Graphs.t
   val map_blocks : 'b t -> f:('b Label.Map.t -> 'c Label.Map.t) -> 'c t
   val set_block : 'b t -> Label.t -> 'b -> 'b t
   val add_block_exn : 'b t -> Label.t -> 'b -> 'b t
@@ -108,7 +95,4 @@ module type Intf = sig
     -> Label.t list Label.Map.t
 
   val map_simple_order : 'b t -> f:(Label.t * 'b -> 'b) -> 'b t
-
-  module MakeDataGraph : functor (Block : Block) ->
-    Data_graph.SingleEntryGraph with type t = Block.t t and module Node = Label
 end

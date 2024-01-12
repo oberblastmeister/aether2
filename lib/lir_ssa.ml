@@ -68,7 +68,7 @@ let validate_ssa_function (fn : Vir.Function.t) =
   let open Or_error.Let_syntax in
   Graph.validate fn.graph;
   let%bind () = check_all_temps_unique fn in
-  let labels = Graph.Dfs.preorder [ fn.graph.entry ] fn.graph in
+  let labels = Graphs.Dfs.preorder [ fn.graph.entry ] (fn.graph |> Graph.to_graph) in
   let errors : Error.t Stack.t = Stack.create () in
   let defined = Value.Hash_set.create () in
   List.iter fn.params ~f:(fun param -> Hash_set.add defined param);
