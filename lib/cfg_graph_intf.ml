@@ -29,13 +29,13 @@ let validate graph =
 ;;
 
 let to_graph ~jumps graph =
-  { Graphs.node = (module Label)
+  { Data_graph.node = (module Label)
   ; succs = (fun label -> jumps (Map.find_exn graph.blocks label))
   ; all_nodes = (fun k -> Map.iter_keys graph.blocks ~f:k)
   }
 ;;
 
-let to_double_graph ~jumps graph = to_graph ~jumps graph |> Graphs.double_of_t
+let to_double_graph ~jumps graph = to_graph ~jumps graph |> Data_graph.double_of_t
 
 let predecessors_of_label ~jumps (graph : 'b t) =
   graph.blocks
@@ -83,7 +83,7 @@ module type Intf = sig
     }
   [@@deriving sexp_of, fields]
 
-  val to_graph : jumps:('b -> Label.t F.Iter.t) -> 'b t -> Label.t Graphs.t
+  val to_graph : jumps:('b -> Label.t F.Iter.t) -> 'b t -> Label.t Data_graph.t
   val map_blocks : 'b t -> f:('b Label.Map.t -> 'c Label.Map.t) -> 'c t
   val set_block : 'b t -> Label.t -> 'b -> 'b t
   val add_block_exn : 'b t -> Label.t -> 'b -> 'b t

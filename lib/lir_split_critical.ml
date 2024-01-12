@@ -2,7 +2,7 @@ open O
 include Lir_instr
 
 let split pred (fn : Vir.Function.t) =
-  let predecessors = Graph.predecessors_of_label fn.graph in
+  let preds = Data_graph.get_pred_map @@ Graph.to_graph fn.graph in
   Function.with_mut fn (fun mut_fn ->
     Map.iteri mut_fn.graph.blocks ~f:(fun ~key:label ~data:block ->
       if pred block
@@ -15,7 +15,7 @@ let split pred (fn : Vir.Function.t) =
           let block =
             (Block.map_exit & Control_instr.map_block_calls) block ~f:(fun block_call ->
               let num_preds_target =
-                Map.find predecessors block_call.label
+                Hashtbl.find preds block_call.label
                 |> Option.value ~default:[]
                 |> List.length
               in

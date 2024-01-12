@@ -1,4 +1,5 @@
 open O
+module Lir = Lir_imports
 
 let loop_lir =
   lazy
@@ -33,7 +34,7 @@ let%expect_test "uses" =
   let p =
     Lir.(
       F.Fold.of_fn Function.graph
-      @> F.Fold.of_fn Graph.blocks
+      @> F.Fold.of_fn Cfg_graph.blocks
       @> F.Core.Map.fold
       @> Block.instrs_forward_fold
       @> Some_instr.uses_fold)

@@ -1,12 +1,12 @@
 open O
 
-let get_idoms (type n) start_node (graph : n Graphs.double) =
+let get_idoms (type n) start_node (graph : n Data_graph.double) =
   let module Node = (val graph.node) in
-  let node_key_mod = Graphs.node_to_key graph.node in
+  let node_key_mod = Data_graph.node_to_key graph.node in
   let idom_of_node = Hashtbl.create node_key_mod in
   (* special case for start node *)
   Hashtbl.set idom_of_node ~key:start_node ~data:start_node;
-  let nodes = Graphs.Dfs.postorder [ start_node ] (Graphs.t_of_double graph) in
+  let nodes = Data_graph.Dfs.postorder [ start_node ] (Data_graph.t_of_double graph) in
   let index_of_node = Hashtbl.create ~size:(Vec.length nodes) node_key_mod in
   Vec.iteri nodes ~f:(fun i node -> Hashtbl.set index_of_node ~key:node ~data:i);
   let intersect node1 node2 =
@@ -64,9 +64,9 @@ let get_idoms (type n) start_node (graph : n Graphs.double) =
   idom_of_node
 ;;
 
-let frontier_of_idoms (type n) idoms (graph : n Graphs.double) =
+let frontier_of_idoms (type n) idoms (graph : n Data_graph.double) =
   let module Node = (val graph.node) in
-  let node_key_mod = Graphs.node_to_key graph.node in
+  let node_key_mod = Data_graph.node_to_key graph.node in
   let is_join_point preds_length = preds_length >= 2 in
   let frontier_of_node = Hashtbl.create node_key_mod in
   let rec add_until node node_idom runner =

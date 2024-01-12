@@ -48,7 +48,7 @@ module Types = struct
 
   type 'b graph =
     { entry : Label.t
-    ; v : Label.t Graphs.double
+    ; v : Label.t Data_graph.double
     ; exit : Label.t
     ; get_block : Label.t -> 'b
     }

@@ -57,10 +57,3 @@ module Label = struct
   let of_string s = { name = Name.of_string s }
   let to_string { name } = Name.to_string name
 end
-
-let%expect_test "testing" =
-  printf "%d" (1 + 2);
-  [%expect {|3|}]
-;;
-
-let%test "testing" = [%equal: Label.t] (Label.of_string "a") (Label.of_string "a")

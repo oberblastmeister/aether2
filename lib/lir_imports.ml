@@ -3,6 +3,7 @@ include Lir_instr
 include Lir_pretty
 module Ssa = Lir_ssa
 module Lower = Lir_lower
+module Check = Lir_check
 
 let parse s =
   let open Or_error.Let_syntax in
