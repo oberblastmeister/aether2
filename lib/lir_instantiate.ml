@@ -30,7 +30,7 @@ struct
   end
 
   (* module DataGraph = Lir.Graph.MakeDataGraph (V) *)
-  module DataGraph = Cfg_graph.Graph.Stuff.MakeDataGraph (struct
+  module DataGraph = Cfg_graph.MakeDataGraph (struct
       type t = V.t Lir.Block.t [@@deriving sexp_of]
 
       let jumps_fold b = Lir.Block.jumps_fold b

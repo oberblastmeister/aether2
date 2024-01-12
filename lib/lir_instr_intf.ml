@@ -251,8 +251,8 @@ module Block = struct
 end
 
 module Graph = struct
+  include Cfg_graph
   include T.Graph
-  include Cfg_graph.Graph.Stuff
 
   let predecessors_of_label b = predecessors_of_label ~jumps:Block.jumps b
 
@@ -268,20 +268,13 @@ module Graph = struct
         [%message "the entry label should have no predecessors" ~got:(ls : Label.t list)]
   ;;
 
-  module MakeDataGraph (V : sig
-      type t [@@deriving sexp_of]
-    end) : Data_graph.SingleEntryGraph with type t = V.t t and module Node = Label =
-  MakeDataGraph (struct
-      type t = V.t Block.t [@@deriving sexp_of]
-
-      let jumps_fold b = Block.jumps_fold b
-      let jumps b = Block.jumps b
-    end)
-
   module DataGraph :
     Data_graph.SingleEntryGraph with type t = Value.t t and module Node = Label = struct
     include MakeDataGraph (struct
-        type t = Value.t [@@deriving sexp_of]
+        type t = Value.t Block.t [@@deriving sexp_of]
+
+        let jumps_fold b = Block.jumps_fold b
+        let jumps b = Block.jumps b
       end)
   end
 

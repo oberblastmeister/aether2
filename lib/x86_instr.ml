@@ -346,7 +346,7 @@ module Block = struct
   end
 end
 
-module Graph = struct
+(* module Graph = struct
   type 'v t' = 'v Block.t Cfg_graph.Graph.t [@@deriving sexp_of]
 
   include Cfg_graph.Graph.Stuff
@@ -399,7 +399,7 @@ end
 
 module Program = struct
   type 'v t' = { functions : 'v Function.t list } [@@deriving sexp_of, fields]
-end
+end *)
 
 (* module Dataflow = Cfg.MakeDataflowForBlock (Block.Dataflow)
 
