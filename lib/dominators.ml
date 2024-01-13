@@ -1,5 +1,7 @@
 open O
 
+type 'n idoms = ('n, 'n) Hashtbl.t
+
 let get_idoms (type n) start_node (graph : n Data_graph.double) =
   let module Node = (val graph.node) in
   let node_key_mod = Data_graph.node_to_key graph.node in
@@ -92,48 +94,48 @@ let frontier_of_idoms (type n) idoms (graph : n Data_graph.double) =
 
 let%test_module _ =
   (module struct
-    (* module TestGraph = Data_graph.Make_map_graph_using_comparator (String)
-
-    module Dominators = MakeDominators (struct
-        include TestGraph
-
-        let entry _ = "start"
-      end)
-
     let set = String.Set.of_list
+
+    let graph xs =
+      xs
+      |> String.Map.of_alist_exn
+      |> Data_graph.t_of_map_list (module String)
+      |> Data_graph.double_of_t
+    ;;
+
+    let get_idoms = get_idoms "start"
 
     (* Figure 2 *)
     let%expect_test _ =
       let g =
-        String.Map.of_alist_exn
-          [ "start", set [ "4"; "3" ]
-          ; "4", set [ "1" ]
-          ; "3", set [ "2" ]
-          ; "2", set [ "1" ]
-          ; "1", set [ "2" ]
+        graph
+          [ "start", [ "4"; "3" ]
+          ; "4", [ "1" ]
+          ; "3", [ "2" ]
+          ; "2", [ "1" ]
+          ; "1", [ "2" ]
           ]
       in
-      let idoms = Dominators.get_idoms g in
+      let idoms = get_idoms g in
       print_s [%sexp (idoms : (string, string) Hashtbl.t)];
-      ();
       [%expect {| ((1 start) (2 start) (3 start) (4 start) (start start)) |}]
     ;;
 
     (* Figure 4 *)
     let%expect_test _ =
       let g =
-        String.Map.of_alist_exn
-          [ "start", set [ "5"; "4" ]
-          ; "5", set [ "1" ]
-          ; "4", set [ "2"; "3" ]
-          ; "1", set [ "2" ]
-          ; "2", set [ "1"; "3" ]
-          ; "3", set [ "2" ]
+        graph
+          [ "start", [ "5"; "4" ]
+          ; "5", [ "1" ]
+          ; "4", [ "2"; "3" ]
+          ; "1", [ "2" ]
+          ; "2", [ "1"; "3" ]
+          ; "3", [ "2" ]
           ]
       in
-      let idoms = Dominators.get_idoms g in
+      let idoms = get_idoms g in
       print_s [%sexp (idoms : (string, string) Hashtbl.t)];
       [%expect {| ((1 start) (2 start) (3 start) (4 start) (5 start) (start start)) |}]
-    ;; *)
+    ;;
   end)
 ;;

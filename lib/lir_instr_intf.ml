@@ -125,12 +125,14 @@ module type Intf = sig
   end
 
   module Graph : sig
+    include Cfg_graph_intf.S
     include module type of T.Graph
 
     val to_graph : 'v t -> Label.t Data_graph.t
     val to_double_graph : 'v t -> Label.t Data_graph.double
     val validate : 'v t -> unit
     val get_idoms : 'v t -> (Label.t, Label.t) Hashtbl.t
+    val predecessors_of_label : 'v t -> Label.t list Label.Map.t
   end
 
   module Dataflow : sig

@@ -1,9 +1,9 @@
 open O
 
 module Control : sig
-  type e = |
-  type o = |
-  type c = |
+  type e = E
+  type o = O
+  type c = C
 end
 
 module SControl : sig

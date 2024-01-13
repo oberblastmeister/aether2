@@ -16,8 +16,8 @@ let instr_to_block_transfer
     let new_fact =
       F.Fold.fold
         (match instr_transfer.direction with
-         | Forward -> block_folds.fold_instrs_forward
-         | Backward -> block_folds.fold_instrs_backward)
+         | Forward -> block_folds.instrs_forward_fold
+         | Backward -> block_folds.instrs_backward_fold)
         block
         ~init:(instr_transfer.combine other_facts)
         ~f:(fun i d -> instr_transfer.transfer d i)

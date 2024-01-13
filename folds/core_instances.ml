@@ -10,6 +10,7 @@ end
 
 module Set = struct
   let fold x k = Set.iter x ~f:k
+  let iter s f = Set.iter s ~f
 end
 
 module Map = struct

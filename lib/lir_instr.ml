@@ -112,21 +112,21 @@ module Generic_instr = struct
   let get_control : type v. (v, Control.c) t -> v Control_instr.t = function
     | Control c -> c
     (* ocaml can't refute this for some reason? *)
-    | _ -> assert false
+    | _ -> .
   ;;
 
   let map_control i ~f = Control (f (get_control i))
 
   let get_instr : type v. (v, Control.o) t -> v Instr.t = function
     | Instr a -> a
-    | _ -> assert false
+    | _ -> .
   ;;
 
   let map_instr i ~f = Instr (f (get_instr i))
 
   let get_block_args : type v. (v, Control.e) t -> Value.t list = function
     | Block_args vs -> vs
-    | _ -> assert false
+    | _ -> .
   ;;
 
   let map_block_args i ~f = Block_args (f (get_block_args i))
@@ -232,12 +232,12 @@ module Graph = struct
   include Cfg_graph
   include T.Graph
 
-  let predecessors_of_label b = predecessors_of_label ~jumps:Block.jumps b
+  let predecessors_of_label b = Cfg_graph.predecessors_of_label ~jumps:Block.jumps b
   let to_graph g = Cfg_graph.to_graph ~jumps:Block.jumps_fold g
   let to_double_graph g = to_graph g |> Data_graph.double_of_t
 
   let validate graph =
-    validate graph;
+    Cfg_graph.validate graph;
     let preds = predecessors_of_label graph in
     let res = Map.find preds graph.entry in
     match res with
@@ -248,7 +248,7 @@ module Graph = struct
         [%message "the entry label should have no predecessors" ~got:(ls : Label.t list)]
   ;;
 
-  let get_idoms graph = Dominators.get_idoms graph.entry @@ to_double_graph graph
+  let get_idoms (graph : _ t) = Dominators.get_idoms graph.entry @@ to_double_graph graph
 end
 
 module Dataflow = struct
@@ -257,8 +257,8 @@ module Dataflow = struct
       (module struct
         type t = Value.t Block.t [@@deriving sexp_of]
       end)
-      { fold_instrs_forward = Block.instrs_forward_fold
-      ; fold_instrs_backward = Block.instrs_backward_fold
+      { instrs_forward_fold = Block.instrs_forward_fold
+      ; instrs_backward_fold = Block.instrs_backward_fold
       }
   ;;
 

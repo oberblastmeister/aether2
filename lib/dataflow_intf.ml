@@ -54,8 +54,8 @@ module Types = struct
     }
 
   type ('i, 'b) block_folds =
-    { fold_instrs_forward : ('i, 'b) F.Fold.t
-    ; fold_instrs_backward : ('i, 'b) F.Fold.t
+    { instrs_forward_fold : ('i, 'b) F.Fold.t
+    ; instrs_backward_fold : ('i, 'b) F.Fold.t
     }
 
   type ('v, 'comparator_witness, 'i) liveness_dict =
@@ -65,6 +65,8 @@ module Types = struct
     ; defs : ('v, 'i) F.Fold.t
     }
 end
+
+include Types
 
 module type Intf = sig
   include module type of Types
@@ -98,5 +100,3 @@ module type Intf = sig
       -> Label.Set.t Label.Map.t
   end
 end
-
-include Types
