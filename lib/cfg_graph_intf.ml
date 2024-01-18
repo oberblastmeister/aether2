@@ -1,4 +1,4 @@
-open O
+open! O
 open Instr_types
 
 type 'b t =

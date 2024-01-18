@@ -1,4 +1,4 @@
-open O
+open! O
 module Lir = Lir_instr
 
 module Instantiate (V : sig
@@ -34,7 +34,7 @@ struct
   end
 
   module Mut_function = struct
-    type t = V.t Lir.Mut_function.t
+    type t = V.t Lir.Mut_function.t [@@deriving sexp_of]
   end
 
   module Function = struct

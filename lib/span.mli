@@ -1,4 +1,4 @@
-open O
+open! O
 
 type t =
   { start : int

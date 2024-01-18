@@ -1,4 +1,4 @@
-open O
+open! O
 
 module T = struct
   type t =

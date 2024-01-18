@@ -1,4 +1,4 @@
-open O
+open! O
 open Instr_types
 include Cfg_graph_intf
 
@@ -19,13 +19,15 @@ let validate graph =
 ;;
 
 let to_graph ~jumps graph =
-  { Data_graph.node = (module Label)
-  ; succs = (fun label -> jumps (Map.find_exn graph.blocks label))
+  { Data_graph.succs = (fun label -> jumps (Map.find_exn graph.blocks label))
   ; all_nodes = (fun k -> Map.iter_keys graph.blocks ~f:k)
   }
 ;;
 
-let to_double_graph ~jumps graph = to_graph ~jumps graph |> Data_graph.double_of_t
+let to_double_graph ~jumps graph =
+  to_graph ~jumps graph
+  |> Data_graph.double_of_t (Constructors.some_hashtbl (module Label))
+;;
 
 let predecessors_of_label ~jumps (graph : 'b t) =
   graph.blocks

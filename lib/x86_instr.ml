@@ -1,5 +1,5 @@
 (* TODO: remove generic types and stuff *)
-open O
+open! O
 
 open Instr_types
 

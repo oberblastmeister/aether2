@@ -1,7 +1,7 @@
-open O
+open! O
 
 let rec unsnoc_list xs =
-  let open Option.Let_syntax in
+  let open! Option.Let_syntax in
   match xs with
   | x :: [] -> Some ([], x)
   | x :: xs ->

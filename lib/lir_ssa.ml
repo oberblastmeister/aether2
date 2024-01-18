@@ -1,4 +1,4 @@
-open O
+open! O
 open Lir_instr
 
 module ValueWithId = struct
@@ -65,10 +65,15 @@ let check_all_temps_unique (fn : Value.t Function.t) =
 ;;
 
 let validate_ssa_function (fn : Vir.Function.t) =
-  let open Or_error.Let_syntax in
+  let open! Or_error.Let_syntax in
   Graph.validate fn.graph;
   let%bind () = check_all_temps_unique fn in
-  let labels = Data_graph.Dfs.preorder [ fn.graph.entry ] (fn.graph |> Graph.to_graph) in
+  let labels =
+    Data_graph.Dfs.preorder
+      ~start:[ fn.graph.entry ]
+      ~set:(Constructors.some_hashset (module Label))
+      (fn.graph |> Graph.to_graph)
+  in
   let errors : Error.t Stack.t = Stack.create () in
   let defined = Value.Hash_set.create () in
   List.iter fn.params ~f:(fun param -> Hash_set.add defined param);

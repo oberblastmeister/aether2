@@ -1,4 +1,4 @@
-open O
+open! O
 open Instr_types
 
 module Ty = struct
@@ -138,7 +138,7 @@ module Mut_function = struct
     ; return_ty : Ty.t
     ; mutable unique_label : int
     ; mutable unique_name : int
-    }
+    } [@@deriving sexp_of, fields]
 end
 
 module Function = struct

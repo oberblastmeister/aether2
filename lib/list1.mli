@@ -1,4 +1,4 @@
-open O
+open! O
 
 type 'a t = T of ('a * 'a list) [@@deriving equal, compare, hash, sexp]
 

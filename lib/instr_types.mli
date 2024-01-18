@@ -1,4 +1,4 @@
-open O
+open! O
 
 module Control : sig
   type e = E

@@ -1,4 +1,4 @@
-open O
+open! O
 
 module Control = struct
   type e = E

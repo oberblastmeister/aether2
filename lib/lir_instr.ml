@@ -1,5 +1,5 @@
 include Lir_instr_intf
-open O
+open! O
 open Instr_types
 module T = Lir_instr_types
 
@@ -234,7 +234,10 @@ module Graph = struct
 
   let predecessors_of_label b = Cfg_graph.predecessors_of_label ~jumps:Block.jumps b
   let to_graph g = Cfg_graph.to_graph ~jumps:Block.jumps_fold g
-  let to_double_graph g = to_graph g |> Data_graph.double_of_t
+
+  let to_double_graph g =
+    to_graph g |> Data_graph.double_of_t (Constructors.some_hashtbl (module Label))
+  ;;
 
   let validate graph =
     Cfg_graph.validate graph;
@@ -333,4 +336,14 @@ module Program = struct
   include T.Program
 
   let map_functions p ~f = { p with functions = f p.functions }
+end
+
+module Testing : sig
+  type 'a t
+
+  val takes_plist : int t -> int t
+end = struct
+  type 'a t = ('a * 'a) list
+
+  let takes_plist = List.map ~f:(fun (x, y) -> x + 1, y + 1)
 end

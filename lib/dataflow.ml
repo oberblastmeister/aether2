@@ -1,4 +1,4 @@
-open O
+open! O
 include Dataflow_intf
 open Instr_types
 module LabelQueue = Hash_queue.Make (Label)

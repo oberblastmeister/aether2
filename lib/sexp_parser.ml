@@ -1,4 +1,4 @@
-open O
+open! O
 
 module Pos = struct
   type t = int [@@deriving equal, compare, sexp]

@@ -1,4 +1,4 @@
-open O
+open! O
 open Lir_instr
 module Pretty = Sexp_lang.Pretty
 

@@ -12,4 +12,5 @@
    ppx_deriving.map
    ppx_deriving.fold
    ppx_jane))
- (libraries core fmt algaeff folds))
+ (libraries core fmt algaeff folds higher_kinded)
+ (ocamlopt_flags -S))

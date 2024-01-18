@@ -1,4 +1,4 @@
-open O
+open! O
 open Lir_instr
 
 exception Exn of Error.t

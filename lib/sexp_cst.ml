@@ -1,4 +1,4 @@
-open O
+open! O
 include Sexp_cst_intf
 
 let take_while_from ~f ~pos s =

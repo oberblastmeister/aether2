@@ -1,3 +1,3 @@
-open O
+open! O
 
 let%expect_test _ = ()

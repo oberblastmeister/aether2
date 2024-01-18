@@ -1,8 +1,12 @@
-open O
+open! O
 include Lir_instr
 
 let split pred (fn : Vir.Function.t) =
-  let preds = Data_graph.get_pred_map @@ Graph.to_graph fn.graph in
+  let preds =
+    Constructors.Hashtbl_ext.project
+    @@ Data_graph.get_pred_map (Constructors.hashtbl (module Label))
+    @@ Graph.to_graph fn.graph
+  in
   Function.with_mut fn (fun mut_fn ->
     Map.iteri mut_fn.graph.blocks ~f:(fun ~key:label ~data:block ->
       if pred block

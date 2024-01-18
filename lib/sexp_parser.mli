@@ -1,4 +1,4 @@
-open O
+open! O
 
 module Error : sig
   type t =

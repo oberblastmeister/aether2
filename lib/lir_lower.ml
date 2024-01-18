@@ -1,4 +1,4 @@
-open O
+open! O
 module Lir = Lir_instr
 
 module Value = struct

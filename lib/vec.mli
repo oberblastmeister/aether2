@@ -1,7 +1,10 @@
-open O
+open! O
 
-type ('a, -'perms) t
-type 'a rw = ('a, Perms.Read_write.t) t
+module Raw : sig
+  type 'a t [@@deriving equal, compare, hash, sexp, quickcheck]
+end
+
+type ('a, -'perms) t [@@deriving equal, compare, hash, sexp]
 
 val create : ?capacity:int -> unit -> ('a, [< _ perms ]) t
 val get : ('a, [> read ]) t -> int -> 'a
@@ -18,6 +21,5 @@ val iter : ('a, [> read ]) t -> f:('a -> unit) -> unit
 val iteri : ('a, [> read ]) t -> f:(int -> 'a -> unit) -> unit
 val fold : ('a, [> read ]) t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val fold_right : ('a, [> read ]) t -> init:'b -> f:('a -> 'b -> 'b) -> 'b
-val sexp_of_t : ('a -> Sexp.t) -> ('a, [> read ]) t -> Sexp.t
-val t_of_sexp : (Sexp.t -> 'a) -> Sexp.t -> ('a, [< _ perms ]) t
-val sexp_of_rw : ('a -> Sexp.t) -> 'a rw -> Sexp.t
+val freeze : ('a, [> read ]) t -> ('a, [> read ]) t
+val copy : ('a, [> read ]) t -> ('a, [< _ perms ]) t

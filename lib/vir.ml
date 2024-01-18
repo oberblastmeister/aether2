@@ -1,4 +1,4 @@
-open O
+open! O
 
 module Lir = struct
   include Lir_instantiate

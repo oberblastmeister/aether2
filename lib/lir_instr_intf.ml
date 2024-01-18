@@ -1,4 +1,4 @@
-open O
+open! O
 module T = Lir_instr_types
 open Instr_types
 

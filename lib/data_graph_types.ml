@@ -1,4 +1,4 @@
-open O
+open! O
 
 type 'v graph_fold = ('v, 'v) F.Fold.t
 
@@ -11,14 +11,12 @@ end
 type 'n node = (module Node with type t = 'n)
 
 type 'n t =
-  { node : 'n node
-  ; succs : 'n graph_fold
+  { succs : 'n graph_fold
   ; all_nodes : 'n Iter.t
   }
 
 type 'n double =
-  { node : 'n node
-  ; succs : 'n graph_fold
+  { succs : 'n graph_fold
   ; preds : 'n graph_fold
   ; all_nodes : 'n Iter.t
   }

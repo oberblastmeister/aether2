@@ -1,4 +1,4 @@
-open O
+open! O
 include Sexp_pretty_intf
 
 let indent_increase = 2

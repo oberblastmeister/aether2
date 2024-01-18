@@ -1,4 +1,4 @@
-open O
+open! O
 module Lir = Lir_imports
 
 let loop_lir =
