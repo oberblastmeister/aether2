@@ -56,14 +56,14 @@ let%expect_test "liveness" =
   ();
   [%expect
     {|
-    ((((name (Name body)))
+    ((((name body) (id 3))
       (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))
        ((name (Name r)) (ty U64))))
-     (((name (Name done))) (((name (Name r)) (ty U64))))
-     (((name (Name loop)))
+     (((name done) (id 2)) (((name (Name r)) (ty U64))))
+     (((name loop) (id 1))
       (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))
        ((name (Name r)) (ty U64))))
-     (((name (Name start)))
+     (((name start) (id 0))
       (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))))) |}]
 ;;
 
@@ -73,12 +73,12 @@ let%expect_test "dominators" =
   print_s [%sexp (res : Lir.Label.Set.t Lir.Label.Map.t)];
   [%expect
     {|
-    ((((name (Name body)))
-      (((name (Name body))) ((name (Name loop))) ((name (Name start)))))
-     (((name (Name done)))
-      (((name (Name done))) ((name (Name loop))) ((name (Name start)))))
-     (((name (Name loop))) (((name (Name loop))) ((name (Name start)))))
-     (((name (Name start))) (((name (Name start)))))) |}]
+    ((((name body) (id 3))
+      (((name body) (id 3)) ((name loop) (id 1)) ((name start) (id 0))))
+     (((name done) (id 2))
+      (((name done) (id 2)) ((name loop) (id 1)) ((name start) (id 0))))
+     (((name loop) (id 1)) (((name loop) (id 1)) ((name start) (id 0))))
+     (((name start) (id 0)) (((name start) (id 0))))) |}]
 ;;
 
 let%expect_test "idoms" =
@@ -93,26 +93,26 @@ let%expect_test "idoms" =
   [%expect
     {|
     (idoms
-     ((((name (Name body))) ((name (Name loop))))
-      (((name (Name done))) ((name (Name loop))))
-      (((name (Name loop))) ((name (Name start))))
-      (((name (Name start))) ((name (Name start))))))
+     ((((name body) (id 3)) ((name loop) (id 1)))
+      (((name done) (id 2)) ((name loop) (id 1)))
+      (((name loop) (id 1)) ((name start) (id 0)))
+      (((name start) (id 0)) ((name start) (id 0)))))
     (idom_tree
-     ((((name (Name loop))) (((name (Name body))) ((name (Name done)))))
-      (((name (Name start))) (((name (Name loop))))))) |}]
+     ((((name loop) (id 1)) (((name body) (id 3)) ((name done) (id 2))))
+      (((name start) (id 0)) (((name loop) (id 1)))))) |}]
 ;;
 
 let%expect_test "idoms fast" =
   let fn = List.hd_exn (Lazy.force loop_lir).functions in
   let idoms = Lir.Graph.get_idoms fn.graph in
-  print_s [%sexp (idoms : Lir.Label.t Lir.Label.Hashtbl.t)];
+  print_s [%sexp (idoms : (Lir.Label.t, Lir.Label.t) Hashtbl.t)];
   ();
   [%expect
     {|
-    ((((name (Name body))) ((name (Name loop))))
-     (((name (Name done))) ((name (Name loop))))
-     (((name (Name loop))) ((name (Name start))))
-     (((name (Name start))) ((name (Name start))))) |}]
+    ((((name body) (id 3)) ((name loop) (id 1)))
+     (((name done) (id 2)) ((name loop) (id 1)))
+     (((name loop) (id 1)) ((name start) (id 0)))
+     (((name start) (id 0)) ((name start) (id 0)))) |}]
 ;;
 
 let%expect_test "naive ssa" =
@@ -126,19 +126,19 @@ let%expect_test "naive ssa" =
   [%expect
     {|
     (define (pow (b.0 u64) (e.1 u64)) u64
-      (label (start)
+      (label (start.0)
         (set r.2 (const u64 1))
-        (jump (loop b.0 e.1 r.2)))
-      (label (body (b.3 u64) (e.4 u64) (r.5 u64))
+        (jump (loop.1 b.0 e.1 r.2)))
+      (label (body.3 (b.3 u64) (e.4 u64) (r.5 u64))
         (set r.6 (add u64 r.5 b.3))
         (set one.7 (const u64 1))
         (set e.8 (add u64 e.4 one.7))
-        (jump (loop b.3 e.8 r.6)))
-      (label (loop (b.9 u64) (e.10 u64) (r.11 u64))
+        (jump (loop.1 b.3 e.8 r.6)))
+      (label (loop.1 (b.9 u64) (e.10 u64) (r.11 u64))
         (set z.12 (const u64 0))
         (set f.13 (cmp u64 gt e.10 z.12))
-        (cond_jump f.13 (done r.11) (body b.9 e.10 r.11)))
-      (label (done (r.14 u64))
+        (cond_jump f.13 (done.2 r.11) (body.3 b.9 e.10 r.11)))
+      (label (done.2 (r.14 u64))
         (ret r.14))) |}]
 ;;
 
@@ -148,19 +148,19 @@ let%expect_test "ssa" =
   [%expect
     {|
     (define (pow (b.0 u64) (e.1 u64)) u64
-      (label (start)
+      (label (start.0)
         (set r.2 (const u64 1))
-        (jump (loop e.1 r.2)))
-      (label (body)
+        (jump (loop.1 e.1 r.2)))
+      (label (body.3)
         (set r.6 (add u64 r.11 b.0))
         (set one.7 (const u64 1))
         (set e.8 (add u64 e.10 one.7))
-        (jump (loop e.8 r.6)))
-      (label (loop (e.10 u64) (r.11 u64))
+        (jump (loop.1 e.8 r.6)))
+      (label (loop.1 (e.10 u64) (r.11 u64))
         (set z.12 (const u64 0))
         (set f.13 (cmp u64 gt e.10 z.12))
-        (cond_jump f.13 (done) (body)))
-      (label (done)
+        (cond_jump f.13 (done.2) (body.3)))
+      (label (done.2)
         (ret r.11))) |}]
 ;;
 

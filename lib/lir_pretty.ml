@@ -7,6 +7,11 @@ module Context = struct
 end
 
 let pretty_name = Fn.compose Pretty.atom Name.to_string
+
+let pretty_label (label : Label.t) =
+  Pretty.atom @@ label.name ^ "." ^ string_of_int (Label.Id.to_int label.id)
+;;
+
 let pretty_value (value : Value.t) = pretty_name value.name
 
 let pretty_ty = function
@@ -52,8 +57,7 @@ let pretty_expr cx =
 
 let pretty_block_call cx ({ label; args } : _ Block_call.t) =
   let pretty_value = cx.Context.pretty_value in
-  Pretty.(
-    List (List.concat [ [ pretty_name label.name ]; List.map ~f:pretty_value args ]))
+  Pretty.(List (List.concat [ [ pretty_label label ]; List.map ~f:pretty_value args ]))
 ;;
 
 let pretty_instr_control cx i =
@@ -84,7 +88,7 @@ let pretty_block cx (label : Label.t) (block : _ Block.t) =
     list
     @@ List.concat
          [ [ Atom "label"
-           ; List ([ pretty_name label.name ] @ List.map ~f:pretty_value_typed block.entry)
+           ; List ([ pretty_label label ] @ List.map ~f:pretty_value_typed block.entry)
            ; Ann IndentLine
            ]
          ; List.map ~f:(pretty_instr cx) block.body |> List_ext.end_with ~sep:(Ann Line)

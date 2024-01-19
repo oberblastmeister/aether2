@@ -44,16 +44,4 @@ module Name = struct
   ;;
 end
 
-module Label = struct
-  module T = struct
-    type t = { name : Name.t } [@@deriving equal, compare, sexp, hash] [@@unboxed]
-  end
-
-  include T
-  module Hashtbl = Hashtbl.Make (T)
-  module Hash_set = Hash_set.Make (T)
-  include Comparable.Make (T)
-
-  let of_string s = { name = Name.of_string s }
-  let to_string { name } = Name.to_string name
-end
+module Label = Name_id.Make ()

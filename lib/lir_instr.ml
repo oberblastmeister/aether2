@@ -287,8 +287,8 @@ module Mut_function = struct
 
   let fresh_label fn s =
     let unique = fn.unique_label in
-    fn.unique_label <- unique + 1;
-    { Label.name = Name.Unique { name = s; unique } }
+    fn.unique_label <- Label.Id.next unique;
+    Label.create s unique
   ;;
 
   let set_block fn label block = fn.graph <- Graph.set_block fn.graph label block

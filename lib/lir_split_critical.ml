@@ -25,9 +25,7 @@ let split pred (fn : Vir.Function.t) =
               in
               if num_preds_target > 1
               then (
-                let new_label =
-                  Mut_function.fresh_label mut_fn (Label.to_string block_call.label)
-                in
+                let new_label = Mut_function.fresh_label mut_fn block_call.label.name in
                 let new_block =
                   { entry = []; Block.body = []; exit = Control_instr.Jump block_call }
                 in

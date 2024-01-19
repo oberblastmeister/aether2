@@ -2,6 +2,15 @@ open! O
 open Lir_instr
 module Parser = Sexp_lang.Parser
 
+type state =
+  { label_gen : Label.Id.Gen.t
+  ; id_of_label : (string, Label.Id.t) Hashtbl.t
+  }
+
+let create_state () =
+  { label_gen = Label.Id.Gen.create (); id_of_label = Hashtbl.create (module String) }
+;;
+
 let parse_ty =
   Parser.atom (function
     | "u64" -> Ty.U64
@@ -57,7 +66,15 @@ let parse_expr =
     | _ -> Parser.parse_error [%message "unknown op" ~name])
 ;;
 
-let parse_label = Parser.atom Label.of_string
+let parse_label st =
+  Parser.atom (fun s ->
+    match Hashtbl.find st.id_of_label s with
+    | Some id -> Label.create s id
+    | None ->
+      let id = Label.Id.Gen.next st.label_gen in
+      Hashtbl.add_exn st.id_of_label ~key:s ~data:id;
+      Label.create s id)
+;;
 
 let parse_lit s =
   Parser.atom (fun s' ->
@@ -66,14 +83,14 @@ let parse_lit s =
     else Parser.parse_error [%message "expected literal" ~s ~got:s'])
 ;;
 
-let parse_block_call =
+let parse_block_call st =
   Parser.list_ref (fun xs ->
-    let label = Parser.item xs parse_label in
+    let label = Parser.item xs (parse_label st) in
     let args = Parser.rest !xs parse_var in
     ({ label; args } : _ Block_call.t))
 ;;
 
-let parse_instr : Sexp_cst.t -> Name.t Some_instr.t =
+let parse_instr st =
   let instr_o name instr_op : _ Some_instr.t =
     Some_instr.T (Generic_instr.Instr (Assign { dst = name; expr = instr_op }))
   in
@@ -92,27 +109,27 @@ let parse_instr : Sexp_cst.t -> Name.t Some_instr.t =
       let v = Parser.optional_item !xs parse_var in
       instr_c (Control_instr.Ret v)
     | "jump" ->
-      let j = Parser.item xs parse_block_call in
+      let j = Parser.item xs (parse_block_call st) in
       instr_c (Control_instr.Jump j)
     | "cond_jump" ->
       let v = Parser.item xs parse_var in
-      let j1 = Parser.item xs parse_block_call in
-      let j2 = Parser.item xs parse_block_call in
+      let j1 = Parser.item xs (parse_block_call st) in
+      let j2 = Parser.item xs (parse_block_call st) in
       instr_c (Control_instr.CondJump (v, j1, j2))
     | _ -> Parser.parse_error [%message "unknown instruction" ~name:instr_name])
 ;;
 
-let parse_block =
+let parse_block st =
   Parser.list_ref (fun xs ->
     Parser.item xs @@ parse_lit "label";
     let label, args =
       Parser.item xs
       @@ Parser.list_ref (fun xs ->
-        let label = Parser.item xs parse_label in
+        let label = Parser.item xs (parse_label st) in
         let args = Parser.rest !xs parse_value in
         label, args)
     in
-    let instrs = Parser.rest !xs parse_instr in
+    let instrs = Parser.rest !xs (parse_instr st) in
     let instrs, last_instr =
       List_ext.unsnoc_list instrs
       |> Option.value_or_thunk ~default:(fun () ->
@@ -141,8 +158,8 @@ let parse_block =
     label, ({ entry = args; body = instrs; exit = last_instr } : _ Block.t))
 ;;
 
-let parse_graph xs =
-  let blocks = Parser.rest xs parse_block in
+let parse_graph st xs =
+  let blocks = Parser.rest xs (parse_block st) in
   match blocks with
   | (label, _) :: _ ->
     ({ entry = label
@@ -154,6 +171,7 @@ let parse_graph xs =
 ;;
 
 let parse_function =
+  let st = create_state () in
   Parser.list_ref (fun xs ->
     Parser.item xs @@ parse_lit "define";
     let name, params =
@@ -164,8 +182,15 @@ let parse_function =
         name, params)
     in
     let return_ty = Parser.item xs parse_ty in
-    let graph = parse_graph !xs in
-    ({ name; params; return_ty; graph; unique_label = 0; unique_name = 0 } : _ Function.t))
+    let graph = parse_graph st !xs in
+    ({ name
+     ; params
+     ; return_ty
+     ; graph
+     ; unique_label = Label.Id.Gen.to_id st.label_gen
+     ; unique_name = 0
+     }
+     : _ Function.t))
 ;;
 
 let parse_program xs =
@@ -201,14 +226,14 @@ let%expect_test _ =
       (((name testing)
         (params (((name (Name first)) (ty U64)) ((name (Name second)) (ty U64))))
         (graph
-         ((entry ((name (Name first))))
+         ((entry ((name first) (id 0)))
           (blocks
-           ((((name (Name first)))
+           ((((name first) (id 0))
              ((entry (((name (Name arg)) (ty U64))))
               (body
                ((Assign (dst ((name (Name x)) (ty U64)))
                  (expr (Bin (ty U64) (op Add) (v1 _) (v2 _))))))
               (exit (Ret ()))))))
-          (exit ((name (Name first))))))
-        (return_ty U64) (unique_label 0) (unique_name 0))))) |}]
+          (exit ((name first) (id 0)))))
+        (return_ty U64) (unique_label 1) (unique_name 0))))) |}]
 ;;

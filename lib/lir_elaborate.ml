@@ -116,17 +116,17 @@ u64
     {|
     pretty:
     (define (testing (first u64) (second u64)) u64
-      (label (first (arg u64))
+      (label (first.0 (arg u64))
         (set x (add u64 first second))
         (ret))
-      (label (second (arg u64))
+      (label (second.1 (arg u64))
         (set x (add u64 first second))
         (ret))
-      (label (third (arg u64))
+      (label (third.2 (arg u64))
         (set x (add u64 first second))
         (ret)))
 
     (define (another) u64
-      (label (start)
+      (label (start.3)
         (ret))) |}]
 ;;

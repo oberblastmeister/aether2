@@ -272,7 +272,7 @@ let simplify_phis (phis : Value.t Phi.t list) =
 ;;
 
 let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
-  let phis_of_label = Label.Hashtbl.create () in
+  let phis_of_label = Hashtbl.create (module Label) in
   List.iter phis ~f:(fun phi ->
     Hashtbl.update
       phis_of_label

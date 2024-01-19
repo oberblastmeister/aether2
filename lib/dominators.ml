@@ -97,16 +97,26 @@ let frontier_of_idoms idoms (graph : Label.t Data_graph.double) =
 let%test_module _ =
   (module struct
     let set = String.Set.of_list
+    let tbl = Hashtbl.create (module String)
+
+    let lab s =
+      match Hashtbl.find tbl s with
+      | None ->
+        let label = Label.of_string_global_unique s in
+        Hashtbl.set tbl ~key:s ~data:label;
+        label
+      | Some l -> l
+    ;;
 
     let graph xs =
       xs
-      |> List.map ~f:(fun (n, ns) -> Label.of_string n, List.map ~f:Label.of_string ns)
+      |> List.map ~f:(fun (n, ns) -> lab n, List.map ~f:lab ns)
       |> Label.Map.of_alist_exn
       |> Data_graph.t_of_map_list
       |> Data_graph.double_of_t (Constructors.some_hashtbl (module Label))
     ;;
 
-    let get_idoms = get_idoms (Label.of_string "start")
+    let get_idoms = get_idoms (lab "start")
 
     (* Figure 2 *)
     let%expect_test _ =
@@ -123,11 +133,11 @@ let%test_module _ =
       print_s [%sexp (idoms : (Label.t, Label.t) Hashtbl.t)];
       [%expect
         {|
-        ((((name (Name 1))) ((name (Name start))))
-         (((name (Name 2))) ((name (Name start))))
-         (((name (Name 3))) ((name (Name start))))
-         (((name (Name 4))) ((name (Name start))))
-         (((name (Name start))) ((name (Name start))))) |}]
+        ((((name 1) (id 3)) ((name start) (id 0)))
+         (((name 2) (id 4)) ((name start) (id 0)))
+         (((name 3) (id 2)) ((name start) (id 0)))
+         (((name 4) (id 1)) ((name start) (id 0)))
+         (((name start) (id 0)) ((name start) (id 0)))) |}]
     ;;
 
     (* Figure 4 *)
@@ -146,12 +156,12 @@ let%test_module _ =
       print_s [%sexp (idoms : (Label.t, Label.t) Hashtbl.t)];
       [%expect
         {|
-        ((((name (Name 1))) ((name (Name start))))
-         (((name (Name 2))) ((name (Name start))))
-         (((name (Name 3))) ((name (Name start))))
-         (((name (Name 4))) ((name (Name start))))
-         (((name (Name 5))) ((name (Name start))))
-         (((name (Name start))) ((name (Name start))))) |}]
+        ((((name 1) (id 3)) ((name start) (id 0)))
+         (((name 2) (id 4)) ((name start) (id 0)))
+         (((name 3) (id 2)) ((name start) (id 0)))
+         (((name 4) (id 1)) ((name start) (id 0)))
+         (((name 5) (id 5)) ((name start) (id 0)))
+         (((name start) (id 0)) ((name start) (id 0)))) |}]
     ;;
   end)
 ;;

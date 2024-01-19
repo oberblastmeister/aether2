@@ -136,9 +136,10 @@ module Mut_function = struct
     ; params : Value.t list
     ; mutable graph : 'v Graph.t
     ; return_ty : Ty.t
-    ; mutable unique_label : int
+    ; mutable unique_label : Label.Id.t
     ; mutable unique_name : int
-    } [@@deriving sexp_of, fields]
+    }
+  [@@deriving sexp_of, fields]
 end
 
 module Function = struct
@@ -147,7 +148,7 @@ module Function = struct
     ; params : Value.t list
     ; graph : 'v Graph.t
     ; return_ty : Ty.t
-    ; unique_label : int
+    ; unique_label : Label.Id.t
     ; unique_name : int
     }
   [@@deriving sexp_of, fields]

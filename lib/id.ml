@@ -1,15 +1,26 @@
 open! O
+include Id_intf
 
-type 'k t =
-  { name : string [@equal.ignore] [@compare.ignore] [@hash.ignore]
-  ; unique : int
-  }
-[@@deriving compare, equal, hash, sexp]
+module Make () = struct
+  include Raw_id
 
-let to_int { unique; _ } = unique
-let global_unique = Atomic.make 0
-let of_string_int name unique = { name; unique }
+  type key [@@deriving equal, compare, hash, sexp]
 
-let of_string_global_unique name =
-  of_string_int name (Atomic.fetch_and_add global_unique 1)
-;;
+  module T = struct
+    type t = key Raw_id.t [@@deriving equal, compare, hash, sexp]
+  end
+
+  include T
+
+  module Gen = struct
+    include Raw_id.Gen
+
+    type id = T.t
+    type t = key Raw_id.Gen.t
+  end
+
+  let of_raw raw = raw
+  let to_raw t = t
+
+  include Comparable.Make (T)
+end

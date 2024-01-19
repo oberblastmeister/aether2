@@ -37,13 +37,4 @@ module Name : sig
   include Comparable.S with type t := t
 end
 
-module Label : sig
-  type t = { name : Name.t } [@@deriving equal, compare, sexp, hash] [@@unboxed]
-
-  val of_string : string -> t
-  val to_string : t -> string
-
-  module Hashtbl : Hashtbl.S with type key := t
-  module Hash_set : Hash_set.S with type elt := t
-  include Comparable.S with type t := t
-end
+module Label : Name_id.S
