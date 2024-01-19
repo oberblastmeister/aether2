@@ -275,8 +275,8 @@ module Mut_function = struct
 
   let fresh_name fn s =
     let unique = fn.unique_name in
-    fn.unique_name <- unique + 1;
-    Name.Unique { name = s; unique }
+    fn.unique_name <- Name.Id.next unique;
+    Name.create s unique
   ;;
 
   let fresh_label fn s =

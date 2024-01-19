@@ -5,10 +5,16 @@ module Parser = Sexp_lang.Parser
 type state =
   { label_gen : Label.Id.Gen.t
   ; id_of_label : (string, Label.Id.t) Hashtbl.t
+  ; name_gen : Name.Id.Gen.t
+  ; id_of_name : (string, Name.Id.t) Hashtbl.t
   }
 
 let create_state () =
-  { label_gen = Label.Id.Gen.create (); id_of_label = Hashtbl.create (module String) }
+  { label_gen = Label.Id.Gen.create ()
+  ; id_of_label = Hashtbl.create (module String)
+  ; id_of_name = Hashtbl.create (module String)
+  ; name_gen = Name.Id.Gen.create ()
+  }
 ;;
 
 let parse_ty =
@@ -18,11 +24,19 @@ let parse_ty =
     | _ -> Parser.parse_error [%message "unknown type"])
 ;;
 
-let parse_var = Parser.atom (fun s -> Name.of_string s)
+let parse_var st =
+  Parser.atom (fun s ->
+    match Hashtbl.find st.id_of_name s with
+    | Some id -> Name.create s id
+    | None ->
+      let id = Name.Id.Gen.next st.name_gen in
+      Hashtbl.add_exn st.id_of_name ~key:s ~data:id;
+      Name.create s id)
+;;
 
-let parse_value =
+let parse_value st =
   Parser.list_ref (fun xs ->
-    let name = Parser.item xs parse_var in
+    let name = Parser.item xs (parse_var st) in
     let ty = Parser.item xs parse_ty in
     ({ name; ty } : Value.t))
 ;;
@@ -34,13 +48,13 @@ let parse_cmp_op = function
   | s -> Parser.parse_error [%message "unknown cmp op" ~op:s]
 ;;
 
-let parse_expr =
+let parse_expr st =
   Parser.list_ref (fun xs ->
     let name = Parser.item xs parse_ident in
     match name with
     | "val" ->
       let ty = Parser.item xs parse_ty in
-      let v = Parser.item xs parse_var in
+      let v = Parser.item xs (parse_var st) in
       Expr.Val { ty; v }
     | "const" ->
       let ty = Parser.item xs parse_ty in
@@ -55,13 +69,13 @@ let parse_expr =
     | "cmp" ->
       let ty = Parser.item xs parse_ty in
       let op = Parser.item xs @@ Parser.atom parse_cmp_op in
-      let v1 = Parser.item xs parse_var in
-      let v2 = Parser.item xs parse_var in
+      let v1 = Parser.item xs (parse_var st) in
+      let v2 = Parser.item xs (parse_var st) in
       Expr.Cmp { ty; op; v1; v2 }
     | "add" ->
       let ty = Parser.item xs parse_ty in
-      let v1 = Parser.item xs parse_var in
-      let v2 = Parser.item xs parse_var in
+      let v1 = Parser.item xs (parse_var st) in
+      let v2 = Parser.item xs (parse_var st) in
       Expr.Bin { ty; op = Add; v1; v2 }
     | _ -> Parser.parse_error [%message "unknown op" ~name])
 ;;
@@ -86,7 +100,7 @@ let parse_lit s =
 let parse_block_call st =
   Parser.list_ref (fun xs ->
     let label = Parser.item xs (parse_label st) in
-    let args = Parser.rest !xs parse_var in
+    let args = Parser.rest !xs (parse_var st) in
     ({ label; args } : _ Block_call.t))
 ;;
 
@@ -101,18 +115,18 @@ let parse_instr st =
     let instr_name = Parser.item xs parse_ident in
     match instr_name with
     | "set" ->
-      let name = Parser.item xs parse_var in
-      let expr = Parser.item xs parse_expr in
+      let name = Parser.item xs (parse_var st) in
+      let expr = Parser.item xs (parse_expr st) in
       let ty = Expr.get_ty expr in
       instr_o { Value.name; ty } expr
     | "ret" ->
-      let v = Parser.optional_item !xs parse_var in
+      let v = Parser.optional_item !xs (parse_var st) in
       instr_c (Control_instr.Ret v)
     | "jump" ->
       let j = Parser.item xs (parse_block_call st) in
       instr_c (Control_instr.Jump j)
     | "cond_jump" ->
-      let v = Parser.item xs parse_var in
+      let v = Parser.item xs (parse_var st) in
       let j1 = Parser.item xs (parse_block_call st) in
       let j2 = Parser.item xs (parse_block_call st) in
       instr_c (Control_instr.CondJump (v, j1, j2))
@@ -126,7 +140,7 @@ let parse_block st =
       Parser.item xs
       @@ Parser.list_ref (fun xs ->
         let label = Parser.item xs (parse_label st) in
-        let args = Parser.rest !xs parse_value in
+        let args = Parser.rest !xs (parse_value st) in
         label, args)
     in
     let instrs = Parser.rest !xs (parse_instr st) in
@@ -178,7 +192,7 @@ let parse_function =
       Parser.item xs
       @@ Parser.list_ref (fun xs ->
         let name = Parser.item xs parse_ident in
-        let params = Parser.rest !xs parse_value in
+        let params = Parser.rest !xs (parse_value st) in
         name, params)
     in
     let return_ty = Parser.item xs parse_ty in
@@ -188,7 +202,7 @@ let parse_function =
      ; return_ty
      ; graph
      ; unique_label = Label.Id.Gen.to_id st.label_gen
-     ; unique_name = 0
+     ; unique_name = Name.Id.Gen.to_id st.name_gen
      }
      : _ Function.t))
 ;;
@@ -224,16 +238,18 @@ let%expect_test _ =
     {|
     ((functions
       (((name testing)
-        (params (((name (Name first)) (ty U64)) ((name (Name second)) (ty U64))))
+        (params
+         (((name ((name first) (id 0))) (ty U64))
+          ((name ((name second) (id 1))) (ty U64))))
         (graph
          ((entry ((name first) (id 0)))
           (blocks
            ((((name first) (id 0))
-             ((entry (((name (Name arg)) (ty U64))))
+             ((entry (((name ((name arg) (id 2))) (ty U64))))
               (body
-               ((Assign (dst ((name (Name x)) (ty U64)))
+               ((Assign (dst ((name ((name x) (id 3))) (ty U64)))
                  (expr (Bin (ty U64) (op Add) (v1 _) (v2 _))))))
               (exit (Ret ()))))))
           (exit ((name first) (id 0)))))
-        (return_ty U64) (unique_label 1) (unique_name 0))))) |}]
+        (return_ty U64) (unique_label 1) (unique_name 4))))) |}]
 ;;

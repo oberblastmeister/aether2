@@ -45,10 +45,10 @@ let%test_module _ =
       print_s [%sexp (uses : Lir.Value.t list)];
       [%expect
         {|
-    (((name (Name f)) (ty U1)) ((name (Name z)) (ty U64))
-     ((name (Name e)) (ty U64)) ((name (Name r)) (ty U64))
-     ((name (Name one)) (ty U64)) ((name (Name e)) (ty U64))
-     ((name (Name b)) (ty U64)) ((name (Name r)) (ty U64))) |}]
+    (((name ((name f) (id 4))) (ty U1)) ((name ((name z) (id 3))) (ty U64))
+     ((name ((name e) (id 1))) (ty U64)) ((name ((name r) (id 2))) (ty U64))
+     ((name ((name one) (id 5))) (ty U64)) ((name ((name e) (id 1))) (ty U64))
+     ((name ((name b) (id 0))) (ty U64)) ((name ((name r) (id 2))) (ty U64))) |}]
     ;;
 
     let%expect_test "liveness" =
@@ -59,14 +59,14 @@ let%test_module _ =
       [%expect
         {|
     ((((name body) (id 3))
-      (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))
-       ((name (Name r)) (ty U64))))
-     (((name done) (id 2)) (((name (Name r)) (ty U64))))
+      (((name ((name b) (id 0))) (ty U64)) ((name ((name e) (id 1))) (ty U64))
+       ((name ((name r) (id 2))) (ty U64))))
+     (((name done) (id 2)) (((name ((name r) (id 2))) (ty U64))))
      (((name loop) (id 1))
-      (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))
-       ((name (Name r)) (ty U64))))
+      (((name ((name b) (id 0))) (ty U64)) ((name ((name e) (id 1))) (ty U64))
+       ((name ((name r) (id 2))) (ty U64))))
      (((name start) (id 0))
-      (((name (Name b)) (ty U64)) ((name (Name e)) (ty U64))))) |}]
+      (((name ((name b) (id 0))) (ty U64)) ((name ((name e) (id 1))) (ty U64))))) |}]
     ;;
 
     let%expect_test "dominators" =

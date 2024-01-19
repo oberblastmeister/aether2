@@ -23,4 +23,6 @@ module type Intf = sig
   module type S = S
 
   module Make : () -> S
+
+  val to_dotted_string : 'k t -> string
 end

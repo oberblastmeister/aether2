@@ -13,35 +13,5 @@ module SControl = struct
     | SE : Control.e t
 end
 
-module UniqueName = struct
-  type t =
-    { name : string [@compare.ignore] [@equal.ignore] [@hash.ignore]
-    ; unique : int
-    }
-  [@@deriving sexp, equal, compare, hash]
-
-  let to_string name = name.name ^ "." ^ string_of_int name.unique
-end
-
-module Name = struct
-  module T = struct
-    type t =
-      | Name of string
-      | Unique of UniqueName.t
-    [@@deriving sexp, equal, compare, hash]
-  end
-
-  include T
-  module Hashtbl = Hashtbl.Make (T)
-  module Hash_set = Hash_set.Make (T)
-  include Comparable.Make (T)
-
-  let of_string s = Name s
-
-  let to_string = function
-    | Name s -> s
-    | Unique name -> UniqueName.to_string name
-  ;;
-end
-
+module Name = Name_id.Make ()
 module Label = Name_id.Make ()

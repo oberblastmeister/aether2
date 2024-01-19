@@ -107,33 +107,29 @@ let validate_ssa (prog : Vir.Program.t) =
 module Rename : sig
   val rename_function : Vir.Function.t -> Vir.Function.t
 end = struct
-  module StringHashtbl = Hashtbl.Make (String)
-
   type t =
-    { mutable unique_name : int
-    ; generation_of_name : int StringHashtbl.t
+    { mutable unique_name : Name.Id.t
+    ; generation_of_name : (Name.Id.t, Name.Id.t) Hashtbl.t
     }
 
   let fresh_name (st : t) =
-    let name = st.unique_name in
-    st.unique_name <- name + 1;
-    name
+    let unique = st.unique_name in
+    st.unique_name <- Name.Id.next unique;
+    unique
   ;;
 
   let rename_def (st : t) (def : Value.t) =
-    let s = Name.to_string def.name in
-    let fresh = fresh_name st in
-    Hashtbl.set st.generation_of_name ~key:s ~data:fresh;
-    { def with name = Name.Unique { name = s; unique = fresh } }
+    let unique = fresh_name st in
+    Hashtbl.set st.generation_of_name ~key:def.name.id ~data:unique;
+    { def with name = Name.create def.name.name unique }
   ;;
 
   let rename_use (st : t) (use : Value.t) =
-    let s = Name.to_string use.name in
     (* the use should always be in the map because we renamed defs before uses *)
     (* we also made sure that each block had all the live variables as block args which are defs *)
     (* this means that this should never panic *)
-    let unique = Hashtbl.find_exn st.generation_of_name s in
-    { use with name = Name.Unique { name = s; unique } }
+    let unique = Hashtbl.find_exn st.generation_of_name use.name.id in
+    { use with name = Name.create use.name.name unique }
   ;;
 
   let rename_block (st : t) (block : Vir.Block.t) =
@@ -153,11 +149,11 @@ end = struct
   ;;
 
   let new_state unique_name =
-    { generation_of_name = StringHashtbl.create (); unique_name }
+    { generation_of_name = Hashtbl.create (module Name.Id); unique_name }
   ;;
 
   let rename_function (fn : Vir.Function.t) =
-    let st = new_state fn.unique_name in
+    let st = new_state (Name.Id.of_int 0) in
     let params = List.map ~f:(rename_def st) fn.params in
     let graph = rename_graph st fn.graph in
     { fn with params; graph; unique_name = st.unique_name }

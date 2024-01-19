@@ -15,3 +15,7 @@ module Make () = struct
 
   include Comparable.Make (T)
 end
+
+let to_dotted_string name_id =
+  name_id.name ^ "." ^ string_of_int (Raw_id.to_int name_id.id)
+;;

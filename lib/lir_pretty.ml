@@ -6,12 +6,9 @@ module Context = struct
   type 'v t = { pretty_value : 'v -> Sexp_pretty.t }
 end
 
-let pretty_name = Fn.compose Pretty.atom Name.to_string
-
-let pretty_label (label : Label.t) =
-  Pretty.atom @@ label.name ^ "." ^ string_of_int (Label.Id.to_int label.id)
-;;
-
+let pretty_name_id name_id = Pretty.atom @@ Name_id.to_dotted_string name_id
+let pretty_name (name : Name.t) = pretty_name_id name
+let pretty_label (label : Label.t) = pretty_name_id label
 let pretty_value (value : Value.t) = pretty_name value.name
 
 let pretty_ty = function

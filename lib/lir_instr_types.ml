@@ -143,7 +143,7 @@ module Mut_function = struct
     ; mutable graph : 'v Graph.t
     ; return_ty : Ty.t
     ; mutable unique_label : Label.Id.t
-    ; mutable unique_name : int
+    ; mutable unique_name : Name.Id.t
     }
   [@@deriving sexp_of, fields]
 end
@@ -155,7 +155,7 @@ module Function = struct
     ; graph : 'v Graph.t
     ; return_ty : Ty.t
     ; unique_label : Label.Id.t
-    ; unique_name : int
+    ; unique_name : Name.Id.t
     }
   [@@deriving sexp_of, fields]
 end
