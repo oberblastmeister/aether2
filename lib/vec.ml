@@ -5,24 +5,16 @@ module type Option_array_getters = sig
   val unsafe_set_some : 'a Option_array.t -> int -> 'a -> unit
 end
 
-module Safe_getters = struct
-  let unsafe_get_some_assuming_some = Option_array.get_some_exn
-  let unsafe_set_some = Option_array.set_some
-end
+module A = Array_ops.Option_array.Safe_ops
 
-module Unsafe_getters = struct
-  let unsafe_get_some_assuming_some = Option_array.unsafe_get_some_assuming_some
-  let unsafe_set_some = Option_array.unsafe_set_some
-end
-
-module Make_raw (A : Option_array_getters) = struct
+module Raw = struct
   type 'a t =
     { mutable size : int
     ; mutable data : 'a Option_array.t
     ; mutable frozen : bool
     }
 
-  let create ?(size = 4) () =
+  let create ?(size = 0) () =
     { size = 0
     ; data = Option_array.create ~len:(Int.round_up size ~to_multiple_of:2)
     ; frozen = false
@@ -68,18 +60,18 @@ module Make_raw (A : Option_array_getters) = struct
       t.data <- new_data)
   ;;
 
-  let[@noinline] grow t ~desired =
+  let grow t ~desired =
     assert (desired > t.size);
     if desired > capacity t
     then (
-      let new_cap = max 4 (Int.round_up desired ~to_multiple_of:2) in
+      let new_cap = Int.round_up desired ~to_multiple_of:2 in
       let new_data = Option_array.create ~len:new_cap in
       Option_array.blit ~src:t.data ~dst:new_data ~src_pos:0 ~dst_pos:0 ~len:t.size;
       t.data <- new_data)
   ;;
 
   let[@inline] unsafe_push t x =
-    if t.size = capacity t then grow t ~desired:(t.size * 2);
+    if t.size = capacity t then grow t ~desired:(max 4 (t.size * 2));
     A.unsafe_set_some t.data t.size x;
     t.size <- t.size + 1
   ;;
@@ -229,8 +221,10 @@ module Make_raw (A : Option_array_getters) = struct
 
   let%test_unit _ =
     let v = create () in
+    [%test_result: int] (length v) 0;
     let xs = [ 1; 2; 3; 4; 5 ] in
     List.iter xs ~f:(fun x -> push v x);
+    [%test_result: int] (length v) (List.length xs);
     let xs_ref = ref [] in
     iter v ~f:(fun x -> xs_ref := x :: !xs_ref);
     [%test_result: int list] !xs_ref ~expect:(List.rev xs);
@@ -252,11 +246,8 @@ module Make_raw (A : Option_array_getters) = struct
       let length = `Custom length
       let of_list = of_list
       let of_array = of_array
-      let concat _ = todo ()
       let iter = `Custom iter
       let iteri = `Custom iteri
-      let init _ = todo ()
-      let concat_mapi _ = todo ()
       let fold = fold
       let foldi = `Define_using_fold
     end)
@@ -285,9 +276,7 @@ module Make_raw (A : Option_array_getters) = struct
         [%test_eq: int list] xs !xs'')
   ;;
 end
-[@@inline]
 
-module Raw = Make_raw (Safe_getters)
 include Raw
 
 type ('a, -'perms) t = 'a Raw.t
@@ -299,6 +288,12 @@ let sexp_of_t f _ t = Raw.sexp_of_t f t
 let t_of_sexp f _ sexp = Raw.t_of_sexp f sexp
 let of_raw = Fn.id
 let to_raw = Fn.id
+
+let%expect_test _ =
+  let r = Int.round_up 0 ~to_multiple_of:2 in
+  print_s [%sexp (r : int)];
+  [%expect {| 0 |}]
+;;
 
 let%expect_test _ =
   let t = of_list [ 1; 2; 3; 4; 5 ] in

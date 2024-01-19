@@ -1,23 +1,18 @@
 open! O
 
-module type S = sig
+module type Key_type = sig
+  type key
+end
+
+module type S' = sig
   type key [@@deriving equal, compare, hash, sexp]
-  type t = key Raw_id.t [@@deriving equal, compare, hash, sexp]
-
-  module Gen : sig
-    type id = t
-    type t
-
-    val create : unit -> t
-    val of_id : id -> t
-    val to_id : t -> id
-    val next : t -> id
-  end
+  type 'k t'
+  type nonrec t = key t' [@@deriving equal, compare, hash, sexp]
 
   val of_int : int -> t
   val to_int : t -> int
-  val of_raw : t -> t
-  val to_raw : t -> t
+  val of_raw : Raw_id.t -> t
+  val to_raw : t -> Raw_id.t
   val next : t -> t
   val of_global_unique : unit -> t
 
@@ -25,7 +20,17 @@ module type S = sig
 end
 
 module type Intf = sig
-  module type S = S
+  type 'k t = private Raw_id.t [@@deriving equal, compare, hash, sexp]
+
+  val of_int : int -> 'k t
+  val to_int : 'k t -> int
+  val of_raw : Raw_id.t -> 'k t
+  val to_raw : 'k t -> Raw_id.t
+  val next : 'k t -> 'k t
+  val of_global_unique : unit -> 'k t
+
+  module type S = S' with type 'k t' := 'k t
+  module type Key_type = Key_type
 
   module Make : () -> S
 end

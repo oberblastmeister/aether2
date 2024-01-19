@@ -1,21 +1,7 @@
+(* we need this file so that we can abstract over the int type *)
 open! O
 
-type 'k t = int [@@deriving compare, equal, hash, sexp]
-
-module Gen = struct
-  type 'k id = 'k t
-  type 'k t = int ref
-
-  let create () = ref 0
-  let of_id = ref
-  let to_id t = !t
-
-  let next t =
-    let id = !t in
-    incr t;
-    id
-  ;;
-end
+type t = int [@@deriving compare, equal, hash, sexp]
 
 let to_int id = id
 let global_unique = Atomic.make 0
