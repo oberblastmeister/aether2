@@ -33,7 +33,7 @@ let predecessors_of_label ~jumps (graph : 'b t) =
   graph.blocks
   |> Map.to_alist
   |> List.bind ~f:(fun (jumped_from, block) ->
-    jumps block |> List.map ~f:(fun jumped_to -> jumped_to, jumped_from))
+    jumps block |> F.Iter.to_list |> List.map ~f:(fun jumped_to -> jumped_to, jumped_from))
   |> Label.Map.of_alist_multi
 ;;
 
@@ -59,3 +59,25 @@ let map_simple_order (graph : 'b t) ~(f : Label.t * 'b -> 'b) =
   in
   { graph with blocks }
 ;;
+
+module Dfs = struct
+  let reverse_postorder ~jumps graph =
+    Data_graph.Dfs.reverse_postorder
+      ~start:[ graph.entry ]
+      ~set:(Constructors.some_hashset (module Label))
+    @@ to_graph ~jumps graph
+  ;;
+end
+
+module Make_gen (Block : Block_gen) = struct
+  type 'a block = 'a Block.t
+
+  let jumps b = Block.jumps_fold b
+  let to_graph g = to_graph ~jumps g
+  let to_double_graph g = to_double_graph ~jumps g
+  let predecessors_of_label g = predecessors_of_label ~jumps g
+
+  module Dfs = struct
+    let reverse_postorder g = Dfs.reverse_postorder ~jumps g
+  end
+end

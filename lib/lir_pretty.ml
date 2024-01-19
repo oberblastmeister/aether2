@@ -97,17 +97,12 @@ let pretty_block cx (label : Label.t) (block : _ Block.t) =
 ;;
 
 let pretty_graph cx (graph : _ Graph.t) =
-  Pretty.(
-    List.concat
-      [ [ pretty_block cx graph.entry (Map.find_exn graph.blocks graph.entry) ]
-      ; Map.to_alist (Map.remove (Map.remove graph.blocks graph.entry) graph.exit)
-        |> List.map ~f:(fun (label, block) -> pretty_block cx label block)
-        |> List_ext.start_with ~sep:(Ann Line)
-      ; (if not ([%equal: Label.t] graph.entry graph.exit)
-         then
-           [ Ann Line; pretty_block cx graph.exit (Map.find_exn graph.blocks graph.exit) ]
-         else [])
-      ])
+  Cfg_graph.Dfs.reverse_postorder ~jumps:Block.jumps_fold graph
+  |> Vec.to_list
+  |> List.map ~f:(fun label ->
+    let block = Map.find_exn graph.blocks label in
+    pretty_block cx label block)
+  |> List.intersperse ~sep:(Ann Line)
 ;;
 
 let pretty_function cx (fn : _ Function.t) =

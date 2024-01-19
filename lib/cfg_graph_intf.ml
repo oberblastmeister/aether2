@@ -8,14 +8,27 @@ type 'b t =
   }
 [@@deriving sexp_of, fields]
 
-module type Block = sig
-  type t [@@deriving sexp_of]
+module type Block_gen = sig
+  type 'a t [@@deriving sexp_of]
 
-  val jumps_fold : (Label.t, t) F.Fold.t
-  val jumps : t -> Label.t list
+  val jumps_fold : (Label.t, 'a t) F.Fold.t
 end
 
-module type S = sig
+module type Gen_S = sig
+  type 'a block
+
+  val to_graph : 'a block t -> Label.t Data_graph.t
+  val to_double_graph : 'a block t -> Label.t Data_graph.double
+  val predecessors_of_label : 'a block t -> Label.t list Label.Map.t
+
+  module Dfs : sig
+    val reverse_postorder : 'a block t -> (Label.t, Perms.Read_write.t) Vec.t
+  end
+end
+
+module type Intf = sig
+  type nonrec 'b t = 'b t [@@deriving sexp_of]
+
   val entry : 'b t -> Label.t
   val blocks : 'b t -> 'b Label.Map.t
   val exit : 'b t -> Label.t
@@ -23,21 +36,32 @@ module type S = sig
   module Fields : module type of Fields
 
   val to_graph : jumps:('b -> Label.t F.Iter.t) -> 'b t -> Label.t Data_graph.t
+
+  val to_double_graph
+    :  jumps:('b -> Label.t F.Iter.t)
+    -> 'b t
+    -> Label.t Data_graph.double
+
   val map_blocks : 'b t -> f:('b Label.Map.t -> 'c Label.Map.t) -> 'c t
   val set_block : 'b t -> Label.t -> 'b -> 'b t
   val add_block_exn : 'b t -> Label.t -> 'b -> 'b t
   val validate : 'b t -> unit
 
   val predecessors_of_label
-    :  jumps:('b -> Label.t list)
+    :  jumps:('b -> Label.t F.Iter.t)
     -> 'b t
     -> Label.t list Label.Map.t
 
   val map_simple_order : 'b t -> f:(Label.t * 'b -> 'b) -> 'b t
-end
 
-module type Intf = sig
-  type nonrec 'b t = 'b t [@@deriving sexp_of]
+  module Dfs : sig
+    val reverse_postorder
+      :  jumps:('b -> Label.t F.Iter.t)
+      -> 'b t
+      -> (Label.t, Perms.Read_write.t) Vec.t
+  end
 
-  include S
+  module type Gen_S = Gen_S
+
+  module Make_gen : functor (Block : Block_gen) -> Gen_S with type 'a block = 'a Block.t
 end

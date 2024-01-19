@@ -118,12 +118,6 @@ u64
     (define (testing (first u64) (second u64)) u64
       (label (first.0 (arg u64))
         (set x (add u64 first second))
-        (ret))
-      (label (second.1 (arg u64))
-        (set x (add u64 first second))
-        (ret))
-      (label (third.2 (arg u64))
-        (set x (add u64 first second))
         (ret)))
 
     (define (another) u64

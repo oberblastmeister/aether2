@@ -1,6 +1,12 @@
 open! O
 open Instr_types
 
+module type Value = sig
+  type t [@@deriving sexp_of, compare, hash, equal]
+
+  include Comparator.S with type t := t
+end
+
 module Ty = struct
   type t =
     | U1

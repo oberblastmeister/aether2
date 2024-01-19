@@ -1,4 +1,3 @@
-include Lir_instr_intf
 open! O
 open Instr_types
 module T = Lir_instr_types
@@ -30,12 +29,9 @@ module Expr = struct
   include T.Expr
 
   let get_ty = function
-    | Bin { ty; _ } -> ty
-    | Const { ty; _ } -> ty
+    | Bin { ty; _ } | Const { ty; _ } | Val { ty; _ } | Load { ty; _ } -> ty
     | Cmp _ -> U1
-    | Val { ty; _ } -> ty
     | Alloca { ty; _ } -> todo ()
-    | Load { ty; _ } -> todo ()
   ;;
 end
 
@@ -229,15 +225,13 @@ module Block = struct
 end
 
 module Graph = struct
-  include Cfg_graph
   include T.Graph
 
-  let predecessors_of_label b = Cfg_graph.predecessors_of_label ~jumps:Block.jumps b
-  let to_graph g = Cfg_graph.to_graph ~jumps:Block.jumps_fold g
+  include Cfg_graph.Make_gen (struct
+      type 'a t = 'a Block.t [@@deriving sexp_of]
 
-  let to_double_graph g =
-    to_graph g |> Data_graph.double_of_t (Constructors.some_hashtbl (module Label))
-  ;;
+      let jumps_fold = Block.jumps_fold
+    end)
 
   let validate graph =
     Cfg_graph.validate graph;
@@ -255,7 +249,7 @@ module Graph = struct
 end
 
 module Dataflow = struct
-  let instr_to_block_transfer (type a) (module Value : Value with type t = a) =
+  let instr_to_block_transfer (type a) (module Value : T.Value with type t = a) =
     Dataflow.instr_to_block_transfer
       (module struct
         type t = Value.t Block.t [@@deriving sexp_of]
@@ -291,15 +285,18 @@ module Mut_function = struct
     Label.create s unique
   ;;
 
-  let set_block fn label block = fn.graph <- Graph.set_block fn.graph label block
-  let add_block_exn fn label block = fn.graph <- Graph.add_block_exn fn.graph label block
+  let set_block fn label block = fn.graph <- Cfg_graph.set_block fn.graph label block
+
+  let add_block_exn fn label block =
+    fn.graph <- Cfg_graph.add_block_exn fn.graph label block
+  ;;
 end
 
 module Function = struct
   include T.Function
 
   let map_graph fn ~f = { fn with graph = f fn.graph }
-  let map_blocks fn = (map_graph & Graph.map_blocks) fn
+  let map_blocks fn = (map_graph & Cfg_graph.map_blocks) fn
 
   let instrs_forward_fold fn =
     F.Fold.(FC.Map.fold @> Block.instrs_forward_fold) fn.graph.blocks
@@ -336,14 +333,4 @@ module Program = struct
   include T.Program
 
   let map_functions p ~f = { p with functions = f p.functions }
-end
-
-module Testing : sig
-  type 'a t
-
-  val takes_plist : int t -> int t
-end = struct
-  type 'a t = ('a * 'a) list
-
-  let takes_plist = List.map ~f:(fun (x, y) -> x + 1, y + 1)
 end
