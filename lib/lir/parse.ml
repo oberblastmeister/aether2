@@ -1,5 +1,6 @@
 open! O
-open Instr
+open Types
+open Entity
 module Parser = Sexp_lang.Parser
 
 type state =

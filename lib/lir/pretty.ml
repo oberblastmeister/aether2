@@ -1,12 +1,12 @@
 open! O
-open Instr
+open Types
 module Pretty = Sexp_lang.Pretty
 
 module Context = struct
   type 'v t = { pretty_value : 'v -> Sexp_lang.Pretty.t }
 end
 
-let pretty_name_id name_id = Pretty.atom @@ Name_id.to_dotted_string name_id
+let pretty_name_id name_id = Pretty.atom @@ Entity.Name_id.to_dotted_string name_id
 let pretty_name (name : Name.t) = pretty_name_id name
 let pretty_label (label : Label.t) = pretty_name_id label
 let pretty_value (value : Value.t) = pretty_name value.name

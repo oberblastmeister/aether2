@@ -1,5 +1,5 @@
 open! O
-include Instr
+open Types
 
 let split pred (fn : Vir.Function.t) =
   let preds =

@@ -1,6 +1,6 @@
 open! O
 open Utils.Instr_types
-module T = Instr_types
+module T = Types_basic
 module Name = Name
 module Label = Label
 module Control = Control

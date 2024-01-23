@@ -1,7 +1,7 @@
 open! O
 (* module Lir = Lir_imports *)
 
-module Lir = Instr
+module Lir = Types
 
 let make_lir s =
   lazy (s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn)
@@ -38,7 +38,7 @@ let%test_module _ =
     let%expect_test "uses" =
       let fn = List.hd_exn (Lazy.force loop_lir).functions in
       let p =
-        Instr.(
+        Lir.(
           F.Fold.of_fn Function.graph
           @> F.Fold.of_fn Cfg.Graph.blocks
           @> F.Core.Map.fold

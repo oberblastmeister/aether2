@@ -1,4 +1,5 @@
 open! O
+open Entity
 
 module Control : sig
   type e = E

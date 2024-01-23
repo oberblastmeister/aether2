@@ -1,5 +1,5 @@
 open! O
-open Instr
+open Types
 
 module ValueWithId = struct
   type t =

@@ -1,6 +1,6 @@
 open! O
 open Utils.Instr_types
-module T = Instr_types
+module T = Types_basic
 
 module Ty = struct
   include T.Ty
@@ -31,7 +31,7 @@ module Expr = struct
   let get_ty = function
     | Bin { ty; _ } | Const { ty; _ } | Val { ty; _ } | Load { ty; _ } -> ty
     | Cmp _ -> U1
-    | Alloca { ty; _ } -> todo ()
+    | Alloca _ -> todo ()
   ;;
 end
 
@@ -98,7 +98,7 @@ module Generic_instr = struct
     | Control c -> Control_instr.fold f init c
   ;;
 
-  let map (type c v u) (f : v -> u) (i : (v, c) t) : (u, c) t =
+  let map (type c) f (i : (_, c) t) : (_, c) t =
     match i with
     | Block_args vs -> Block_args vs
     | Instr instr -> Instr (Instr.map f instr)
@@ -330,5 +330,5 @@ end
 module Program = struct
   include T.Program
 
-  let map_functions p ~f = { p with functions = f p.functions }
+  let map_functions p ~f = { functions = f p.functions }
 end

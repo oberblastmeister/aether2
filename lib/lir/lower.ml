@@ -1,5 +1,5 @@
 open! O
-module Lir = Instr
+module Lir = Types
 
 module Value = struct
   type t =

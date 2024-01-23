@@ -79,14 +79,3 @@ end = struct
 
   include Higher_kinded.Make2 (Base.Result)
 end
-
-type error = Integer_overflow
-
-type 'a person =
-  { name : (string -> 'a) Higher_kinded.t
-  ; age : (int -> 'a) Higher_kinded.t
-  }
-
-let immortal =
-  { name = Result.inject (Ok "Keanu"); age = Result.inject (Error Integer_overflow) }
-;;

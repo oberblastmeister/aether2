@@ -2,7 +2,7 @@ open! O
 
 module Lir = struct
   include Instantiate
-  include Instr
+  include Types
 end
 
 include Lir.Instantiate (struct

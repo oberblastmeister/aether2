@@ -1,5 +1,5 @@
 open! O
-open Instr
+open Types
 
 exception Exn of Error.t
 
