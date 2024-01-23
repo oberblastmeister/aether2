@@ -227,14 +227,14 @@ end
 module Graph = struct
   include T.Graph
 
-  include Cfg_graph.Make_gen (struct
+  include Cfg.Graph.Make_gen (struct
       type 'a t = 'a Block.t [@@deriving sexp_of]
 
       let jumps_fold = Block.jumps_fold
     end)
 
   let validate graph =
-    Cfg_graph.validate graph;
+    Cfg.Graph.validate graph;
     let preds = predecessors_of_label graph in
     let res = Map.find preds graph.entry in
     match res with
@@ -250,7 +250,7 @@ end
 
 module Dataflow = struct
   let instr_to_block_transfer (type a) (module Value : T.Value with type t = a) =
-    Dataflow.instr_to_block_transfer
+    Cfg.Dataflow.instr_to_block_transfer
       ~sexp_of_block:[%sexp_of: Value.t Block.t]
       { instrs_forward_fold = Block.instrs_forward_fold
       ; instrs_backward_fold = Block.instrs_backward_fold
@@ -258,7 +258,7 @@ module Dataflow = struct
   ;;
 
   let run_block_transfer transfer (graph : _ Graph.t) =
-    Dataflow.run_block_transfer
+    Cfg.Dataflow.run_block_transfer
       transfer
       { entry = graph.entry
       ; v = Graph.to_double_graph graph
@@ -283,10 +283,10 @@ module Mut_function = struct
     Label.create s unique
   ;;
 
-  let set_block fn label block = fn.graph <- Cfg_graph.set_block fn.graph label block
+  let set_block fn label block = fn.graph <- Cfg.Graph.set_block fn.graph label block
 
   let add_block_exn fn label block =
-    fn.graph <- Cfg_graph.add_block_exn fn.graph label block
+    fn.graph <- Cfg.Graph.add_block_exn fn.graph label block
   ;;
 end
 
@@ -294,7 +294,7 @@ module Function = struct
   include T.Function
 
   let map_graph fn ~f = { fn with graph = f fn.graph }
-  let map_blocks fn = (map_graph & Cfg_graph.map_blocks) fn
+  let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn
 
   let instrs_forward_fold fn =
     F.Fold.(FC.Map.fold @> Block.instrs_forward_fold) fn.graph.blocks

@@ -147,7 +147,7 @@ end = struct
 
   let rename_graph (st : t) (graph : Vir.Graph.t) =
     (* very important! we need to rename the start block first because we just renamed the parameters *)
-    Cfg_graph.map_simple_order graph ~f:(fun (_label, block) -> rename_block st block)
+    Cfg.Graph.map_simple_order graph ~f:(fun (_label, block) -> rename_block st block)
   ;;
 
   let new_state unique_name =
@@ -178,7 +178,7 @@ let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
     { block with entry = new_entry_instr; exit = new_exit_instr }
   in
   let function_with_block_args =
-    (Field.map Function.Fields.graph & Cfg_graph.map_simple_order)
+    (Field.map Function.Fields.graph & Cfg.Graph.map_simple_order)
       ~f:(fun (label, block) -> add_block_args_and_calls label block)
       fn
   in
@@ -276,7 +276,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
       phis_of_label
       phi.dest_label
       ~f:(Option.value_map ~default:[ phi ] ~f:(List.cons phi)));
-  (Field.map Cfg_graph.Fields.blocks & F.Core.Map.mapi) graph ~f:(fun (label, block) ->
+  (Field.map Cfg.Graph.Fields.blocks & F.Core.Map.mapi) graph ~f:(fun (label, block) ->
     let phis = Hashtbl.find phis_of_label label |> Option.value ~default:[] in
     let entry = List.map phis ~f:(fun phi -> phi.dest) in
     let exit =
@@ -298,7 +298,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
 ;;
 
 let subst_graph subst (graph : Vir.Graph.t) =
-  (Field.map Cfg_graph.Fields.blocks & F.Core.Map.map) graph ~f:(fun block ->
+  (Field.map Cfg.Graph.Fields.blocks & F.Core.Map.map) graph ~f:(fun block ->
     Block.map_instrs_forwards
       { f =
           (fun instr ->

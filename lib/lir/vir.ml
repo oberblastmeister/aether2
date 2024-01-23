@@ -11,13 +11,13 @@ include Lir.Instantiate (struct
 
 module Liveness = struct
   let dict =
-    { Dataflow.value = (module Lir.Value)
+    { Cfg.Dataflow.value = (module Lir.Value)
     ; uses = Lir.Some_instr.uses_fold
     ; defs = Lir.Some_instr.defs_fold
     }
   ;;
 
-  let instr_transfer = Dataflow.Liveness.make_transfer (module Some_instr) dict
+  let instr_transfer = Cfg.Dataflow.Liveness.make_transfer (module Some_instr) dict
 
   let block_transfer =
     Lir.Dataflow.instr_to_block_transfer (module Lir.Value) instr_transfer
@@ -28,7 +28,7 @@ end
 
 module DataflowDominators = struct
   let block_transfer =
-    Dataflow.Dominators.make_transfer ~sexp_of_block:[%sexp_of: Block.t]
+    Cfg.Dataflow.Dominators.make_transfer ~sexp_of_block:[%sexp_of: Block.t]
   ;;
 
   let run = Lir.Dataflow.run_block_transfer block_transfer

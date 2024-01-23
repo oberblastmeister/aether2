@@ -40,7 +40,7 @@ let%test_module _ =
       let p =
         Instr.(
           F.Fold.of_fn Function.graph
-          @> F.Fold.of_fn Cfg_graph.blocks
+          @> F.Fold.of_fn Cfg.Graph.blocks
           @> F.Core.Map.fold
           @> Block.instrs_forward_fold
           @> Some_instr.uses_fold)
@@ -91,10 +91,10 @@ let%test_module _ =
       let fn = List.hd_exn (Lazy.force loop_lir).functions in
       let dominators = Vir.DataflowDominators.run fn.graph in
       let idoms =
-        dominators |> Dataflow.Dominators.compute_idoms_from_facts fn.graph.entry
+        dominators |> Cfg.Dataflow.Dominators.compute_idoms_from_facts fn.graph.entry
       in
       let idom_tree =
-        dominators |> Dataflow.Dominators.compute_idom_tree_from_facts fn.graph.entry
+        dominators |> Cfg.Dataflow.Dominators.compute_idom_tree_from_facts fn.graph.entry
       in
       print_s [%sexp "idoms", (idoms : Lir.Label.t Lir.Label.Map.t)];
       print_s [%sexp "idom_tree", (idom_tree : Lir.Label.Set.t Lir.Label.Map.t)];

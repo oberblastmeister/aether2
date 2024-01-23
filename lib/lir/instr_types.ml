@@ -133,7 +133,7 @@ module Block = struct
 end
 
 module Graph = struct
-  type 'v t = 'v Block.t Cfg_graph.t [@@deriving sexp_of]
+  type 'v t = 'v Block.t Cfg.Graph.t [@@deriving sexp_of]
 end
 
 module Mut_function = struct

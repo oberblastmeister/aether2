@@ -89,7 +89,7 @@ end
 
 module Dataflow = struct
   let instr_to_block_transfer trans =
-    Dataflow.instr_to_block_transfer
+    Cfg.Dataflow.instr_to_block_transfer
       ~sexp_of_block:[%sexp_of: Block.t]
       { instrs_forward_fold = Block.instrs_forward_fold
       ; instrs_backward_fold = Block.instrs_backward_fold
@@ -98,7 +98,7 @@ module Dataflow = struct
   ;;
 
   let run_block_transfer transfer (graph : Graph.t) =
-    Dataflow.run_block_transfer
+    Cfg.Dataflow.run_block_transfer
       transfer
       { entry = graph.entry
       ; v = Graph.to_double_graph graph
@@ -109,7 +109,10 @@ module Dataflow = struct
 
   module Liveness = struct
     let dict =
-      { Dataflow.value = (module Reg); uses = Instr.uses_fold; defs = Instr.defs_fold }
+      { Cfg.Dataflow.value = (module Reg)
+      ; uses = Instr.uses_fold
+      ; defs = Instr.defs_fold
+      }
     ;;
   end
 end

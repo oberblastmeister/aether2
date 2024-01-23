@@ -118,7 +118,7 @@ end
 
 module Graph : sig
   include module type of T.Graph
-  include Cfg_graph.Gen_S with type 'v block := 'v Block.t
+  include Cfg.Graph.Gen_S with type 'v block := 'v Block.t
 
   val validate : 'v t -> unit
   val get_idoms : 'v t -> (Label.t, Label.t) Hashtbl.t
@@ -127,11 +127,11 @@ end
 module Dataflow : sig
   val instr_to_block_transfer
     :  (module T.Value with type t = 'v)
-    -> ('v Some_instr.t, 'd) Dataflow.instr_transfer
-    -> ('v Block.t, 'd) Dataflow.block_transfer
+    -> ('v Some_instr.t, 'd) Cfg.Dataflow.instr_transfer
+    -> ('v Block.t, 'd) Cfg.Dataflow.block_transfer
 
   val run_block_transfer
-    :  ('v Block.t, 'd) Dataflow.block_transfer
+    :  ('v Block.t, 'd) Cfg.Dataflow.block_transfer
     -> 'v Graph.t
     -> 'd Label.Map.t
 end

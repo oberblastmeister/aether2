@@ -1,6 +1,6 @@
 open! O
 open Utils.Instr_types
-include Cfg_graph_intf
+include Graph_intf
 
 let map_blocks graph ~f = { graph with blocks = f graph.blocks }
 

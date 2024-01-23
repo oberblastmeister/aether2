@@ -166,9 +166,9 @@ module Block = struct
 end
 
 module Graph = struct
-  type t = Block.t Cfg_graph.t [@@deriving sexp]
+  type t = Block.t Cfg.Graph.t [@@deriving sexp]
 
-  include Cfg_graph.Make_gen (struct
+  include Cfg.Graph.Make_gen (struct
       type 'a t = Block.t
 
       let jumps_fold =
