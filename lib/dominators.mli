@@ -1,5 +1,5 @@
 open! O
-open Instr_types
+open Utils.Instr_types
 
 type 'n idoms = ('n, 'n) Hashtbl.t
 

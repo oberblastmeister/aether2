@@ -1,4 +1,4 @@
-open! O
+(* open! O
 include Lir_instr
 include Lir_pretty
 module Ssa = Lir_ssa
@@ -10,4 +10,4 @@ let parse s =
   let%bind fns = Lir_parse.parse s in
   let%bind fns = Lir_elaborate.elaborate fns in
   return fns
-;;
+;; *)

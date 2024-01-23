@@ -1,15 +1,15 @@
 open! O
-open Instr_types
+open Utils.Instr_types
 
 type 'b t =
   { entry : Label.t
   ; blocks : 'b Label.Map.t
   ; exit : Label.t
   }
-[@@deriving sexp_of, fields]
+[@@deriving sexp, fields]
 
 module type Block_gen = sig
-  type 'a t [@@deriving sexp_of]
+  type 'a t
 
   val jumps_fold : (Label.t, 'a t) F.Fold.t
 end
@@ -27,7 +27,7 @@ module type Gen_S = sig
 end
 
 module type Intf = sig
-  type nonrec 'b t = 'b t [@@deriving sexp_of]
+  type nonrec 'b t = 'b t [@@deriving sexp]
 
   val entry : 'b t -> Label.t
   val blocks : 'b t -> 'b Label.Map.t

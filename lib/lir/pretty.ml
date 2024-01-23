@@ -1,9 +1,9 @@
 open! O
-open Lir_instr
+open Instr
 module Pretty = Sexp_lang.Pretty
 
 module Context = struct
-  type 'v t = { pretty_value : 'v -> Sexp_pretty.t }
+  type 'v t = { pretty_value : 'v -> Sexp_lang.Pretty.t }
 end
 
 let pretty_name_id name_id = Pretty.atom @@ Name_id.to_dotted_string name_id

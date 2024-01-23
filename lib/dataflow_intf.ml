@@ -1,14 +1,10 @@
 open! O
-open Instr_types
+open Utils.Instr_types
 
 module Types = struct
   type direction =
     | Forward
     | Backward
-
-  module type Block = sig
-    type t [@@deriving sexp_of]
-  end
 
   module type Instr = sig
     type t [@@deriving sexp_of]
@@ -25,7 +21,6 @@ module Types = struct
   end
 
   type 'i instr = (module Instr with type t = 'i)
-  type 'b block = (module Block with type t = 'b)
   type 'd domain = (module Domain with type t = 'd)
 
   type ('i, 'd) instr_transfer =
@@ -42,7 +37,7 @@ module Types = struct
     { transfer : Label.t -> 'b -> other_facts:'d list -> current_fact:'d -> 'd option
     ; empty : 'd
     ; direction : direction
-    ; block : 'b block
+    ; sexp_of_block : 'b -> Sexp.t
     ; domain : 'd domain
     }
 
@@ -72,7 +67,7 @@ module type Intf = sig
   include module type of Types
 
   val instr_to_block_transfer
-    :  'b block
+    :  ?sexp_of_block:('b -> Sexp.t)
     -> ('i, 'b) block_folds
     -> ('i, 'd) instr_transfer
     -> ('b, 'd) block_transfer
@@ -87,7 +82,7 @@ module type Intf = sig
   end
 
   module Dominators : sig
-    val make_transfer : 'b block -> ('b, Label.Set.t) block_transfer
+    val make_transfer : ?sexp_of_block:('b -> Sexp.t) -> ('b, Label.Set.t) block_transfer
 
     val compute_idoms_from_facts
       :  Label.t

@@ -1,6 +1,6 @@
 open! O
-open Instr_types
-module T = Lir_instr_types
+open Utils.Instr_types
+module T = Instr_types
 
 module Ty = struct
   include T.Ty
@@ -251,9 +251,7 @@ end
 module Dataflow = struct
   let instr_to_block_transfer (type a) (module Value : T.Value with type t = a) =
     Dataflow.instr_to_block_transfer
-      (module struct
-        type t = Value.t Block.t [@@deriving sexp_of]
-      end)
+      ~sexp_of_block:[%sexp_of: Value.t Block.t]
       { instrs_forward_fold = Block.instrs_forward_fold
       ; instrs_backward_fold = Block.instrs_backward_fold
       }

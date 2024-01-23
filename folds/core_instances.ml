@@ -8,6 +8,10 @@ module Array = struct
   let fold x k = Array.iter x ~f:k
 end
 
+module Option = struct
+  let fold x k = Option.iter x ~f:k
+end
+
 module Set = struct
   let fold x k = Set.iter x ~f:k
   let iter s f = Set.iter s ~f

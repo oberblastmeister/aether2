@@ -17,7 +17,8 @@ module Make () = struct
   let to_id { id; _ } = id
   let to_raw { id; _ } = Id.to_raw id
 
-  include Comparable.Make (T)
+  module C = Comparable.Make (T)
+  include C
 end
 
 let to_dotted_string (name_id : _ t) =

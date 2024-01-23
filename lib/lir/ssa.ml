@@ -1,5 +1,5 @@
 open! O
-open Lir_instr
+open Instr
 
 module ValueWithId = struct
   type t =
@@ -64,6 +64,8 @@ let check_all_temps_unique (fn : Value.t Function.t) =
   Stack.to_list errors |> or_error_of_list
 ;;
 
+(* this is wrong, need to check that a use is dominated by a def,
+   not that a def was defined in some preorder index above *)
 let validate_ssa_function (fn : Vir.Function.t) =
   let open! Or_error.Let_syntax in
   Graph.validate fn.graph;

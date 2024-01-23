@@ -1,10 +1,10 @@
 open! O
-open Instr_types
+open Utils.Instr_types
 
 module type Value = sig
   type t [@@deriving sexp_of, compare, hash, equal]
 
-  include Comparator.S with type t := t
+  include Comparable.S with type t := t
 end
 
 module Ty = struct

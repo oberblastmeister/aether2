@@ -29,15 +29,15 @@ let with_span (span : Span.t) f = R.scope (const span) f
 let parse_error message = raise (Error { span = R.read (); message })
 
 let atom f = function
-  | Sexp_cst.Atom s -> with_span s.span (fun () -> f s.value)
-  | Sexp_cst.List l ->
+  | Cst.Atom s -> with_span s.span (fun () -> f s.value)
+  | Cst.List l ->
     R.scope (const l.span) (fun () ->
-      parse_error [%message "expected atom" ~got:(l.items : Sexp_cst.t list)])
+      parse_error [%message "expected atom" ~got:(l.items : Cst.t list)])
 ;;
 
 let list f = function
-  | Sexp_cst.List x -> R.scope (const x.span) (fun () -> f x.items)
-  | Sexp_cst.Atom x -> parse_error [%message "expected list" ~got:(x.value : string)]
+  | Cst.List x -> R.scope (const x.span) (fun () -> f x.items)
+  | Cst.Atom x -> parse_error [%message "expected list" ~got:(x.value : string)]
 ;;
 
 let list_ref f = list (fun xs -> f (ref xs))
@@ -46,7 +46,7 @@ let item list_ref f =
   match !list_ref with
   | [] -> parse_error [%message "unexpected empty list"]
   | x :: xs ->
-    let res = R.scope (const (Sexp_cst.span x)) (fun () -> f x) in
+    let res = R.scope (const (Cst.span x)) (fun () -> f x) in
     list_ref := xs;
     res
 ;;
@@ -54,7 +54,7 @@ let item list_ref f =
 let optional_item list f =
   match list with
   | [] -> None
-  | x :: [] -> with_span (Sexp_cst.span x) (fun () -> Some (f x))
+  | x :: [] -> with_span (Cst.span x) (fun () -> Some (f x))
   | _ -> None
 ;;
 

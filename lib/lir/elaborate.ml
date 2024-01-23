@@ -1,5 +1,5 @@
 open! O
-open Lir_instr
+open Instr
 
 exception Exn of Error.t
 
@@ -105,12 +105,12 @@ u64
 (define (another) u64 (label (start) (ret)))
   |}
   in
-  let program = Lir_parse.parse s |> Or_error.ok_exn in
+  let program = Parse.parse s |> Or_error.ok_exn in
   let program = program |> elaborate |> Or_error.ok_exn in
   (* printf "sexp:\n";
      print_s @@ [%sexp_of: Function.t list] fns; *)
   printf "pretty:\n";
-  print_endline @@ Lir_pretty.pretty program;
+  print_endline @@ Pretty.pretty program;
   ();
   [%expect
     {|

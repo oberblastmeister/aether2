@@ -16,7 +16,7 @@ module type S' = sig
   val next : t -> t
   val of_global_unique : unit -> t
 
-  include Comparable.S with type t := t
+  include Comparator.S with type t := t
 end
 
 module type Intf = sig

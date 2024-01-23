@@ -1,8 +1,8 @@
 open! O
 
 module Lir = struct
-  include Lir_instantiate
-  include Lir_instr
+  include Instantiate
+  include Instr
 end
 
 include Lir.Instantiate (struct
@@ -27,6 +27,9 @@ module Liveness = struct
 end
 
 module DataflowDominators = struct
-  let block_transfer = Dataflow.Dominators.make_transfer (module Block)
+  let block_transfer =
+    Dataflow.Dominators.make_transfer ~sexp_of_block:[%sexp_of: Block.t]
+  ;;
+
   let run = Lir.Dataflow.run_block_transfer block_transfer
 end

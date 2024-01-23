@@ -1,4 +1,4 @@
 open! O
-open Lir_instr
+open Instr
 
 val elaborate : Name.t Program.t -> Value.t Program.t Or_error.t

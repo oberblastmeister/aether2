@@ -1,16 +1,15 @@
 open! O
 include Dataflow_intf
-open Instr_types
+open Utils.Instr_types
 module LabelQueue = Hash_queue.Make (Label)
 
 let instr_to_block_transfer
-  (type i b d)
-  (block : b block)
+  (type i d)
+  ?(sexp_of_block = sexp_of_opaque)
   block_folds
   (instr_transfer : (i, d) instr_transfer)
   =
   let module Instr = (val instr_transfer.instr) in
-  let module Block = (val block) in
   let module Domain = (val instr_transfer.domain) in
   let transfer _label block ~other_facts ~current_fact =
     let new_fact =
@@ -28,12 +27,11 @@ let instr_to_block_transfer
   ; empty = instr_transfer.empty
   ; direction = instr_transfer.direction
   ; domain = instr_transfer.domain
-  ; block
+  ; sexp_of_block
   }
 ;;
 
 let run_block_transfer (type b d) (transfer : (b, d) block_transfer) graph =
-  let module Block = (val transfer.block) in
   let module Domain = (val transfer.domain) in
   let initial_facts =
     F.Iter.fold graph.v.all_nodes ~init:Label.Map.empty ~f:(fun initial_facts label ->
@@ -91,11 +89,7 @@ let run_block_transfer (type b d) (transfer : (b, d) block_transfer) graph =
 ;;
 
 module Liveness = struct
-  let make_transfer
-    (type v comparator_witness i)
-    (instr : i instr)
-    (dict : (v, comparator_witness, i) liveness_dict)
-    =
+  let make_transfer (type v cmp i) (instr : i instr) (dict : (v, cmp, i) liveness_dict) =
     let module Instr = (val instr) in
     let module Value = (val dict.value) in
     let module Domain = Set.Make_plain_using_comparator (Value) in
@@ -128,8 +122,7 @@ module Liveness = struct
 end
 
 module Dominators = struct
-  let make_transfer (type b) (block : b block) =
-    let module Block = (val block) in
+  let make_transfer ?(sexp_of_block = sexp_of_opaque) =
     let transfer label _block ~other_facts ~current_fact =
       let new_fact =
         other_facts
@@ -145,7 +138,7 @@ module Dominators = struct
     ; empty = Label.Set.empty
     ; transfer
     ; domain = (module Label.Set)
-    ; block
+    ; sexp_of_block
     }
   ;;
 

@@ -1,5 +1,5 @@
 open! O
-include Lir_instr
+include Instr
 
 let split pred (fn : Vir.Function.t) =
   let preds =

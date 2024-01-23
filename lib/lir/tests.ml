@@ -1,7 +1,11 @@
 open! O
-module Lir = Lir_imports
+(* module Lir = Lir_imports *)
 
-let make_lir s = lazy (s |> Lir.parse |> Or_error.ok_exn)
+module Lir = Instr
+
+let make_lir s =
+  lazy (s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn)
+;;
 
 let%test_module _ =
   (module struct
@@ -34,7 +38,7 @@ let%test_module _ =
     let%expect_test "uses" =
       let fn = List.hd_exn (Lazy.force loop_lir).functions in
       let p =
-        Lir.(
+        Instr.(
           F.Fold.of_fn Function.graph
           @> F.Fold.of_fn Cfg_graph.blocks
           @> F.Core.Map.fold
@@ -123,10 +127,10 @@ let%test_module _ =
       let program = Lazy.force loop_lir in
       let res =
         (Field.map Lir.Program.Fields.functions & List.map)
-          ~f:Lir.Ssa.convert_naive_ssa
+          ~f:Ssa.convert_naive_ssa
           program
       in
-      print_endline @@ Lir.pretty res;
+      print_endline @@ Pretty.pretty res;
       [%expect
         {|
     (define (pow (b.0 u64) (e.1 u64)) u64
@@ -147,8 +151,8 @@ let%test_module _ =
     ;;
 
     let%expect_test "ssa" =
-      let program = Lazy.force loop_lir |> Lir.Ssa.convert_ssa in
-      print_endline @@ Lir.pretty program;
+      let program = Lazy.force loop_lir |> Ssa.convert_ssa in
+      print_endline @@ Pretty.pretty program;
       [%expect
         {|
     (define (pow (b.0 u64) (e.1 u64)) u64
@@ -196,8 +200,8 @@ let%test_module _ =
     ;;
 
     let%expect_test "ssa" =
-      let program = Lazy.force if_lir |> Lir.Ssa.convert_ssa in
-      print_endline @@ Lir.pretty program;
+      let program = Lazy.force if_lir |> Ssa.convert_ssa in
+      print_endline @@ Pretty.pretty program;
       ();
       [%expect
         {|

@@ -15,7 +15,7 @@ end
 
 include T
 
-module type Sexp_pretty = sig
+module type Intf = sig
   include module type of T
 
   val to_string : t -> string

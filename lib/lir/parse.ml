@@ -1,5 +1,5 @@
 open! O
-open Lir_instr
+open Instr
 module Parser = Sexp_lang.Parser
 
 type state =
@@ -214,7 +214,7 @@ let parse_program xs =
 
 let parse s =
   let open Result.Let_syntax in
-  let%bind sexp = Sexp_lang.Syntax.parse s in
+  let%bind sexp = Sexp_lang.Cst.parse s in
   let%bind program =
     Sexp_lang.Parser.run (fun () -> parse_program sexp)
     |> Result.map_error ~f:Parser.Error.to_error

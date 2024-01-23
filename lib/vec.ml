@@ -40,6 +40,8 @@ module Raw = struct
     if i < 0 || i >= t.size then invalid_arg "index out of bounds" else unsafe_get t i
   ;;
 
+  let get_opt t i = if i < 0 || i >= t.size then None else Some (unsafe_get t i)
+  let last t = get_opt t (t.size - 1)
   let[@inline] unsafe_set t i x = A.unsafe_set_some t.data i x
 
   let set t i x =
@@ -154,6 +156,7 @@ module Raw = struct
     go 0
   ;;
 
+  let to_iter t f = iter t ~f
   let length t = t.size
 
   let iteri t ~f =
@@ -233,7 +236,7 @@ module Raw = struct
     ()
   ;;
 
-  include Utils.Make_quickcheck_list_conv (struct
+  include Utils.Quickcheck.Make_quickcheck_list_conv (struct
       type nonrec 'a t = 'a t
 
       let of_list = of_list

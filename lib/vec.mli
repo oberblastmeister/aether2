@@ -25,6 +25,8 @@ type ('a, -'perms) t [@@deriving equal, compare, hash, sexp]
 
 val create : ?size:int -> unit -> ('a, [< _ perms ]) t
 val get : ('a, [> read ]) t -> int -> 'a
+val get_opt : ('a, [> read ]) t -> int -> 'a option
+val last : ('a, [> read ]) t -> 'a option
 val pop : ('a, [> read_write ]) t -> 'a option
 val pop_exn : ('a, [> read_write ]) t -> 'a
 val push : ('a, [> write ]) t -> 'a -> unit
@@ -35,6 +37,7 @@ val to_list : ('a, [> read ]) t -> 'a list
 val length : ('a, _) t -> int
 val of_list : 'a list -> ('a, [< _ perms ]) t
 val iter : ('a, [> read ]) t -> f:('a -> unit) -> unit
+val to_iter : ('a, [> read ]) t -> 'a F.Iter.t
 val iteri : ('a, [> read ]) t -> f:(int -> 'a -> unit) -> unit
 val fold : ('a, [> read ]) t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val fold_right : ('a, [> read ]) t -> init:'b -> f:('a -> 'b -> 'b) -> 'b

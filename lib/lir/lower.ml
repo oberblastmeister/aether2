@@ -1,5 +1,5 @@
 open! O
-module Lir = Lir_instr
+module Lir = Instr
 
 module Value = struct
   type t =
@@ -8,14 +8,14 @@ module Value = struct
   [@@deriving sexp_of]
 end
 
-include Lir_instantiate.Instantiate (Value)
+include Instantiate.Instantiate (Value)
 
 let rec pretty_value = function
-  | Value.V v -> Lir_pretty.pretty_value v
-  | Value.I i -> Lir_pretty.pretty_instr { pretty_value } i
+  | Value.V v -> Pretty.pretty_value v
+  | Value.I i -> Pretty.pretty_instr { pretty_value } i
 ;;
 
-let pretty = Lir_pretty.pretty' { pretty_value }
+let pretty = Pretty.pretty' { pretty_value }
 
 (* TODO: this is wrong, use the cranelift coloring scheme *)
 (* https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/codegen/src/machinst/lower.rs#L693 *)

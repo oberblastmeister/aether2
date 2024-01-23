@@ -1,5 +1,5 @@
 open! O
-include Sexp_cst_intf
+include Cst_intf
 
 let take_while_from ~f ~pos s =
   let rec go pos =

@@ -1,6 +1,6 @@
 open! O
-open Instr_types
-module T = Lir_instr_types
+open Utils.Instr_types
+module T = Instr_types
 module Name = Name
 module Label = Label
 module Control = Control

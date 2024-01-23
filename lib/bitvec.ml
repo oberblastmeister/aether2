@@ -303,7 +303,7 @@ module C = struct
     end)
 end
 
-include Utils.Make_quickcheck_list_conv0 (struct
+include Utils.Quickcheck.Make_quickcheck_list_conv0 (struct
     type nonrec t = t
     type elt = bool [@@deriving quickcheck]
 
