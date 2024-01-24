@@ -4,9 +4,7 @@ module OA = Option_array
 
 type ('k, 'v) t = { mutable a : ('k * 'v) Option_array.t }
 
-let create (type k) ?(size = 0) (module Key : Id.Key_type with type key = k) =
-  { a = OA.create ~len:size }
-;;
+let create ?(size = 0) () = { a = OA.create ~len:size }
 
 let resize_array t size =
   let a = OA.create ~len:size in
@@ -26,6 +24,11 @@ let resize_for_index t index =
 let find t k ~to_id =
   let i = Raw_id.to_int @@ to_id k in
   if i >= length t then None else Option.map ~f:snd @@ OA.get t.a @@ i
+;;
+
+let mem t k ~to_id =
+  let i = Raw_id.to_int @@ to_id k in
+  i < length t && OA.is_some t.a i
 ;;
 
 let find_exn t k ~to_id =
@@ -48,14 +51,26 @@ let foldi t ~init ~f =
 let iteri t = Container.iter ~fold:foldi t
 let to_iteri t k = iteri t ~f:k
 
-let fold t ~f =
-  OA.fold t.a ~f:(fun z -> Option.value_map ~default:z ~f:(fun (_, v) -> f v))
+let fold t ~init ~f =
+  OA.fold t.a ~init ~f:(fun z -> Option.value_map ~default:z ~f:(fun (_, v) -> f z v))
 ;;
 
+let to_list t = Container.to_list ~fold:foldi t
+
+let of_list l ~to_id =
+  let t = create () in
+  List.iter l ~f:(fun (k, v) -> set t ~key:k ~data:v ~to_id);
+  t
+;;
+
+let sexp_of_t f g t = to_list t |> List.sexp_of_t (Tuple2.sexp_of_t f g)
+
 module Make_gen (Arg : Gen_arg) = struct
+  let create = create
   let find = find ~to_id:Arg.to_raw
   let find_exn = find_exn ~to_id:Arg.to_raw
   let set = set ~to_id:Arg.to_raw
+  let mem = mem ~to_id:Arg.to_raw
 end
 
 module Make (Arg : Arg) = Make_gen (struct
@@ -91,7 +106,7 @@ let%test_module _ =
     ;;
 
     let%test_unit _ =
-      let tab = create (module Sym) in
+      let tab = create () in
       let check i res = [%test_result: int option] (Table.find tab sym.(i)) ~expect:res in
       F.Iter.int_range ~start:0 ~stop:amount |> F.Iter.iter ~f:(fun i -> check i None);
       Table.set tab ~key:sym.(2) ~data:2;

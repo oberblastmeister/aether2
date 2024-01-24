@@ -17,9 +17,10 @@ end
 module type Gen_S = sig
   type 'a block
 
-  val to_graph : 'a block t -> Label.t Data_graph.t
-  val to_double_graph : 'a block t -> Label.t Data_graph.double
+  val to_graph : 'a block t -> Label.t Data.Graph.t
+  val to_double_graph : 'a block t -> Label.t Data.Graph.double
   val predecessors_of_label : 'a block t -> Label.t list Label.Map.t
+  val get_idoms : 'a block t -> Dominators.Idoms.t
 
   module Dfs : sig
     val reverse_postorder : 'a block t -> (Label.t, Perms.Read_write.t) Vec.t
@@ -35,12 +36,12 @@ module type Intf = sig
 
   module Fields : module type of Fields
 
-  val to_graph : jumps:('b -> Label.t F.Iter.t) -> 'b t -> Label.t Data_graph.t
+  val to_graph : jumps:('b -> Label.t F.Iter.t) -> 'b t -> Label.t Data.Graph.t
 
   val to_double_graph
     :  jumps:('b -> Label.t F.Iter.t)
     -> 'b t
-    -> Label.t Data_graph.double
+    -> Label.t Data.Graph.double
 
   val map_blocks : 'b t -> f:('b Label.Map.t -> 'c Label.Map.t) -> 'c t
   val set_block : 'b t -> Label.t -> 'b -> 'b t
@@ -63,5 +64,5 @@ module type Intf = sig
 
   module type Gen_S = Gen_S
 
-  module Make_gen : functor (Block : Block_gen) -> Gen_S with type 'a block = 'a Block.t
+  module Make_gen : functor (Block : Block_gen) -> Gen_S with type 'a block := 'a Block.t
 end

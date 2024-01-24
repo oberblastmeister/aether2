@@ -121,7 +121,7 @@ module Graph : sig
   include Cfg.Graph.Gen_S with type 'v block := 'v Block.t
 
   val validate : 'v t -> unit
-  val get_idoms : 'v t -> (Label.t, Label.t) Hashtbl.t
+  val get_idoms : 'v t -> Cfg.Dominators.Idoms.t
 end
 
 module Dataflow : sig

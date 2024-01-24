@@ -23,3 +23,7 @@ module Map = struct
   let mapi m ~f = Map.mapi m ~f:(fun ~key ~data -> f (key, data))
   let map m ~f = Map.mapi m ~f:(fun ~key:_ ~data -> f data)
 end
+
+module Hash_set = struct
+  let fold x k = Hash_set.iter x ~f:k
+end

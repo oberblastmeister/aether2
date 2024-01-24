@@ -4,7 +4,7 @@ open Types
 let split pred (fn : Vir.Function.t) =
   let preds =
     Constructors.Hashtbl_ext.project
-    @@ Data_graph.get_pred_map (Constructors.hashtbl (module Label))
+    @@ Data.Graph.get_pred_map (Constructors.hashtbl (module Label))
     @@ Graph.to_graph fn.graph
   in
   Function.with_mut fn (fun mut_fn ->

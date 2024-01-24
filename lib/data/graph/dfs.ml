@@ -1,6 +1,6 @@
 open! O
-open Data_graph_types
-open Data_graph_basic
+open Types
+open Basic
 
 type 'n event =
   | Cycle of 'n

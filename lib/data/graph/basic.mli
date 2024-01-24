@@ -1,5 +1,5 @@
 open O
-open Data_graph_types
+open Types
 
 val t_of_double : 'a double -> 'a t
 val of_map_generic : iter:('a -> 'b Iter.t) -> ('b, 'a, 'c) Map.t -> 'b t

@@ -19,14 +19,14 @@ let validate graph =
 ;;
 
 let to_graph ~jumps graph =
-  { Data_graph.succs = (fun label -> jumps (Map.find_exn graph.blocks label))
+  { Data.Graph.succs = (fun label -> jumps (Map.find_exn graph.blocks label))
   ; all_nodes = (fun k -> Map.iter_keys graph.blocks ~f:k)
   }
 ;;
 
 let to_double_graph ~jumps graph =
   to_graph ~jumps graph
-  |> Data_graph.double_of_t (Constructors.some_hashtbl (module Label))
+  |> Data.Graph.double_of_t (Constructors.some_hashtbl (module Label))
 ;;
 
 let predecessors_of_label ~jumps (graph : 'b t) =
@@ -60,9 +60,13 @@ let map_simple_order (graph : 'b t) ~(f : Label.t * 'b -> 'b) =
   { graph with blocks }
 ;;
 
+let get_idoms ~jumps (graph : _ t) =
+  Dominators.get_idoms ~start:graph.entry @@ to_double_graph ~jumps graph
+;;
+
 module Dfs = struct
   let reverse_postorder ~jumps graph =
-    Data_graph.Dfs.reverse_postorder
+    Data.Graph.Dfs.reverse_postorder
       ~start:[ graph.entry ]
       ~set:(Constructors.some_hashset (module Label))
     @@ to_graph ~jumps graph
@@ -70,12 +74,11 @@ module Dfs = struct
 end
 
 module Make_gen (Block : Block_gen) = struct
-  type 'a block = 'a Block.t
-
   let jumps b = Block.jumps_fold b
   let to_graph g = to_graph ~jumps g
   let to_double_graph g = to_double_graph ~jumps g
   let predecessors_of_label g = predecessors_of_label ~jumps g
+  let get_idoms g = get_idoms ~jumps g
 
   module Dfs = struct
     let reverse_postorder g = Dfs.reverse_postorder ~jumps g

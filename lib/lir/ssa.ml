@@ -71,7 +71,7 @@ let validate_ssa_function (fn : Vir.Function.t) =
   Graph.validate fn.graph;
   let%bind () = check_all_temps_unique fn in
   let labels =
-    Data_graph.Dfs.preorder
+    Data.Graph.Dfs.preorder
       ~start:[ fn.graph.entry ]
       ~set:(Constructors.some_hashset (module Label))
       (fn.graph |> Graph.to_graph)

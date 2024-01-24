@@ -1,5 +1,5 @@
 open! O
-open Data_graph_types
+open Types
 
 type 'n event =
   | Cycle of 'n

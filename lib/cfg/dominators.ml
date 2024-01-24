@@ -1,17 +1,29 @@
 open! O
 open Utils.Instr_types
+module Table = Entity.Id_table.Make (Label)
 
-type 'n idoms = ('n, 'n) Hashtbl.t
+module Idoms = struct
+  type t = (Label.t, Label.t) Entity.Id_table.t [@@deriving sexp_of]
 
-let get_idoms start_node (graph : Label.t Data_graph.double) =
-  let idom_of_node = Hashtbl.create (module Label) in
+  let find = Table.find
+end
+
+module Frontier = struct
+  type t = (Label.t, Label.t Hash_set.t) Entity.Id_table.t [@@deriving sexp_of]
+
+  let find (t : t) label = (FC.Option.fold @> FC.Hash_set.fold) (Table.find t label)
+end
+
+let get_idoms ?node_length ~start (graph : Label.t Data.Graph.double) =
+  let module Table = Entity.Id_table.Make (Label) in
+  let idoms = Table.create ?size:node_length () in
   (* special case for start node *)
-  Hashtbl.set idom_of_node ~key:start_node ~data:start_node;
+  Table.set idoms ~key:start ~data:start;
   let nodes =
-    Data_graph.Dfs.postorder
-      ~start:[ start_node ]
+    Data.Graph.Dfs.postorder
+      ~start:[ start ]
       ~set:(Constructors.some_hashset (module Label))
-      (Data_graph.t_of_double graph)
+      (Data.Graph.t_of_double graph)
   in
   let index_of_node = Hashtbl.create ~size:(Vec.length nodes) (module Label) in
   Vec.iteri nodes ~f:(fun i node -> Hashtbl.set index_of_node ~key:node ~data:i);
@@ -19,7 +31,7 @@ let get_idoms start_node (graph : Label.t Data_graph.double) =
     (* print_s
        [%message "intersect" ~node1:(node1 : Graph.Node.t) ~node2:(node2 : Graph.Node.t)]; *)
     let with_index node = node, Hashtbl.find_exn index_of_node node in
-    let go_up node = with_index (Hashtbl.find_exn idom_of_node node) in
+    let go_up node = with_index (Table.find_exn idoms node) in
     let rec go (node1, i1) (node2, i2) =
       (* the ones with higher indexes are closer to the top of the rpo tree *)
       match Ordering.of_int ([%compare: int] i1 i2) with
@@ -32,14 +44,14 @@ let get_idoms start_node (graph : Label.t Data_graph.double) =
   let compute () =
     (* fold from the right for reverse post order *)
     Vec.fold_right nodes ~init:false ~f:(fun node changed ->
-      if [%equal: Label.t] start_node node
+      if [%equal: Label.t] start node
       then changed
       else (
         let preds = F.Fold.to_list graph.preds node in
         (* print_s [%message "compute" ~node:(node : Node.t) ~preds:(preds : Node.t list)]; *)
         let chosen_pred =
           preds
-          |> List.find ~f:(Hashtbl.mem idom_of_node)
+          |> List.find ~f:(Table.mem idoms)
           |> Option.value_exn
                ~message:
                  "must have idom because reverse post order guarantees that we have \
@@ -50,15 +62,15 @@ let get_idoms start_node (graph : Label.t Data_graph.double) =
         in
         let new_idom =
           List.fold other_preds ~init:chosen_pred ~f:(fun current_idom pred ->
-            match Hashtbl.find idom_of_node pred with
+            match Table.find idoms pred with
             | None -> current_idom
             | Some pred_idom -> intersect pred_idom current_idom)
         in
         (* print_s [%message "new_idom" (node : Node.t) (new_idom : Node.t)]; *)
         let changed =
-          not @@ [%equal: Label.t option] (Hashtbl.find idom_of_node node) (Some new_idom)
+          not @@ [%equal: Label.t option] (Table.find idoms node) (Some new_idom)
         in
-        Hashtbl.set idom_of_node ~key:node ~data:new_idom;
+        Table.set idoms ~key:node ~data:new_idom;
         changed))
   in
   let rec fixpoint () =
@@ -67,36 +79,42 @@ let get_idoms start_node (graph : Label.t Data_graph.double) =
     | false -> ()
   in
   fixpoint ();
-  idom_of_node
+  idoms
 ;;
 
-let frontier_of_idoms idoms (graph : Label.t Data_graph.double) =
+let frontier_of_idoms idoms (graph : Label.t Data.Graph.double) =
   let is_join_point preds_length = preds_length >= 2 in
-  let frontier_of_node = Hashtbl.create (module Label) in
+  let frontier_of_node = Table.create () in
   let rec add_until node node_idom runner =
     if not @@ [%equal: Label.t] runner node_idom
     then (
       (* add node to runner's frontier set because runner doesn't dominate node *)
-      Hashtbl.update frontier_of_node runner ~f:(function
-        | None -> Hash_set.create (module Label)
-        | Some fs ->
-          Hash_set.add fs node;
-          fs);
-      add_until node node_idom (Hashtbl.find_exn idoms runner))
+      match Table.find frontier_of_node runner with
+      | None ->
+        Table.set
+          frontier_of_node
+          ~key:runner
+          ~data:
+            (let set = Hash_set.create (module Label) in
+             Hash_set.add set node;
+             set)
+      | Some fs ->
+        Hash_set.add fs node;
+        add_until node node_idom (Table.find_exn idoms runner))
   in
-  (* the idoms map should contain all the nodes in the graph *)
-  Hashtbl.iter_keys idoms ~f:(fun node ->
+  graph.all_nodes
+  |> F.Iter.iter ~f:(fun node ->
     let preds = graph.preds node |> Iter.length in
     if is_join_point preds
     then
       F.Iter.iter (graph.preds node) ~f:(fun pred ->
-        add_until node (Hashtbl.find_exn idoms node) pred));
+        (* every node must have an idom *)
+        add_until node (Table.find_exn idoms node) pred));
   frontier_of_node
 ;;
 
 let%test_module _ =
   (module struct
-    let set = String.Set.of_list
     let tbl = Hashtbl.create (module String)
 
     let lab s =
@@ -112,11 +130,11 @@ let%test_module _ =
       xs
       |> List.map ~f:(fun (n, ns) -> lab n, List.map ~f:lab ns)
       |> Label.Map.of_alist_exn
-      |> Data_graph.t_of_map_list
-      |> Data_graph.double_of_t (Constructors.some_hashtbl (module Label))
+      |> Data.Graph.t_of_map_list
+      |> Data.Graph.double_of_t (Constructors.some_hashtbl (module Label))
     ;;
 
-    let get_idoms = get_idoms (lab "start")
+    let get_idoms = get_idoms ~start:(lab "start")
 
     (* Figure 2 *)
     let%expect_test _ =
@@ -130,14 +148,14 @@ let%test_module _ =
           ]
       in
       let idoms = get_idoms g in
-      print_s [%sexp (idoms : (Label.t, Label.t) Hashtbl.t)];
+      print_s [%sexp (idoms : Idoms.t)];
       [%expect
         {|
-        ((((name 1) (id 3)) ((name start) (id 0)))
-         (((name 2) (id 4)) ((name start) (id 0)))
-         (((name 3) (id 2)) ((name start) (id 0)))
+        ((((name start) (id 0)) ((name start) (id 0)))
          (((name 4) (id 1)) ((name start) (id 0)))
-         (((name start) (id 0)) ((name start) (id 0)))) |}]
+         (((name 3) (id 2)) ((name start) (id 0)))
+         (((name 1) (id 3)) ((name start) (id 0)))
+         (((name 2) (id 4)) ((name start) (id 0)))) |}]
     ;;
 
     (* Figure 4 *)
@@ -153,15 +171,15 @@ let%test_module _ =
           ]
       in
       let idoms = get_idoms g in
-      print_s [%sexp (idoms : (Label.t, Label.t) Hashtbl.t)];
+      print_s [%sexp (idoms : Idoms.t)];
       [%expect
         {|
-        ((((name 1) (id 3)) ((name start) (id 0)))
-         (((name 2) (id 4)) ((name start) (id 0)))
-         (((name 3) (id 2)) ((name start) (id 0)))
+        ((((name start) (id 0)) ((name start) (id 0)))
          (((name 4) (id 1)) ((name start) (id 0)))
-         (((name 5) (id 5)) ((name start) (id 0)))
-         (((name start) (id 0)) ((name start) (id 0)))) |}]
+         (((name 3) (id 2)) ((name start) (id 0)))
+         (((name 1) (id 3)) ((name start) (id 0)))
+         (((name 2) (id 4)) ((name start) (id 0)))
+         (((name 5) (id 5)) ((name start) (id 0)))) |}]
     ;;
   end)
 ;;

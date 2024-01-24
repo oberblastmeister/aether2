@@ -1,3 +1,5 @@
+open O
+
 module type Gen_arg = sig
   type ('a, 'b, 'c) t
 
@@ -14,9 +16,11 @@ module type Gen_S = sig
   type ('a, 'b, 'c) k
   type ('a, 'b, 'c, 'v) t
 
+  val create : ?size:int -> unit -> ('a, 'b, 'c, 'v) t
   val find : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v option
   val find_exn : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v
   val set : ('a, 'b, 'c, 'v) t -> key:('a, 'b, 'c) k -> data:'v -> unit
+  val mem : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> bool
 end
 
 module type S = sig
@@ -27,13 +31,14 @@ module type S = sig
 end
 
 module type Intf = sig
-  type ('k, 'v) t
+  type ('k, 'v) t [@@deriving sexp_of]
 
-  val create : ?size:int -> (module Id.Key_type with type key = 'k) -> ('k, 'v) t
+  val create : ?size:int -> unit -> ('k, 'v) t
   val length : ('k, 'v) t -> int
   val find : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v option
   val find_exn : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v
   val set : ('k, 'v) t -> key:'k -> data:'v -> to_id:('k -> Raw_id.t) -> unit
+  val to_list : ('k, 'v) t -> ('k * 'v) list
 
   module Make_gen (Arg : Gen_arg) :
     Gen_S

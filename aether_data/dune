@@ -1,0 +1,8 @@
+(library
+ (name aether_data)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test))
+ (flags
+  (:standard -warn-error -A))
+ (libraries core core_unix core_bench ppx_inline_test iter))

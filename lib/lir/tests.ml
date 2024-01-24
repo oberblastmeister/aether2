@@ -113,14 +113,14 @@ let%test_module _ =
     let%expect_test "idoms fast" =
       let fn = List.hd_exn (Lazy.force loop_lir).functions in
       let idoms = Lir.Graph.get_idoms fn.graph in
-      print_s [%sexp (idoms : (Lir.Label.t, Lir.Label.t) Hashtbl.t)];
+      print_s [%sexp (idoms : Cfg.Dominators.Idoms.t)];
       ();
       [%expect
         {|
-    ((((name body) (id 3)) ((name loop) (id 1)))
-     (((name done) (id 2)) ((name loop) (id 1)))
+    ((((name start) (id 0)) ((name start) (id 0)))
      (((name loop) (id 1)) ((name start) (id 0)))
-     (((name start) (id 0)) ((name start) (id 0)))) |}]
+     (((name done) (id 2)) ((name loop) (id 1)))
+     (((name body) (id 3)) ((name loop) (id 1)))) |}]
     ;;
 
     let%expect_test "naive ssa" =

@@ -245,7 +245,6 @@ module Graph = struct
         [%message "the entry label should have no predecessors" ~got:(ls : Label.t list)]
   ;;
 
-  let get_idoms (graph : _ t) = Dominators.get_idoms graph.entry @@ to_double_graph graph
 end
 
 module Dataflow = struct

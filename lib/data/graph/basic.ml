@@ -1,9 +1,5 @@
 open! O
-open Data_graph_types
-
-let node_to_key (type v) (module Node : Node with type t = v) =
-  (module Node : Hashtbl.Key_plain with type t = v)
-;;
+open Types
 
 let t_of_double { all_nodes; succs; _ } = { all_nodes; succs }
 
