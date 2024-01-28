@@ -1,0 +1,10 @@
+(include_subdirs qualified)
+
+(library
+ (name aether_entity)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane))
+ (flags
+  (:standard -warn-error -A))
+ (libraries core folds aether_data))

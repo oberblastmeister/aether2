@@ -23,7 +23,8 @@ module type Gen_S = sig
   val get_idoms : 'a block t -> Dominators.Idoms.t
 
   module Dfs : sig
-    val reverse_postorder : 'a block t -> (Label.t, Perms.Read_write.t) Vec.t
+    val reverse_postorder : 'a block t -> (Label.t, read_write) Vec.t
+    val preorder : 'a block t -> (Label.t, read_write) Vec.t
   end
 end
 
@@ -54,6 +55,7 @@ module type Intf = sig
     -> Label.t list Label.Map.t
 
   val map_simple_order : 'b t -> f:(Label.t * 'b -> 'b) -> 'b t
+  val fold_labels : (Label.t, [> read ]) Vec.t -> (Label.t * 'b, 'b t) F.Fold.t
 
   module Dfs : sig
     val reverse_postorder

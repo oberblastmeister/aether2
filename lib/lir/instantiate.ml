@@ -9,6 +9,10 @@ struct
     type t = V.t Lir.Instr.t [@@deriving sexp_of]
   end
 
+  module Block_args = struct
+    type t = Lir.Block_args.t [@@deriving sexp_of]
+  end
+
   module Block_call = struct
     type t = V.t Lir.Block_call.t [@@deriving sexp_of]
   end
@@ -22,7 +26,7 @@ struct
   end
 
   module Generic_instr = struct
-    type 'c t = ('c, V.t) Lir.Generic_instr.t
+    type 'c t = (V.t, 'c) Lir.Generic_instr.t
   end
 
   module Block = struct

@@ -1,20 +1,19 @@
 open! O
 open Types
-open Entity
 module Parser = Sexp_lang.Parser
 
 type state =
-  { label_gen : Label.key Id_gen.t
+  { label_gen : Label.key Entity.Gen.t
   ; id_of_label : (string, Label.Id.t) Hashtbl.t
-  ; name_gen : Name.key Id_gen.t
+  ; name_gen : Name.key Entity.Gen.t
   ; id_of_name : (string, Name.Id.t) Hashtbl.t
   }
 
 let create_state () =
-  { label_gen = Id_gen.create (module Label)
+  { label_gen = Entity.Gen.create (module Label)
   ; id_of_label = Hashtbl.create (module String)
   ; id_of_name = Hashtbl.create (module String)
-  ; name_gen = Id_gen.create (module Name)
+  ; name_gen = Entity.Gen.create (module Name)
   }
 ;;
 
@@ -30,7 +29,7 @@ let parse_var st =
     match Hashtbl.find st.id_of_name s with
     | Some id -> Name.create s id
     | None ->
-      let id = Id_gen.next st.name_gen in
+      let id = Entity.Gen.next st.name_gen in
       Hashtbl.add_exn st.id_of_name ~key:s ~data:id;
       Name.create s id)
 ;;
@@ -86,7 +85,7 @@ let parse_label st =
     match Hashtbl.find st.id_of_label s with
     | Some id -> Label.create s id
     | None ->
-      let id = Id_gen.next st.label_gen in
+      let id = Entity.Gen.next st.label_gen in
       Hashtbl.add_exn st.id_of_label ~key:s ~data:id;
       Label.create s id)
 ;;
@@ -202,8 +201,8 @@ let parse_function =
      ; params
      ; return_ty
      ; graph
-     ; unique_label = Id_gen.to_id st.label_gen
-     ; unique_name = Id_gen.to_id st.name_gen
+     ; unique_label = Entity.Gen.to_id st.label_gen
+     ; unique_name = Entity.Gen.to_id st.name_gen
      }
      : _ Function.t))
 ;;

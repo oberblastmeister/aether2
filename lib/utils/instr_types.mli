@@ -1,5 +1,4 @@
 open! O
-open Entity
 
 module Control : sig
   type e = E
@@ -14,5 +13,5 @@ module SControl : sig
     | SE : Control.e t
 end
 
-module Name : Name_id.S
-module Label : Name_id.S
+module Name : Entity.Name.S
+module Label : Entity.Name.S

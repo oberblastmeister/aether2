@@ -1,28 +1,28 @@
 open! O
 open Utils.Instr_types
-module Table = Entity.Id_table.Make (Label)
+module Table = Entity.Map.Make (Label)
 
 module Idoms = struct
-  type t = (Label.t, Label.t) Entity.Id_table.t [@@deriving sexp_of]
+  type t = (Label.t, Label.t) Entity.Map.t [@@deriving sexp_of]
 
   let find = Table.find
 end
 
 module Frontier = struct
-  type t = (Label.t, Label.t Hash_set.t) Entity.Id_table.t [@@deriving sexp_of]
+  type t = (Label.t, Label.t Hash_set.t) Entity.Map.t [@@deriving sexp_of]
 
   let find (t : t) label = (FC.Option.fold @> FC.Hash_set.fold) (Table.find t label)
 end
 
 let get_idoms ?node_length ~start (graph : Label.t Data.Graph.double) =
-  let module Table = Entity.Id_table.Make (Label) in
+  let module Table = Entity.Map.Make (Label) in
   let idoms = Table.create ?size:node_length () in
   (* special case for start node *)
   Table.set idoms ~key:start ~data:start;
   let nodes =
     Data.Graph.Dfs.postorder
       ~start:[ start ]
-      ~set:(Constructors.some_hashset (module Label))
+      ~set:(Data.Constructors.some_hashset (module Label))
       (Data.Graph.t_of_double graph)
   in
   let index_of_node = Hashtbl.create ~size:(Vec.length nodes) (module Label) in
@@ -131,7 +131,7 @@ let%test_module _ =
       |> List.map ~f:(fun (n, ns) -> lab n, List.map ~f:lab ns)
       |> Label.Map.of_alist_exn
       |> Data.Graph.t_of_map_list
-      |> Data.Graph.double_of_t (Constructors.some_hashtbl (module Label))
+      |> Data.Graph.double_of_t (Data.Constructors.some_hashtbl (module Label))
     ;;
 
     let get_idoms = get_idoms ~start:(lab "start")

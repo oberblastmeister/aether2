@@ -14,6 +14,12 @@ module Value : sig
   module Hashtbl : Hashtbl.S with type key := t
   module Hash_set : Hash_set.S with type elt := t
   include Comparable.S with type t := t
+
+  val to_raw : t -> Entity.Raw_id.t
+end
+
+module ValueMap : sig
+  include module type of Entity.Map.Make (Value)
 end
 
 module Cmp_op : sig
@@ -33,15 +39,19 @@ end
 module Some_instr : sig
   include module type of T.Some_instr
 
+  val map_uses : 'v t -> f:('v -> 'u) -> 'u t
   val uses_fold : ('v, 'v t) F.Fold.t
   val defs_fold : (Value.t, 'v t) F.Fold.t
   val uses : 'v t -> 'v list
   val defs : 'v t -> Value.t list
+  val has_side_effect : 'v t -> bool
 end
 
 module Instr : sig
   include module type of T.Instr
 
+  val has_side_effect : 'v t -> bool
+  val map_uses : 'v t -> f:('v -> 'u) -> 'u t
   val map_defs : 'v t -> f:(Value.t -> Value.t) -> 'v t
   val defs_fold : (Value.t, 'v t) F.Fold.t
   val uses_fold : ('v, 'v t) F.Fold.t
@@ -50,15 +60,19 @@ end
 
 module Block_call : sig
   include module type of T.Block_call
+
+  val map_uses : 'v t -> f:('v -> 'u) -> 'u t
 end
 
 module Control_instr : sig
   include module type of T.Control_instr
 
+  val map_uses : 'v t -> f:('v -> 'u) -> 'u t
   val block_calls_fold : ('v Block_call.t, 'v t) F.Fold.t
   val block_calls : 'v t -> 'v Block_call.t list
   val map_block_calls : 'v t -> f:('v Block_call.t -> 'v Block_call.t) -> 'v t
   val to_some : 'v t -> 'v Some_instr.t
+  val uses_fold : ('v, 'v t) F.Fold.t
 end
 
 module Block_args : sig

@@ -1,5 +1,4 @@
 open! O
-open Entity
 
 module Control = struct
   type e = E
@@ -14,5 +13,5 @@ module SControl = struct
     | SE : Control.e t
 end
 
-module Name = Name_id.Make ()
-module Label = Name_id.Make ()
+module Name = Entity.Name.Make ()
+module Label = Entity.Name.Make ()

@@ -171,6 +171,22 @@ let%test_module _ =
       (label (done.2)
         (ret r.11))) |}]
     ;;
+
+    let%expect_test "lower" =
+      let program = Lazy.force loop_lir |> Ssa.convert_ssa |> Lower.run in
+      print_endline @@ Lower.Tir.pretty program;
+      [%expect
+        {|
+    (define (pow (b.0 u64) (e.1 u64)) u64
+      (label (start.0)
+        (jump (loop.1 e.1 (const u64 1))))
+      (label (loop.1 (e.10 u64) (r.11 u64))
+        (cond_jump (cmp u64 gt e.10 (const u64 0)) (done.2) (body.3)))
+      (label (body.3)
+        (jump (loop.1 (add u64 e.10 (const u64 1)) (add u64 r.11 b.0))))
+      (label (done.2)
+        (ret r.11))) |}]
+    ;;
   end)
 ;;
 
@@ -224,20 +240,3 @@ let%test_module _ =
     ;;
   end)
 ;;
-
-(*
-   let%expect_test "lower" =
-  let program = Lazy.force loop_lir |> Lir.Ssa.convert_ssa |> Lir.Lower.lower_program in
-  print_endline @@ Lir.Lower.pretty program;
-  [%expect
-    {|
-    (define (pow (b.0 u64) (e.1 u64)) u64
-      (label (start)
-        (jump (loop e.1 (const u64 1))))
-      (label (body)
-        (jump (loop (add u64 e.10 (const u64 1)) (add u64 r.11 b.0))))
-      (label (loop (e.10 u64) (r.11 u64))
-        (cond_jump (cmp u64 gt e.10 (const u64 0)) (done) (body)))
-      (label (done)
-        (ret r.11))) |}]
-;; *)

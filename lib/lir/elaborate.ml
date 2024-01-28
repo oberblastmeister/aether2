@@ -47,36 +47,16 @@ let collect_types (fn : Name.t Function.t) =
     find_representative_ty key data)
 ;;
 
-let elaborate_instr label ty_of_name instr =
-  Generic_instr.map
-    ~f:(fun name : Value.t ->
-      { name
-      ; ty =
-          Map.find ty_of_name name
-          |> Option.value_or_thunk ~default:(fun () ->
-            elaborate_error
-              (Error.t_of_sexp
-                 [%message
-                   "name not defined" ~name:(name : Name.t) ~block_label:(label : Label.t)]))
-      })
-    instr
-;;
-
-let elaborate_block label ty_of_name block =
-  Block.map_instrs_forwards
-    { f = (fun instr -> elaborate_instr label ty_of_name instr) }
-    block
-;;
-
 let elaborate_function (fn : Name.t Function.t) : Value.t Function.t =
   let ty_of_name = collect_types fn in
-  let map =
-    (fun (x : _ Function.t) ~f -> { x with graph = f x.graph })
-    & (fun (x : _ Graph.t) ~f -> { x with blocks = f x.blocks })
-    & F.Core.Map.mapi
-  in
-  let res = map fn ~f:(fun (label, block) -> elaborate_block label ty_of_name block) in
-  res
+  (F.Map.of_map Function.map) fn ~f:(fun name : Value.t ->
+    { name
+    ; ty =
+        Map.find ty_of_name name
+        |> Option.value_or_thunk ~default:(fun () ->
+          elaborate_error
+            (Error.t_of_sexp [%message "name not defined" ~name:(name : Name.t)]))
+    })
 ;;
 
 let elaborate_single fn = run (fun () -> elaborate_function fn)

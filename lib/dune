@@ -12,5 +12,5 @@
    ppx_deriving.map
    ppx_deriving.fold
    ppx_jane))
- (libraries core fmt algaeff folds higher_kinded)
+ (libraries core fmt algaeff folds higher_kinded aether_data aether_entity)
  (ocamlopt_flags -S))

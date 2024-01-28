@@ -108,12 +108,27 @@ module Generic_instr = struct
     | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
     | Instr op -> [%sexp "Instr", (Instr.sexp_of_t f op : Sexp.t)]
   ;;
+
+  let fold (type c v) (i : (v, c) t) ~(init : 'a) ~(f : 'a -> v -> 'a) : 'a =
+    match i with
+    | Block_args _ -> init
+    | Instr instr -> Instr.fold f init instr
+    | Control c -> Control_instr.fold f init c
+  ;;
+
+  let map (type c) f (i : (_, c) t) : (_, c) t =
+    match i with
+    | Block_args vs -> Block_args vs
+    | Instr instr -> Instr (Instr.map f instr)
+    | Control c -> Control (Control_instr.map f c)
+  ;;
 end
 
 module Some_instr = struct
   type 'v t = T : ('v, 'c) Generic_instr.t -> 'v t [@@unboxed]
 
   let sexp_of_t f (T s) = Generic_instr.sexp_of_t f s
+  let map f (T s) = T (Generic_instr.map f s)
 end
 
 module Block = struct
@@ -122,7 +137,7 @@ module Block = struct
     ; body : 'v Instr.t list
     ; exit : 'v Control_instr.t
     }
-  [@@deriving fields]
+  [@@deriving fields, map]
 
   let sexp_of_t f ({ entry; body; exit } : 'v t) =
     [%sexp
@@ -134,6 +149,8 @@ end
 
 module Graph = struct
   type 'v t = 'v Block.t Cfg.Graph.t [@@deriving sexp_of]
+
+  let map f graph = (Cfg.Graph.map_blocks & FC.Map.map & F.Map.of_map Block.map) graph ~f
 end
 
 module Mut_function = struct
@@ -157,9 +174,9 @@ module Function = struct
     ; unique_label : Label.Id.t
     ; unique_name : Name.Id.t
     }
-  [@@deriving sexp_of, fields]
+  [@@deriving sexp_of, fields, map]
 end
 
 module Program = struct
-  type 'v t = { functions : 'v Function.t list } [@@deriving sexp_of, fields]
+  type 'v t = { functions : 'v Function.t list } [@@deriving sexp_of, fields, map]
 end

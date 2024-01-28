@@ -73,7 +73,7 @@ let validate_ssa_function (fn : Vir.Function.t) =
   let labels =
     Data.Graph.Dfs.preorder
       ~start:[ fn.graph.entry ]
-      ~set:(Constructors.some_hashset (module Label))
+      ~set:(Data.Constructors.some_hashset (module Label))
       (fn.graph |> Graph.to_graph)
   in
   let errors : Error.t Stack.t = Stack.create () in

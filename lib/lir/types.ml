@@ -15,7 +15,11 @@ module Value = struct
   module Hashtbl = Hashtbl.Make (T.Value)
   module Hash_set = Hash_set.Make (T.Value)
   include Comparable.Make (T.Value)
+
+  let to_raw v = Name.to_raw v.name
 end
+
+module ValueMap = Entity.Map.Make (Value)
 
 module Cmp_op = struct
   include T.Cmp_op
@@ -38,6 +42,13 @@ end
 module Instr = struct
   include T.Instr
 
+  let has_side_effect = function
+    | Store _ | Assign { expr = Alloca _ | Load _; _ } -> true
+    | Assign { expr = Bin _ | Const _ | Cmp _ | Val _; _ } -> false
+  ;;
+
+  let map_uses i ~f = map f i
+
   let map_defs i ~f =
     match i with
     | Assign { dst; expr } -> Assign { dst = f dst; expr }
@@ -50,16 +61,20 @@ module Instr = struct
     | Store _ -> ()
   ;;
 
-  let uses_fold i k = fold (fun () u -> k u) () i
+  let uses_fold i k = iter k i
   let to_some i = T.Some_instr.T (Instr i)
 end
 
 module Block_call = struct
   include T.Block_call
+
+  let map_uses i ~f = map f i
 end
 
 module Control_instr = struct
   include T.Control_instr
+
+  let map_uses i ~f = map f i
 
   let block_calls_fold i k =
     match i with
@@ -80,6 +95,7 @@ module Control_instr = struct
   ;;
 
   let to_some i = T.Some_instr.T (Control i)
+  let uses_fold i k = fold (fun () use -> k use) () i
 end
 
 module Block_args = struct
@@ -90,20 +106,6 @@ end
 
 module Generic_instr = struct
   include T.Generic_instr
-
-  let fold (type c v) (i : (v, c) t) ~(init : 'a) ~(f : 'a -> v -> 'a) : 'a =
-    match i with
-    | Block_args _ -> init
-    | Instr instr -> Instr.fold f init instr
-    | Control c -> Control_instr.fold f init c
-  ;;
-
-  let map (type c) f (i : (_, c) t) : (_, c) t =
-    match i with
-    | Block_args vs -> Block_args vs
-    | Instr instr -> Instr (Instr.map f instr)
-    | Control c -> Control (Control_instr.map f c)
-  ;;
 
   let get_control : type v. (v, Control.c) t -> v Control_instr.t = function
     | Control c -> c
@@ -169,10 +171,16 @@ end
 module Some_instr = struct
   include T.Some_instr
 
+  let map_uses i ~f = map f i
   let uses_fold (T i) = Generic_instr.uses_fold i
   let defs_fold (T i) = Generic_instr.defs_fold i
   let uses i = F.Fold.reduce uses_fold F.Reduce.to_list_rev i
   let defs i = F.Fold.reduce defs_fold F.Reduce.to_list_rev i
+
+  let has_side_effect = function
+    | T (Control _) | T (Block_args _) -> true
+    | T (Instr i) -> Instr.has_side_effect i
+  ;;
 end
 
 module Block = struct
@@ -244,7 +252,6 @@ module Graph = struct
       raise_s
         [%message "the entry label should have no predecessors" ~got:(ls : Label.t list)]
   ;;
-
 end
 
 module Dataflow = struct

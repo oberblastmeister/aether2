@@ -3,8 +3,8 @@ open Types
 
 let split pred (fn : Vir.Function.t) =
   let preds =
-    Constructors.Hashtbl_ext.project
-    @@ Data.Graph.get_pred_map (Constructors.hashtbl (module Label))
+    Data.Constructors.Hashtbl_ext.project
+    @@ Data.Graph.get_pred_map (Data.Constructors.hashtbl (module Label))
     @@ Graph.to_graph fn.graph
   in
   Function.with_mut fn (fun mut_fn ->

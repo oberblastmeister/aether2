@@ -3,6 +3,7 @@ open Utils.Instr_types
 include Graph_intf
 
 let map_blocks graph ~f = { graph with blocks = f graph.blocks }
+let get_block_exn graph label = Map.find_exn graph.blocks label
 
 let set_block graph label block =
   map_blocks graph ~f:(fun blocks -> Map.set ~key:label ~data:block blocks)
@@ -26,7 +27,7 @@ let to_graph ~jumps graph =
 
 let to_double_graph ~jumps graph =
   to_graph ~jumps graph
-  |> Data.Graph.double_of_t (Constructors.some_hashtbl (module Label))
+  |> Data.Graph.double_of_t (Data.Constructors.some_hashtbl (module Label))
 ;;
 
 let predecessors_of_label ~jumps (graph : 'b t) =
@@ -64,11 +65,22 @@ let get_idoms ~jumps (graph : _ t) =
   Dominators.get_idoms ~start:graph.entry @@ to_double_graph ~jumps graph
 ;;
 
+let fold_labels labels graph k =
+  Vec.iter labels ~f:(fun label -> k (label, get_block_exn graph label))
+;;
+
 module Dfs = struct
   let reverse_postorder ~jumps graph =
     Data.Graph.Dfs.reverse_postorder
       ~start:[ graph.entry ]
-      ~set:(Constructors.some_hashset (module Label))
+      ~set:(Data.Constructors.some_hashset (module Label))
+    @@ to_graph ~jumps graph
+  ;;
+
+  let preorder ~jumps graph =
+    Data.Graph.Dfs.preorder
+      ~start:[ graph.entry ]
+      ~set:(Data.Constructors.some_hashset (module Label))
     @@ to_graph ~jumps graph
   ;;
 end
@@ -82,5 +94,6 @@ module Make_gen (Block : Block_gen) = struct
 
   module Dfs = struct
     let reverse_postorder g = Dfs.reverse_postorder ~jumps g
+    let preorder g = Dfs.preorder ~jumps g
   end
 end

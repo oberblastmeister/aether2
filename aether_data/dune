@@ -1,8 +1,10 @@
+(include_subdirs qualified)
+
 (library
  (name aether_data)
  (inline_tests)
  (preprocess
-  (pps ppx_inline_test))
+  (pps ppx_jane))
  (flags
   (:standard -warn-error -A))
- (libraries core core_unix core_bench ppx_inline_test iter))
+ (libraries core folds higher_kinded))
