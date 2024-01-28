@@ -107,6 +107,7 @@ end
 module Block = struct
   include T.Block
 
+  let jumps_fold _ = todo ()
   let instrs_forward_fold b = Vec.to_iter b.instrs
   let instrs_backward_fold _ = todo ()
 end
@@ -126,13 +127,8 @@ module Dataflow = struct
   ;;
 
   let run_block_transfer transfer (graph : Graph.t) =
-    Cfg.Dataflow.run_block_transfer
-      transfer
-      { entry = graph.entry
-      ; v = Graph.to_double_graph graph
-      ; exit = graph.exit
-      ; get_block = Map.find_exn graph.blocks
-      }
+    Cfg.Dataflow.run_block_transfer transfer
+    @@ Cfg.Dataflow.Graph.of_cfg ~jumps:Block.jumps_fold graph
   ;;
 
   module Liveness = struct

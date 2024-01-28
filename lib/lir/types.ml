@@ -264,13 +264,8 @@ module Dataflow = struct
   ;;
 
   let run_block_transfer transfer (graph : _ Graph.t) =
-    Cfg.Dataflow.run_block_transfer
-      transfer
-      { entry = graph.entry
-      ; v = Graph.to_double_graph graph
-      ; exit = graph.exit
-      ; get_block = Map.find_exn graph.blocks
-      }
+    Cfg.Dataflow.run_block_transfer transfer
+    @@ Cfg.Dataflow.Graph.of_cfg ~jumps:Block.jumps_fold graph
   ;;
 end
 

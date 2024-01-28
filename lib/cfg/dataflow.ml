@@ -3,14 +3,75 @@ include Dataflow_intf
 open Utils.Instr_types
 module LabelQueue = Hash_queue.Make (Label)
 
+module Graph = struct
+  type 'b t =
+    { entry : Label.t
+    ; v : Label.t Data.Graph.double
+    ; exit : Label.t
+    ; get_block : Label.t -> 'b
+    }
+
+  let of_cfg ~jumps (graph : _ Graph.t) =
+    { entry = graph.entry
+    ; v = Graph.to_double_graph ~jumps graph
+    ; exit = graph.exit
+    ; get_block = Map.find_exn graph.blocks
+    }
+  ;;
+end
+
+module Instr_transfer = struct
+  type ('i, 'd) t =
+    { transfer : 'i -> 'd -> 'd
+    ; changed : current_fact:'d -> new_fact:'d -> bool
+    ; empty : 'd
+    ; combine : 'd list -> 'd
+    ; direction : direction
+    ; sexp_of_instr : 'i -> Sexp.t
+    ; sexp_of_domain : 'd -> Sexp.t
+    }
+
+  let create
+    ~transfer
+    ~changed
+    ~empty
+    ~combine
+    ~direction
+    ?(sexp_of_instr = sexp_of_opaque)
+    ?(sexp_of_domain = sexp_of_opaque)
+    =
+    { transfer; changed; empty; combine; direction; sexp_of_instr; sexp_of_domain }
+  ;;
+
+  let transfer t = t.transfer
+end
+
+module Block_transfer = struct
+  type ('b, 'd) t =
+    { transfer : Label.t -> 'b -> other_facts:'d list -> current_fact:'d -> 'd option
+    ; empty : 'd
+    ; direction : direction
+    ; sexp_of_domain : 'd -> Sexp.t
+    ; sexp_of_block : 'b -> Sexp.t
+    }
+
+  let create
+    ~transfer
+    ~empty
+    ~direction
+    ?(sexp_of_domain = sexp_of_opaque)
+    ?(sexp_of_block = sexp_of_opaque)
+    =
+    { transfer; empty; direction; sexp_of_domain; sexp_of_block }
+  ;;
+end
+
 let instr_to_block_transfer
-  (type i d)
   ?(sexp_of_block = sexp_of_opaque)
   block_folds
-  (instr_transfer : (i, d) instr_transfer)
+  (instr_transfer : _ Instr_transfer.t)
+  : _ Block_transfer.t
   =
-  let module Instr = (val instr_transfer.instr) in
-  let module Domain = (val instr_transfer.domain) in
   let transfer _label block ~other_facts ~current_fact =
     let new_fact =
       F.Fold.fold
@@ -26,13 +87,12 @@ let instr_to_block_transfer
   { transfer
   ; empty = instr_transfer.empty
   ; direction = instr_transfer.direction
-  ; domain = instr_transfer.domain
+  ; sexp_of_domain = instr_transfer.sexp_of_domain
   ; sexp_of_block
   }
 ;;
 
-let run_block_transfer (type b d) (transfer : (b, d) block_transfer) graph =
-  let module Domain = (val transfer.domain) in
+let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
   let initial_facts =
     F.Iter.fold graph.v.all_nodes ~init:Label.Map.empty ~f:(fun initial_facts label ->
       Map.set initial_facts ~key:label ~data:transfer.empty)
@@ -89,8 +149,12 @@ let run_block_transfer (type b d) (transfer : (b, d) block_transfer) graph =
 ;;
 
 module Liveness = struct
-  let make_transfer (type v cmp i) (instr : i instr) (dict : (v, cmp, i) liveness_dict) =
-    let module Instr = (val instr) in
+  let make_transfer
+    (type v cmp i)
+    ?(sexp_of_instr = sexp_of_opaque)
+    (dict : (v, cmp, i) liveness_dict)
+    : _ Instr_transfer.t
+    =
     let module Value = (val dict.value) in
     let module Domain = Set.Make_plain_using_comparator (Value) in
     let transfer instr prev_facts =
@@ -101,12 +165,6 @@ module Liveness = struct
              (Set.of_list (module Value) (F.Iter.to_list (dict.defs instr)))
         |> Set.union (Set.of_list (module Value) (F.Iter.to_list (dict.uses instr)))
       in
-      (* print_s
-         [%message
-          "transfer"
-            ~instr:(instr : Instr.t)
-            ~prev_facts:(prev_facts : Domain.t)
-            ~new_facts:(new_facts : Domain.t)]; *)
       new_facts
     in
     { transfer
@@ -115,14 +173,14 @@ module Liveness = struct
     ; changed =
         (fun ~current_fact ~new_fact -> Set.length new_fact > Set.length current_fact)
     ; combine = List.fold_left ~init:(Set.empty (module Value)) ~f:Set.union
-    ; instr
-    ; domain = (module Domain)
+    ; sexp_of_instr
+    ; sexp_of_domain = [%sexp_of: Domain.t]
     }
   ;;
 end
 
 module Dominators = struct
-  let make_transfer ?(sexp_of_block = sexp_of_opaque) =
+  let make_transfer ?(sexp_of_block = sexp_of_opaque) : _ Block_transfer.t =
     let transfer label _block ~other_facts ~current_fact =
       let new_fact =
         other_facts
@@ -137,7 +195,7 @@ module Dominators = struct
     { direction = Forward
     ; empty = Label.Set.empty
     ; transfer
-    ; domain = (module Label.Set)
+    ; sexp_of_domain = [%sexp_of: Label.Set.t]
     ; sexp_of_block
     }
   ;;

@@ -17,7 +17,9 @@ module Liveness = struct
     }
   ;;
 
-  let instr_transfer = Cfg.Dataflow.Liveness.make_transfer (module Some_instr) dict
+  let instr_transfer =
+    Cfg.Dataflow.Liveness.make_transfer ~sexp_of_instr:[%sexp_of: Some_instr.t] dict
+  ;;
 
   let block_transfer =
     Lir.Dataflow.instr_to_block_transfer (module Lir.Value) instr_transfer

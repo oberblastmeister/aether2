@@ -6,47 +6,11 @@ module Types = struct
     | Forward
     | Backward
 
-  module type Instr = sig
-    type t [@@deriving sexp_of]
-  end
-
-  module type Domain = sig
-    type t [@@deriving sexp_of]
-  end
-
   module type Value = sig
     type t [@@deriving equal, compare, hash, sexp_of]
 
     include Comparator.S with type t := t
   end
-
-  type 'i instr = (module Instr with type t = 'i)
-  type 'd domain = (module Domain with type t = 'd)
-
-  type ('i, 'd) instr_transfer =
-    { transfer : 'i -> 'd -> 'd
-    ; changed : current_fact:'d -> new_fact:'d -> bool
-    ; empty : 'd
-    ; combine : 'd list -> 'd
-    ; direction : direction
-    ; instr : 'i instr
-    ; domain : 'd domain
-    }
-
-  type ('b, 'd) block_transfer =
-    { transfer : Label.t -> 'b -> other_facts:'d list -> current_fact:'d -> 'd option
-    ; empty : 'd
-    ; direction : direction
-    ; sexp_of_block : 'b -> Sexp.t
-    ; domain : 'd domain
-    }
-
-  type 'b graph =
-    { entry : Label.t
-    ; v : Label.t Data.Graph.double
-    ; exit : Label.t
-    ; get_block : Label.t -> 'b
-    }
 
   type ('i, 'b) block_folds =
     { instrs_forward_fold : ('i, 'b) F.Fold.t
@@ -66,23 +30,59 @@ include Types
 module type Intf = sig
   include module type of Types
 
+  module Graph : sig
+    type 'b t
+
+    val of_cfg : jumps:(Label.t, 'b) F.Fold.t -> 'b Graph.t -> 'b t
+  end
+
+  module Instr_transfer : sig
+    type ('i, 'd) t
+
+    val create
+      :  transfer:('i -> 'd -> 'd)
+      -> changed:(current_fact:'d -> new_fact:'d -> bool)
+      -> empty:'d
+      -> combine:('d list -> 'd)
+      -> direction:direction
+      -> ?sexp_of_instr:('i -> Sexp.t)
+      -> ?sexp_of_domain:('d -> Sexp.t)
+      -> ('i, 'd) t
+
+    val transfer : ('i, 'd) t -> 'i -> 'd -> 'd
+  end
+
+  module Block_transfer : sig
+    type ('b, 'd) t
+
+    val create
+      :  transfer:(Label.t -> 'a -> other_facts:'b list -> current_fact:'b -> 'b option)
+      -> empty:'b
+      -> direction:direction
+      -> ?sexp_of_domain:('b -> Sexp.t)
+      -> ?sexp_of_block:('a -> Sexp.t)
+      -> ('a, 'b) t
+  end
+
   val instr_to_block_transfer
     :  ?sexp_of_block:('b -> Sexp.t)
     -> ('i, 'b) block_folds
-    -> ('i, 'd) instr_transfer
-    -> ('b, 'd) block_transfer
+    -> ('i, 'd) Instr_transfer.t
+    -> ('b, 'd) Block_transfer.t
 
-  val run_block_transfer : ('b, 'd) block_transfer -> 'b graph -> 'd Label.Map.t
+  val run_block_transfer : ('b, 'd) Block_transfer.t -> 'b Graph.t -> 'd Label.Map.t
 
   module Liveness : sig
     val make_transfer
-      :  'i instr
-      -> ('v, 'comparator_witness, 'i) liveness_dict
-      -> ('i, ('v, 'comparator_witness) Set.t) instr_transfer
+      :  ?sexp_of_instr:('i -> Sexp.t)
+      -> ('v, 'cmp, 'i) liveness_dict
+      -> ('i, ('v, 'cmp) Set.t) Instr_transfer.t
   end
 
   module Dominators : sig
-    val make_transfer : ?sexp_of_block:('b -> Sexp.t) -> ('b, Label.Set.t) block_transfer
+    val make_transfer
+      :  ?sexp_of_block:('b -> Sexp.t)
+      -> ('b, Label.Set.t) Block_transfer.t
 
     val compute_idoms_from_facts
       :  Label.t

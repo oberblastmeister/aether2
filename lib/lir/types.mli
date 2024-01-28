@@ -141,11 +141,11 @@ end
 module Dataflow : sig
   val instr_to_block_transfer
     :  (module T.Value with type t = 'v)
-    -> ('v Some_instr.t, 'd) Cfg.Dataflow.instr_transfer
-    -> ('v Block.t, 'd) Cfg.Dataflow.block_transfer
+    -> ('v Some_instr.t, 'd) Cfg.Dataflow.Instr_transfer.t
+    -> ('v Block.t, 'd) Cfg.Dataflow.Block_transfer.t
 
   val run_block_transfer
-    :  ('v Block.t, 'd) Cfg.Dataflow.block_transfer
+    :  ('v Block.t, 'd) Cfg.Dataflow.Block_transfer.t
     -> 'v Graph.t
     -> 'd Label.Map.t
 end
