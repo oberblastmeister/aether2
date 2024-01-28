@@ -2,6 +2,21 @@
 open! O
 open Utils.Instr_types
 
+module Cond = struct
+  type t =
+    (* equal*)
+    | E
+    (* not equal*)
+    | NE
+    (* below (unsigned <) *)
+    | B
+    (* below or equal *)
+    | BE
+    (* above (unsigned >) *)
+    | A
+  [@@deriving equal, compare, hash, sexp]
+end
+
 module Ty = struct
   type t =
     | U1
@@ -25,9 +40,7 @@ module Scale = struct
   ;;
 end
 
-module MachReg = struct
-  type t = Reg of Register.t [@@deriving equal, compare, hash, sexp]
-end
+module MachReg = Register
 
 module AllocReg = struct
   type t =
@@ -133,30 +146,45 @@ module Instr = struct
         ; dst : Operand.t
         ; src : int32
         }
+    | MovImm64 of
+        { dst : Operand.t
+        ; imm : int64
+        }
     | Mov of Mov.t
     | Par_mov of Mov.t list
     | Cmp of
         { s : Size.t
+        ; src1 : Operand.t
+        ; src2 : Operand.t
+        }
+    | Test of
+        { s : Size.t
         ; dst : Operand.t
         ; src : Operand.t
         }
+    | Set of
+        { s : Size.t
+        ; cond : Cond.t
+        ; dst : Operand.t
+        }
     (* for calling conventions *)
     | Def of { dst : Operand.t }
-    | Block_args of VReg.t list
+    | Block_args of Reg.t list
     | Jump of Block_call.t
     | CondJump of
-        { j : Jump.t
-        ; l1 : Label.t
-        ; l2 : Label.t
+        { cond : Cond.t
+        ; l1 : Block_call.t
+        ; l2 : Block_call.t
         }
+    | Ret
   [@@deriving sexp, variants]
 
   let jumps_fold instr k =
     match instr with
     | Jump block_call -> k block_call.label
     | CondJump { l1; l2; _ } ->
-      k l1;
-      k l2
+      k l1.label;
+      k l2.label
     | _ -> ()
   ;;
 end
@@ -184,5 +212,5 @@ module Procedure = struct
 end
 
 module Program = struct
-  type t = { procedures : (Procedure.t, Perms.Read.t) Vec.t } [@@deriving sexp, fields]
+  type t = { procedures : Procedure.t list } [@@deriving sexp, fields]
 end

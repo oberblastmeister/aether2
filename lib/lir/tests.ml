@@ -187,6 +187,69 @@ let%test_module _ =
       (label (done.2)
         (ret r.11))) |}]
     ;;
+
+    let%expect_test "lower x86" =
+      let program =
+        Lazy.force loop_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower
+      in
+      print_s @@ [%sexp_of: X86.Types.Program.t] program;
+      [%expect {|
+        ((procedures
+          (((graph
+             ((entry ((name start) (id 0)))
+              (blocks
+               ((((name body) (id 3))
+                 ((instrs
+                   ((Block_args ())
+                    (MovImm64 (dst (Reg (VReg (Temp (name ((name one) (id 7)))))))
+                     (imm 1))
+                    (Add (s Q) (dst (Reg (VReg (Temp (name ((name e) (id 8)))))))
+                     (src1 (Reg (VReg (Temp (name ((name e) (id 10)))))))
+                     (src2 (Reg (VReg (Temp (name ((name one) (id 7))))))))
+                    (Add (s Q) (dst (Reg (VReg (Temp (name ((name r) (id 6)))))))
+                     (src1 (Reg (VReg (Temp (name ((name r) (id 11)))))))
+                     (src2 (Reg (VReg (Temp (name ((name b) (id 0))))))))
+                    (Jump
+                     ((label ((name loop) (id 1)))
+                      (args
+                       ((VReg (Temp (name ((name e) (id 8)))))
+                        (VReg (Temp (name ((name r) (id 6)))))))))))))
+                (((name done) (id 2))
+                 ((instrs
+                   ((Block_args ())
+                    (Mov
+                     ((s Q)
+                      (dst
+                       (Reg (VReg (PreColored (name ((name r) (id 11))) (reg RAX)))))
+                      (src (Reg (VReg (Temp (name ((name r) (id 11)))))))))
+                    Ret))))
+                (((name loop) (id 1))
+                 ((instrs
+                   ((Block_args
+                     ((VReg (Temp (name ((name e) (id 10)))))
+                      (VReg (Temp (name ((name r) (id 11)))))))
+                    (MovImm64 (dst (Reg (VReg (Temp (name ((name z) (id 12)))))))
+                     (imm 0))
+                    (Cmp (s Q) (src1 (Reg (VReg (Temp (name ((name e) (id 10)))))))
+                     (src2 (Reg (VReg (Temp (name ((name z) (id 12))))))))
+                    (Set (s Q) (cond A)
+                     (dst (Reg (VReg (Temp (name ((name f) (id 13))))))))
+                    (Test (s B) (dst (Reg (VReg (Temp (name ((name f) (id 13)))))))
+                     (src (Reg (VReg (Temp (name ((name f) (id 13))))))))
+                    (CondJump (cond NE) (l1 ((label ((name done) (id 2))) (args ())))
+                     (l2 ((label ((name body) (id 3))) (args ()))))))))
+                (((name start) (id 0))
+                 ((instrs
+                   ((Block_args ())
+                    (MovImm64 (dst (Reg (VReg (Temp (name ((name r) (id 2)))))))
+                     (imm 1))
+                    (Jump
+                     ((label ((name loop) (id 1)))
+                      (args
+                       ((VReg (Temp (name ((name e) (id 1)))))
+                        (VReg (Temp (name ((name r) (id 2)))))))))))))))
+              (exit ((name done) (id 2))))))))) |}]
+    ;;
   end)
 ;;
 
@@ -235,6 +298,22 @@ let%test_module _ =
             (set r.10 (const u64 3))
             (set r.11 (add u64 r.10 x.0))
             (jump (done.2 r.11)))
+          (label (done.2 (r.12 u64))
+            (ret r.12))) |}]
+    ;;
+
+    let%expect_test "lower" =
+      let program = Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run in
+      print_endline @@ Lower.Tir.pretty program;
+      [%expect
+        {|
+        (define (if (x.0 u64) (y.1 u64)) u64
+          (label (start.0)
+            (cond_jump (cmp u64 gt x.0 (const u64 9)) (then.4) (else.5)))
+          (label (else.5)
+            (jump (done.2 (add u64 (const u64 5) (add u64 x.0 y.1)))))
+          (label (then.4)
+            (jump (done.2 (add u64 (const u64 3) x.0))))
           (label (done.2 (r.12 u64))
             (ret r.12))) |}]
     ;;

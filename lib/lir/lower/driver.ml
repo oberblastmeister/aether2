@@ -50,7 +50,7 @@ and lower_value cx color value =
     let value_instr_color = Side_effects.Color_of_index.get cx.color_of_index index in
     let can_inline =
       (not (Lir.Instr.has_side_effect value_instr))
-      || Side_effects.Color.is_adjacent value_instr_color color
+      || Side_effects.Color.is_before value_instr_color color
     in
     if can_inline
     then Tir.Value.I (lower_instr cx value_instr index)

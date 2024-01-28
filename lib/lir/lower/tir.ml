@@ -7,6 +7,18 @@ module Value = struct
     | I of t Lir.Instr.t
   [@@deriving sexp_of]
 
+  let get_name = function
+    | V v -> v.name
+    | I (Lir.Instr.Assign { dst = { name; _ }; _ }) -> name
+    | _ -> failwith "should be assign"
+  ;;
+
+  let get_ty = function
+    | V v -> v.ty
+    | I (Lir.Instr.Assign { dst = { ty; _ }; _ }) -> ty
+    | _ -> failwith "should be assign"
+  ;;
+
   let rec uses_fold t k =
     match t with
     | V v -> k v

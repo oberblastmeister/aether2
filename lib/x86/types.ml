@@ -1,12 +1,28 @@
 open! O
 open Utils.Instr_types
-module T = Instr_types
+module T = Types_basic
 module Name = Name
 module Label = Label
 module Control = Control
 
 module Reg = struct
   include T.Reg
+end
+
+module Cond = struct
+  include T.Cond
+end
+
+module MachReg = struct
+  include T.MachReg
+end
+
+module VReg = struct
+  include T.VReg
+end
+
+module Size = struct
+  include T.Size
 end
 
 module Address = struct
@@ -67,13 +83,25 @@ module Instr = struct
       O.any_regs_fold src2 k
     | Mov mov -> Mov.uses_fold mov k
     | Par_mov movs -> (FC.List.fold @> Mov.uses_fold) movs k
-    | Cmp { dst; src; _ } ->
-      O.any_regs_fold dst k;
-      O.any_regs_fold src k
+    | Cmp { src1; src2; _ } ->
+      O.any_regs_fold src1 k;
+      O.any_regs_fold src2 k
     | Lea { src; _ } -> Address.regs_fold src k
     | Def { dst } -> O.mem_regs_fold dst k
     | _ -> ()
   ;;
+end
+
+module Block_call = struct
+  include T.Block_call
+end
+
+module Procedure = struct
+  include T.Procedure
+end
+
+module Program = struct
+  include T.Program
 end
 
 module Block = struct

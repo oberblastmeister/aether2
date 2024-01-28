@@ -1,5 +1,4 @@
 type t =
-  | JO
   | JE
   | JNE
   | JB

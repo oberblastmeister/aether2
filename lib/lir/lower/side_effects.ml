@@ -5,7 +5,7 @@ open Types
 module Color = struct
   type t = int [@@deriving sexp_of]
 
-  let is_adjacent c1 c2 = c1 + 1 = c2
+  let is_before c1 c2 = c1 + 1 = c2
 end
 
 module Color_of_index = struct
