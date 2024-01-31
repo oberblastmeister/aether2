@@ -147,7 +147,7 @@ module Dataflow : sig
   val run_block_transfer
     :  ('v Block.t, 'd) Cfg.Dataflow.Block_transfer.t
     -> 'v Graph.t
-    -> 'd Label.Map.t
+    -> 'd Cfg.Dataflow.Fact_base.t * 'd Cfg.Dataflow.Fact_base.t
 end
 
 module Mut_function : sig

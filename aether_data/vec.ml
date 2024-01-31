@@ -163,7 +163,18 @@ module Raw = struct
     go 0
   ;;
 
+  let iter_rev t ~f =
+    let rec go i =
+      if i >= 0
+      then (
+        f (unsafe_get t i);
+        go (i - 1))
+    in
+    go (t.size - 1)
+  ;;
+
   let to_iter t f = iter t ~f
+  let to_iter_rev t f = iter t ~f
   let length t = t.size
 
   let iteri t ~f =

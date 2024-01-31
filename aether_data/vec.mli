@@ -4,6 +4,7 @@ module F = Folds
 module Raw : sig
   type 'a t [@@deriving equal, compare, hash, sexp, quickcheck]
 
+  val length : _ t -> int
   val create : ?size:int -> unit -> 'a t
   val pop : 'a t -> 'a option
   val pop_exn : 'a t -> 'a
@@ -12,6 +13,7 @@ module Raw : sig
   val unsafe_push : 'a t -> 'a -> unit
   val unsafe_get : 'a t -> int -> 'a
   val unsafe_set : 'a t -> int -> 'a -> unit
+  val unsafe_swap : 'a t -> int -> int -> unit
   val of_list : 'a list -> 'a t
   val to_list : 'a t -> 'a list
   val of_array : 'a array -> 'a t
@@ -39,7 +41,9 @@ val length : ('a, _) t -> int
 val of_list : 'a list -> ('a, [< _ perms ]) t
 val of_iter : 'a F.Iter.t -> ('a, [< _ perms ]) t
 val iter : ('a, [> read ]) t -> f:('a -> unit) -> unit
+val iter_rev : ('a, [> read ]) t -> f:('a -> unit) -> unit
 val to_iter : ('a, [> read ]) t -> 'a F.Iter.t
+val to_iter_rev : ('a, [> read ]) t -> 'a F.Iter.t
 val iteri : ('a, [> read ]) t -> f:(int -> 'a -> unit) -> unit
 val fold : ('a, [> read ]) t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val fold_right : ('a, [> read ]) t -> init:'b -> f:('a -> 'b -> 'b) -> 'b

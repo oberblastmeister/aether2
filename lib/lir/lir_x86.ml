@@ -108,7 +108,7 @@ and lower_control_instr cx instr =
     let bc2 = lower_block_call cx bc2 in
     Cx.add cx
     @@ X86.Instr.Test { s = ty_to_size @@ Tir.Value.get_ty v; dst = op1; src = op1 };
-    Cx.add cx @@ X86.Instr.CondJump { cond = X86.Cond.NE; l1 = bc1; l2 = bc2 }
+    Cx.add cx @@ X86.Instr.CondJump { cond = X86.Cond.NE; j1 = bc1; j2 = bc2 }
   | Control_instr.Jump j ->
     let j = lower_block_call cx j in
     Cx.add cx @@ X86.Instr.Jump j

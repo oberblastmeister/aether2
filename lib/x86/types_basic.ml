@@ -14,7 +14,7 @@ module Cond = struct
     | BE
     (* above (unsigned >) *)
     | A
-  [@@deriving equal, compare, hash, sexp]
+  [@@deriving equal, compare, hash, sexp, variants]
 end
 
 module Ty = struct
@@ -40,11 +40,30 @@ module Scale = struct
   ;;
 end
 
-module MachReg = Register
+module MachReg = struct
+  type t =
+    | RAX
+    | RCX
+    | RDX
+    | RBX
+    | RSP
+    | RBP
+    | RSI
+    | RDI
+    | R8
+    | R9
+    | R10
+    | R11
+    | R12
+    | R13
+    | R14
+    | R15
+  [@@deriving equal, compare, sexp, hash, variants]
+end
 
 module AllocReg = struct
   type t =
-    | Reg of Register.t
+    | Reg of MachReg.t
     | Stack
   [@@deriving sexp]
 end
@@ -54,9 +73,11 @@ module VReg = struct
     | Temp of { name : Name.t }
     | PreColored of
         { name : Name.t
-        ; reg : Register.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
+        ; reg : MachReg.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
         }
-  [@@deriving equal, compare, sexp, hash]
+  [@@deriving equal, compare, sexp, hash, variants]
+
+  let to_name (Temp { name } | PreColored { name; _ }) = name
 end
 
 module Reg = struct
@@ -64,11 +85,13 @@ module Reg = struct
     type t =
       | VReg of VReg.t
       | MachReg of MachReg.t
-    [@@deriving equal, compare, hash, sexp]
+    [@@deriving equal, compare, hash, sexp, variants]
   end
 
   include T
   include Comparator.Make (T)
+
+  let vreg_val_exn r = vreg_val r |> Option.value_exn
 end
 
 module Address = struct
@@ -173,8 +196,8 @@ module Instr = struct
     | Jump of Block_call.t
     | CondJump of
         { cond : Cond.t
-        ; l1 : Block_call.t
-        ; l2 : Block_call.t
+        ; j1 : Block_call.t
+        ; j2 : Block_call.t
         }
     | Ret
   [@@deriving sexp, variants]
@@ -182,9 +205,9 @@ module Instr = struct
   let jumps_fold instr k =
     match instr with
     | Jump block_call -> k block_call.label
-    | CondJump { l1; l2; _ } ->
-      k l1.label;
-      k l2.label
+    | CondJump { j1; j2; _ } ->
+      k j1.label;
+      k j2.label
     | _ -> ()
   ;;
 end

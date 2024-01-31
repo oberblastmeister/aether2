@@ -107,9 +107,23 @@ end
 module Block = struct
   include T.Block
 
-  let jumps_fold _ = todo ()
+  let jumps_fold block k =
+    let last_instr =
+      Vec.last block.instrs
+      |> Option.value_or_thunk ~default:(fun () ->
+        raise_s [%message "block must have a last instr"])
+    in
+    match last_instr with
+    | Jump j -> k j.label
+    | CondJump { j1; j2; _ } ->
+      k j1.label;
+      k j2.label
+    | _ ->
+      raise_s [%message "instruction was not control instr" ~instr:(last_instr : Instr.t)]
+  ;;
+
   let instrs_forward_fold b = Vec.to_iter b.instrs
-  let instrs_backward_fold _ = todo ()
+  let instrs_backward_fold b = Vec.to_iter_rev b.instrs
 end
 
 module Graph = struct
@@ -120,9 +134,8 @@ module Dataflow = struct
   let instr_to_block_transfer trans =
     Cfg.Dataflow.instr_to_block_transfer
       ~sexp_of_block:[%sexp_of: Block.t]
-      { instrs_forward_fold = Block.instrs_forward_fold
-      ; instrs_backward_fold = Block.instrs_backward_fold
-      }
+      ~instrs_forward_fold:Block.instrs_forward_fold
+      ~instrs_backward_fold:Block.instrs_backward_fold
       trans
   ;;
 
@@ -132,11 +145,15 @@ module Dataflow = struct
   ;;
 
   module Liveness = struct
-    let dict =
-      { Cfg.Dataflow.value = (module Reg)
-      ; uses = Instr.uses_fold
-      ; defs = Instr.defs_fold
-      }
+    let instr_transfer =
+      Cfg.Dataflow.Liveness.make_transfer
+        ~sexp_of_instr:[%sexp_of: Instr.t]
+        ~value:(module Reg)
+        ~uses:Instr.uses_fold
+        ~defs:Instr.defs_fold
     ;;
+
+    let block_transfer = instr_to_block_transfer instr_transfer
+    let run fn = run_block_transfer block_transfer fn.Procedure.graph
   end
 end

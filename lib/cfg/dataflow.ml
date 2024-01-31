@@ -1,7 +1,17 @@
 open! O
-include Dataflow_intf
 open Utils.Instr_types
 module LabelQueue = Hash_queue.Make (Label)
+module LabelMap = Entity.Map.Make (Label)
+
+type direction =
+  | Forward
+  | Backward
+
+module type Value = sig
+  type t [@@deriving equal, compare, hash, sexp_of]
+
+  include Comparator.S with type t := t
+end
 
 module Graph = struct
   type 'b t =
@@ -48,7 +58,8 @@ end
 
 module Block_transfer = struct
   type ('b, 'd) t =
-    { transfer : Label.t -> 'b -> other_facts:'d list -> current_fact:'d -> 'd option
+    { transfer : Label.t -> 'b -> other_facts:'d -> current_fact:'d -> 'd option
+    ; combine : 'd list -> 'd
     ; empty : 'd
     ; direction : direction
     ; sexp_of_domain : 'd -> Sexp.t
@@ -57,18 +68,26 @@ module Block_transfer = struct
 
   let create
     ~transfer
+    ~combine
     ~empty
     ~direction
     ?(sexp_of_domain = sexp_of_opaque)
     ?(sexp_of_block = sexp_of_opaque)
     =
-    { transfer; empty; direction; sexp_of_domain; sexp_of_block }
+    { transfer; combine; empty; direction; sexp_of_domain; sexp_of_block }
   ;;
+end
+
+module Fact_base = struct
+  type 'd t = (Label.t, 'd) Entity.Map.t [@@deriving sexp_of]
+
+  let find_exn = LabelMap.find_exn
 end
 
 let instr_to_block_transfer
   ?(sexp_of_block = sexp_of_opaque)
-  block_folds
+  ~instrs_forward_fold
+  ~instrs_backward_fold
   (instr_transfer : _ Instr_transfer.t)
   : _ Block_transfer.t
   =
@@ -76,15 +95,16 @@ let instr_to_block_transfer
     let new_fact =
       F.Fold.fold
         (match instr_transfer.direction with
-         | Forward -> block_folds.instrs_forward_fold
-         | Backward -> block_folds.instrs_backward_fold)
+         | Forward -> instrs_forward_fold
+         | Backward -> instrs_backward_fold)
         block
-        ~init:(instr_transfer.combine other_facts)
+        ~init:other_facts
         ~f:(fun i d -> instr_transfer.transfer d i)
     in
     if instr_transfer.changed ~current_fact ~new_fact then Some new_fact else None
   in
   { transfer
+  ; combine = instr_transfer.combine
   ; empty = instr_transfer.empty
   ; direction = instr_transfer.direction
   ; sexp_of_domain = instr_transfer.sexp_of_domain
@@ -93,10 +113,8 @@ let instr_to_block_transfer
 ;;
 
 let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
-  let initial_facts =
-    F.Iter.fold graph.v.all_nodes ~init:Label.Map.empty ~f:(fun initial_facts label ->
-      Map.set initial_facts ~key:label ~data:transfer.empty)
-  in
+  let fact_base = LabelMap.create () in
+  let other_facts_base = LabelMap.create () in
   let queue = LabelQueue.create () in
   let _ =
     LabelQueue.enqueue_exn
@@ -107,13 +125,16 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
        | Backward -> graph.exit)
       ()
   in
-  let rec go fact_base =
+  let rec go () =
     match LabelQueue.dequeue_with_key queue `front with
-    | None -> fact_base
+    | None -> ()
     | Some (label, ()) ->
       let current_block = graph.get_block label in
       (* we should have initialized all facts *)
-      let current_fact = Map.find fact_base label |> Option.value_exn in
+      (* let current_fact = Map.find fact_base label |> Option.value_exn in *)
+      let current_fact =
+        LabelMap.find fact_base label |> Option.value ~default:transfer.empty
+      in
       let other_labels =
         (match transfer.direction with
          | Forward ->
@@ -125,9 +146,11 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
       (* we should have initialized all facts *)
       let other_facts =
         F.Iter.map other_labels ~f:(fun node ->
-          Map.find fact_base node |> Option.value_exn)
+          LabelMap.find fact_base node |> Option.value ~default:transfer.empty)
         |> F.Iter.to_list
+        |> transfer.combine
       in
+      LabelMap.set other_facts_base ~key:label ~data:other_facts;
       let maybe_new_facts =
         transfer.transfer label current_block ~other_facts ~current_fact
       in
@@ -141,29 +164,30 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
          in
          F.Iter.iter labels_todo ~f:(fun label ->
            ignore (LabelQueue.enqueue queue `back label ()));
-         let fact_base = Map.set fact_base ~key:label ~data:new_fact in
-         go fact_base
-       | None -> go fact_base)
+         LabelMap.set fact_base ~key:label ~data:new_fact;
+         go ()
+       | None -> go ())
   in
-  go initial_facts
+  go ();
+  fact_base, other_facts_base
 ;;
 
 module Liveness = struct
   let make_transfer
     (type v cmp i)
     ?(sexp_of_instr = sexp_of_opaque)
-    (dict : (v, cmp, i) liveness_dict)
+    ~(value : (module Value with type t = v and type comparator_witness = cmp))
+    ~uses
+    ~defs
     : _ Instr_transfer.t
     =
-    let module Value = (val dict.value) in
+    let module Value = (val value) in
     let module Domain = Set.Make_plain_using_comparator (Value) in
     let transfer instr prev_facts =
       let new_facts =
         prev_facts
-        |> Fn.flip
-             Set.diff
-             (Set.of_list (module Value) (F.Iter.to_list (dict.defs instr)))
-        |> Set.union (Set.of_list (module Value) (F.Iter.to_list (dict.uses instr)))
+        |> Fn.flip Set.diff (Set.of_list (module Value) (F.Iter.to_list (defs instr)))
+        |> Set.union (Set.of_list (module Value) (F.Iter.to_list (uses instr)))
       in
       new_facts
     in
@@ -182,25 +206,26 @@ end
 module Dominators = struct
   let make_transfer ?(sexp_of_block = sexp_of_opaque) : _ Block_transfer.t =
     let transfer label _block ~other_facts ~current_fact =
-      let new_fact =
-        other_facts
-        |> List.filter ~f:(fun s -> Set.length s > 0)
-        |> List1.of_list
-        |> Option.map ~f:(List1.fold_map ~f:Fn.id ~combine:Set.inter)
-        |> Option.value ~default:Label.Set.empty
-        |> Fn.flip Set.add label
-      in
+      let new_fact = other_facts |> Fn.flip Set.add label in
       Option.some_if (Set.length new_fact > Set.length current_fact) new_fact
     in
     { direction = Forward
     ; empty = Label.Set.empty
     ; transfer
+    ; combine =
+        (fun other_facts ->
+          other_facts
+          |> List.filter ~f:(fun s -> Set.length s > 0)
+          |> List1.of_list
+          |> Option.map ~f:(List1.fold_map ~f:Fn.id ~combine:Set.inter)
+          |> Option.value ~default:Label.Set.empty)
     ; sexp_of_domain = [%sexp_of: Label.Set.t]
     ; sexp_of_block
     }
   ;;
 
-  (* the idom for start always points to start *)
+  (*
+     (* the idom for start always points to start *)
   let compute_idoms_from_facts (start_label : Label.t) (d : Label.Set.t Label.Map.t) =
     (* make it strictly dominates *)
     let d =
@@ -275,5 +300,5 @@ module Dominators = struct
     in
     assert_is_tree start_label idom_tree;
     idom_tree
-  ;;
+  ;; *)
 end

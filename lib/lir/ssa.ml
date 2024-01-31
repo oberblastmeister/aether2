@@ -163,17 +163,19 @@ end = struct
 end
 
 let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
-  let liveness = Vir.Liveness.run fn.graph in
+  let liveness, _ = Vir.Liveness.run fn.graph in
   let add_block_args_and_calls label (block : Vir.Block.t) =
     let new_entry_instr =
       if [%equal: Label.t] label fn.graph.entry
       then []
-      else Map.find_exn liveness label |> Set.to_list
+      else Cfg.Dataflow.Fact_base.find_exn liveness label |> Set.to_list
     in
     let new_exit_instr =
       block.exit
       |> Control_instr.map_block_calls ~f:(fun block_call ->
-        { block_call with args = Map.find_exn liveness block_call.label |> Set.to_list })
+        { block_call with
+          args = Cfg.Dataflow.Fact_base.find_exn liveness block_call.label |> Set.to_list
+        })
     in
     { block with entry = new_entry_instr; exit = new_exit_instr }
   in
