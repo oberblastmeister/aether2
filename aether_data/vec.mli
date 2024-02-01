@@ -11,6 +11,7 @@ module Raw : sig
   val push : 'a t -> 'a -> unit
   val unsafe_pop : 'a t -> 'a
   val unsafe_push : 'a t -> 'a -> unit
+  val get : 'a t -> int -> 'a
   val unsafe_get : 'a t -> int -> 'a
   val unsafe_set : 'a t -> int -> 'a -> unit
   val unsafe_swap : 'a t -> int -> int -> unit

@@ -1,5 +1,12 @@
 open Core
 
+module type Key = sig
+  type t
+
+  include Comparator.S with type t := t
+  include Sexpable.S with type t := t
+end
+
 module type Intf = sig
   type ('a, 'cmp) t
 
@@ -12,12 +19,15 @@ module type Intf = sig
   module Indexed : sig
     type ('a, 'cmp) t
 
-    module Make_with_comparator (C : Comparator.S) : sig
-      type nonrec t = (C.t, C.comparator_witness) t
+    module Make_with_comparator (C : Key) : sig
+      type nonrec t = (C.t, C.comparator_witness) t [@@deriving sexp_of]
 
+      val create : ?size:int -> unit -> t
+      val invariant : t -> unit
       val pop : t -> C.t option
-      val push : t -> C.t -> unit
-      val remove : t -> int -> unit
+      val set : t -> key:int -> data:C.t -> unit
+      val modify : t -> key:int -> f:(C.t -> C.t) -> unit
+      val remove : t -> int -> C.t option
     end
   end
 end

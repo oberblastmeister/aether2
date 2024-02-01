@@ -6,20 +6,11 @@ module F = Folds
 type ('k, 'v) t = { mutable a : ('k * 'v) Option_array.t }
 
 let create ?(size = 0) () = { a = OA.create ~len:size }
-
-let resize_array t size =
-  let a = OA.create ~len:size in
-  OA.blit ~src:t.a ~dst:a ~src_pos:0 ~dst_pos:0 ~len:(OA.length t.a);
-  t.a <- a
-;;
-
 let length t = OA.length t.a
 
 let resize_for_index t index =
   if index >= length t
-  then (
-    let new_size = max 4 (Int.round_up (index + 1) ~to_multiple_of:2) in
-    resize_array t new_size)
+  then t.a <- Aether_data.Utils.Option_array.resize_for_index t.a index
 ;;
 
 let find t k ~to_id =

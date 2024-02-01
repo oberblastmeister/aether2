@@ -1,12 +1,7 @@
 open! Core
 module F = Folds
-
-module type Option_array_getters = sig
-  val unsafe_get_some_assuming_some : 'a Option_array.t -> int -> 'a
-  val unsafe_set_some : 'a Option_array.t -> int -> 'a -> unit
-end
-
-module A = Array_ops.Option_array.Safe_ops
+module OA = Option_array
+module A = Array_ops.Option_array.Ops
 
 module Raw = struct
   type 'a t =
@@ -31,7 +26,7 @@ module Raw = struct
 
   let copy t =
     let t' = create ~size:t.size () in
-    Option_array.blit ~src:t.data ~dst:t'.data ~src_pos:0 ~dst_pos:0 ~len:t.size;
+    OA.blit ~src:t.data ~dst:t'.data ~src_pos:0 ~dst_pos:0 ~len:t.size;
     t'
   ;;
 
@@ -86,7 +81,9 @@ module Raw = struct
 
   let[@inline] unsafe_pop t =
     t.size <- t.size - 1;
-    A.unsafe_get_some_assuming_some t.data t.size
+    let x = A.unsafe_get_some_assuming_some t.data t.size in
+    OA.set_none t.data t.size;
+    x
   ;;
 
   let pop t =

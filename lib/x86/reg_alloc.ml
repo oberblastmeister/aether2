@@ -4,8 +4,7 @@ open Utils.Instr_types
 
 let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.transfer
 
-let construct_interference_block block live_out =
-  let interference = Interference.create () in
+let add_block_edges interference block live_out =
   let live_out = ref live_out in
   let _ =
     Block.instrs_backward_fold block (fun instr ->
@@ -29,9 +28,13 @@ let construct_interference_block block live_out =
         Interference.add_edge interference (VReg.to_name def) (VReg.to_name live));
       live_out := transfer instr !live_out)
   in
-  interference
+  ()
 ;;
 
 let construct_fn fn =
-  let _, live_out = Dataflow.Liveness.run fn in
+  let _, live_out_facts = Dataflow.Liveness.run fn in
+  let interference = Interference.create () in
+  (FC.Map.foldi fn.graph.blocks) (fun (label, block) ->
+    let live_out = Cfg.Dataflow.Fact_base.find_exn live_out_facts label in
+    add_block_edges interference block live_out)
 ;;
