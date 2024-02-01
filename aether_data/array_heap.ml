@@ -18,14 +18,6 @@ module type Heap_ops = sig
   val length : ('k, 'v, 'cmp) t -> int
 end
 
-module Ops = struct
-  type nonrec ('k, 'v, 'cmp) t = ('v, 'cmp) t
-
-  let unsafe_swap = Vec.unsafe_swap
-  let unsafe_get = Vec.unsafe_get
-  let length = Vec.length
-end
-
 module type Heapify = sig
   type ('k, 'v, 'cmp) t
 
@@ -101,7 +93,13 @@ end
 
 let create ?size () = Vec.create ?size ()
 
-include Make_heapify (Ops)
+include Make_heapify (struct
+    type nonrec ('k, 'v, 'cmp) t = ('v, 'cmp) t
+
+    let unsafe_swap = Vec.unsafe_swap
+    let unsafe_get = Vec.unsafe_get
+    let length = Vec.length
+  end)
 
 let push ~cmp t x =
   let i = Vec.length t in
@@ -148,10 +146,12 @@ module Indexed = struct
   ;;
 
   let validate_key key = if key < 0 then raise_s [%message "key out of bounds"]
-  let[@inline] has_key t key = key < OA.length t.values && A.unsafe_is_some t.values key
+
+  let[@inline] mem t key =
+    key >= 0 && key < OA.length t.values && A.unsafe_is_some t.values key
+  ;;
 
   let create ?(sexp_of = sexp_of_opaque) ?(size = 0) () =
-    (* { values = Vec.create ?size (); pq = Vec.create ?size (); qp = Vec.create ?size () } *)
     let len = size in
     { values = Option_array.create ~len
     ; pq = Vec.create ~size ()
@@ -224,12 +224,12 @@ module Indexed = struct
 
   let modify ~cmp t ~key ~f =
     validate_key key;
-    if has_key t key then unsafe_modify ~cmp t ~key ~f
+    if mem t key then unsafe_modify ~cmp t ~key ~f
   ;;
 
   let set ~cmp t ~key ~data =
     validate_key key;
-    if has_key t key
+    if mem t key
     then unsafe_modify ~cmp t ~key ~f:(fun _ -> data)
     else (
       if key >= OA.length t.values
@@ -269,7 +269,7 @@ module Indexed = struct
     if length t = 0 then None else Some (unsafe_remove ~cmp t (Vec.unsafe_get t.pq 0))
   ;;
 
-  module Make_with_comparator (C : Key) = struct
+  module Make (C : Key) = struct
     open struct
       let cmp = C.comparator
     end
@@ -286,7 +286,7 @@ module Indexed = struct
   end
 
   let%test_unit _ =
-    let module Heap = Make_with_comparator (Int) in
+    let module Heap = Make (Int) in
     let n = 1000 in
     let ipq = create () in
     Heap.invariant ipq;
@@ -307,7 +307,7 @@ module Indexed = struct
   ;;
 
   let%test_unit _ =
-    let module Heap = Make_with_comparator (Int) in
+    let module Heap = Make (Int) in
     let n = 1000 in
     let ipq = create () in
     Heap.set ipq ~key:(n + 1) ~data:(n + 1);
@@ -340,7 +340,7 @@ module Indexed = struct
   ;;
 
   let%test_unit _ =
-    let module Heap = Make_with_comparator (Int) in
+    let module Heap = Make (Int) in
     let ipq = create () in
     Heap.invariant ipq;
     Heap.set ipq ~key:3 ~data:12;

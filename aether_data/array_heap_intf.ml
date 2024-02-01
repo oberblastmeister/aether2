@@ -19,7 +19,7 @@ module type Intf = sig
   module Indexed : sig
     type ('a, 'cmp) t
 
-    module Make_with_comparator (C : Key) : sig
+    module Make (C : Key) : sig
       type nonrec t = (C.t, C.comparator_witness) t [@@deriving sexp_of]
 
       val create : ?size:int -> unit -> t

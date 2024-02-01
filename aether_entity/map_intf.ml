@@ -1,4 +1,5 @@
 open! Core
+module F = Folds
 
 module type Gen_arg = sig
   type ('a, 'b, 'c) t
@@ -40,6 +41,8 @@ module type Intf = sig
   val find_exn : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v
   val set : ('k, 'v) t -> key:'k -> data:'v -> to_id:('k -> Raw_id.t) -> unit
   val to_list : ('k, 'v) t -> ('k * 'v) list
+  val iteri : ('k, 'v) t -> f:('k * 'v -> unit) -> unit
+  val to_iteri : ('k, 'v) t -> ('k * 'v) F.Iter.t
 
   module Make_gen (Arg : Gen_arg) :
     Gen_S

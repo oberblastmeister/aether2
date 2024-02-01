@@ -23,3 +23,5 @@ let add_edge g n1 n2 =
 ;;
 
 let neighbors g n = NameMap.find g n |> FC.Option.fold @> FC.Hash_set.fold
+let size = Entity.Map.length
+let nodes t = Entity.Map.to_iteri t |> F.Iter.map ~f:fst
