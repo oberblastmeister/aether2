@@ -6,28 +6,25 @@ module F = Folds
 type ('k, 'v) t = { mutable a : ('k * 'v) Option_array.t }
 
 let create ?(size = 0) () = { a = OA.create ~len:size }
-let length t = OA.length t.a
+let size t = OA.length t.a
 
 let resize_for_index t index =
-  if index >= length t
-  then t.a <- Aether_data.Utils.Option_array.resize_for_index t.a index
+  if index >= size t then t.a <- Aether_data.Utils.Option_array.resize_for_index t.a index
 ;;
 
 let find t k ~to_id =
   let i = Raw_id.to_int @@ to_id k in
-  if i >= length t then None else Option.map ~f:snd @@ OA.get t.a @@ i
+  if i >= size t then None else Option.map ~f:snd @@ OA.get t.a @@ i
 ;;
 
 let mem t k ~to_id =
   let i = Raw_id.to_int @@ to_id k in
-  i < length t && OA.is_some t.a i
+  i < size t && OA.is_some t.a i
 ;;
 
 let find_exn t k ~to_id =
   let i = Raw_id.to_int @@ to_id k in
-  if i >= length t
-  then raise_s [%message "key not found"]
-  else snd @@ OA.get_some_exn t.a i
+  if i >= size t then raise_s [%message "key not found"] else snd @@ OA.get_some_exn t.a i
 ;;
 
 let set t ~key:k ~data:v ~to_id =
@@ -65,6 +62,9 @@ module Make_gen (Arg : Gen_arg) = struct
   let set = set ~to_id:Arg.to_raw
   let mem = mem ~to_id:Arg.to_raw
   let update = update ~to_id:Arg.to_raw
+  let ( .![] ) = find_exn
+  let ( .?[] ) = find
+  let ( .![]<- ) t key data = set t ~key ~data
 end
 
 module Make (Arg : Arg) = Make_gen (struct

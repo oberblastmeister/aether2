@@ -23,6 +23,9 @@ module type Gen_S = sig
   val set : ('a, 'b, 'c, 'v) t -> key:('a, 'b, 'c) k -> data:'v -> unit
   val mem : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> bool
   val update : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> f:('v option -> 'v) -> unit
+  val ( .![] ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v
+  val ( .?[] ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v option
+  val ( .![]<- ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v -> unit
 end
 
 module type S = sig
@@ -36,7 +39,7 @@ module type Intf = sig
   type ('k, 'v) t [@@deriving sexp_of]
 
   val create : ?size:int -> unit -> ('k, 'v) t
-  val length : ('k, 'v) t -> int
+  val size : ('k, 'v) t -> int
   val find : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v option
   val find_exn : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v
   val set : ('k, 'v) t -> key:'k -> data:'v -> to_id:('k -> Raw_id.t) -> unit

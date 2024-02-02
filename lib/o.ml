@@ -7,7 +7,7 @@ module Vec = Data.Vec
 module List1 = Data.List1
 module Entity = Aether_entity
 
-let ( |- ) f x =
+let ( |- ) x f =
   f x;
   x
 ;;

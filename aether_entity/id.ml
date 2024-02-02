@@ -28,5 +28,5 @@ module Make () = struct
   let of_raw raw = raw
   let to_raw t = t
 
-  include Comparator.Make (T)
+  include Base.Comparable.Make (T)
 end
