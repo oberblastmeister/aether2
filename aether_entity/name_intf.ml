@@ -6,6 +6,8 @@ type 'k t =
   }
 [@@deriving equal, compare, hash, sexp]
 
+(* let sexp_of_t _f t = Sexp.Atom t.name *)
+
 module type S = sig
   module Id : Id.S
 

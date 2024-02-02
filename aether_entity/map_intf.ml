@@ -8,7 +8,7 @@ module type Gen_arg = sig
 end
 
 module type Arg = sig
-  type t
+  type t [@@deriving sexp_of]
 
   val to_raw : t -> Raw_id.t
 end
@@ -23,6 +23,7 @@ module type Gen_S = sig
   val set : ('a, 'b, 'c, 'v) t -> key:('a, 'b, 'c) k -> data:'v -> unit
   val mem : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> bool
   val update : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> f:('v option -> 'v) -> unit
+  val of_list : (('a, 'b, 'c) k * 'v) list -> ('a, 'b, 'c, 'v) t
   val ( .![] ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v
   val ( .?[] ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v option
   val ( .![]<- ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v -> unit
@@ -38,7 +39,7 @@ end
 module type Intf = sig
   type ('k, 'v) t [@@deriving sexp_of]
 
-  val create : ?size:int -> unit -> ('k, 'v) t
+  val create : ?sexp_of_key:('k -> Sexp.t) -> ?size:int -> unit -> ('k, 'v) t
   val size : ('k, 'v) t -> int
   val find : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v option
   val find_exn : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v

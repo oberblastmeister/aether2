@@ -7,7 +7,6 @@
   (:standard -warn-error -A))
  (preprocess
   (pps
-   ppx_deriving.show
    ppx_deriving.iter
    ppx_deriving.map
    ppx_deriving.fold

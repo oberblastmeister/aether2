@@ -39,7 +39,7 @@ struct
 
   type error = InvalidRegisterConstraint of Register.t * Register.t
 
-  let simplicial_elimination_ordering interference ~precolored =
+  let simplicial_elimination_ordering ~interference ~precolored =
     let heap = IntHeap.create ~size:(Interference.size interference) () in
     interference
     |> Interference.nodes
@@ -49,6 +49,7 @@ struct
     let increase_neighbor_weights node =
       Interference.neighbors interference node
       |> F.Iter.iter ~f:(fun neighbor ->
+        (* will only modify if it is on the heap *)
         IntHeap.modify
           heap
           ~key:(Name.Id.to_int @@ Name.to_id neighbor)
@@ -65,7 +66,7 @@ struct
       ()
   ;;
 
-  let color_with interference ordering =
+  let color_with ~interference ~ordering =
     let color_of_name = NameMap.create () in
     let max_color = ref Color.lowest in
     ordering
@@ -79,20 +80,20 @@ struct
         |> F.Iter.to_array
       in
       Array.sort neighbor_colors ~compare:Color.compare;
-      let lowest =
+      let lowest_not_in_neighbors =
         Array.fold_until
           neighbor_colors
           ~init:Color.lowest
-          ~f:(fun lowest color ->
+          ~f:(fun current_color neighbor_color ->
             (* our array is sorted *)
-            assert (Color.(lowest <= color));
-            if Color.(lowest = color)
-            then Continue_or_stop.Continue (Color.next color)
-            else Continue_or_stop.Stop lowest)
+            assert (Color.(current_color <= neighbor_color));
+            if Color.(current_color = neighbor_color)
+            then Continue_or_stop.Continue (Color.next current_color)
+            else Continue_or_stop.Stop current_color)
           ~finish:Fn.id
       in
-      NameMap.set color_of_name ~key:name ~data:lowest;
-      max_color := Color.max !max_color lowest;
+      NameMap.set color_of_name ~key:name ~data:lowest_not_in_neighbors;
+      max_color := Color.max !max_color lowest_not_in_neighbors;
       ());
     color_of_name, !max_color
   ;;
@@ -134,14 +135,16 @@ struct
     Ok register_constraints_of_color
   ;;
 
-  let color interference ~precolored =
-    color_with interference (simplicial_elimination_ordering interference ~precolored)
+  let color ~interference ~precolored =
+    color_with
+      ~interference
+      ~ordering:(simplicial_elimination_ordering ~interference ~precolored)
   ;;
 
-  let alloc_colors ~precolored ~register_order interference =
+  let alloc_colors ~precolored ~register_order ~interference =
     let open Result.Let_syntax in
     let used_registers = RegisterSet.create () in
-    let color_of_name, max_color = color interference ~precolored in
+    let color_of_name, max_color = color ~interference ~precolored in
     let%bind register_constraints_of_color =
       collect_precolored_constraints ~interference ~color_of_name ~precolored
     in
@@ -150,19 +153,22 @@ struct
       Color.to_int Color.lowest -- Color.to_int max_color
       |> iter ~f:(fun color ->
         let color = Color.of_int color in
-        let register_constraints =
-          ColorMap.find_exn register_constraints_of_color color
-        in
+        let register_constraints = ColorMap.find register_constraints_of_color color in
         let reg =
           F.Iter.(
             of_list register_order
             |> F.Iter.find_pred ~f:(fun reg ->
-              (not (RegisterSet.mem register_constraints reg))
+              Option.value_map
+                register_constraints
+                ~default:true
+                ~f:(fun register_constraints ->
+                  not (RegisterSet.mem register_constraints reg))
               && not (RegisterSet.mem used_registers reg)))
         in
         let alloc_reg =
           reg |> Option.value_map ~default:Alloc_reg.Spilled ~f:Alloc_reg.inreg
         in
+        Option.iter reg ~f:(RegisterSet.add used_registers);
         ColorMap.set alloc_of_color ~key:color ~data:alloc_reg;
         ()));
     Ok (color_of_name, alloc_of_color, used_registers)
@@ -175,14 +181,15 @@ struct
       }
     [@@deriving sexp_of]
 
-    let find_exn _ = todo ()
-    let did_use_reg _ = todo ()
+    let find_exn t name = NameMap.find_exn t.alloc_of_name name
+    let did_use_reg t reg = RegisterSet.mem t.used_registers reg
+    let invariant interference = ()
   end
 
-  let run ~precolored ~register_order interference =
+  let run ~precolored ~register_order ~interference =
     let open Result.Let_syntax in
     let%bind color_of_name, alloc_of_color, used_registers =
-      alloc_colors ~precolored ~register_order interference
+      alloc_colors ~precolored ~register_order ~interference
     in
     let alloc_of_name = NameMap.create ~size:(Entity.Map.size color_of_name) () in
     Entity.Map.iteri color_of_name ~f:(fun (name, color) ->
@@ -215,6 +222,94 @@ let%test_module _ =
 
     module Reg_alloc = Make (Register) (RegisterSet)
 
-    let _ = ()
+    let tbl = Hashtbl.create (module String)
+
+    let name s =
+      match Hashtbl.find tbl s with
+      | None ->
+        let label = Name.of_string_global_unique s in
+        Hashtbl.set tbl ~key:s ~data:label;
+        label
+      | Some l -> l
+    ;;
+
+    let b = name "b"
+    let d = name "d"
+    let a = name "a"
+    let c = name "c"
+    let register_order = Register.[ R1; R2; R3; R4 ]
+
+    let%expect_test "no interfer" =
+      let i = Interference.create () in
+      Interference.add_node i a;
+      Interference.add_node i b;
+      Interference.add_node i c;
+      Interference.add_node i d;
+      let allocation =
+        Reg_alloc.run ~precolored:(Entity.Map.create ()) ~register_order ~interference:i
+        |> Result.map_error ~f:(fun _ -> "wrong")
+        |> Result.ok_or_failwith
+      in
+      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      ();
+      [%expect
+        {|
+        ((alloc_of_name
+          ((((name b) (id 0)) (InReg R1)) (((name d) (id 1)) (InReg R1))
+           (((name a) (id 2)) (InReg R1)) (((name c) (id 3)) (InReg R1))))
+         (used_registers (R1))) |}]
+    ;;
+
+    let%expect_test "simple interfere" =
+      let module I = Interference in
+      let i = I.create () in
+      I.add_node i a;
+      I.add_node i b;
+      I.add_node i c;
+      I.add_node i d;
+      I.add_edge i b a;
+      I.add_edge i b c;
+      I.add_edge i b d;
+      let precolored = Entity.Map.create () in
+      let allocation =
+        Reg_alloc.run ~precolored ~register_order ~interference:i
+        |> Result.map_error ~f:(fun _ -> "wrong")
+        |> Result.ok_or_failwith
+      in
+      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      [%expect
+        {|
+        ((alloc_of_name
+          ((((name b) (id 0)) (InReg R1)) (((name d) (id 1)) (InReg R2))
+           (((name a) (id 2)) (InReg R2)) (((name c) (id 3)) (InReg R2))))
+         (used_registers (R1 R2))) |}];
+      ()
+    ;;
+
+    let%expect_test "simple precolored" =
+      let module I = Interference in
+      let i = I.create () in
+      I.add_node i a;
+      I.add_node i b;
+      I.add_node i c;
+      I.add_node i d;
+      I.add_edge i b a;
+      I.add_edge i b c;
+      I.add_edge i b d;
+      I.add_edge i a d;
+      let precolored = Entity.Map.create () in
+      let allocation =
+        Reg_alloc.run ~precolored ~register_order ~interference:i
+        |> Result.map_error ~f:(fun _ -> "wrong")
+        |> Result.ok_or_failwith
+      in
+      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      [%expect
+        {|
+        ((alloc_of_name
+          ((((name b) (id 0)) (InReg R1)) (((name d) (id 1)) (InReg R3))
+           (((name a) (id 2)) (InReg R2)) (((name c) (id 3)) (InReg R2))))
+         (used_registers (R1 R2 R3))) |}]
+    ;;
   end)
 ;;

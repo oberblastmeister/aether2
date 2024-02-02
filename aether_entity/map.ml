@@ -3,9 +3,15 @@ open! Core
 module OA = Option_array
 module F = Folds
 
-type ('k, 'v) t = { mutable a : ('k * 'v) Option_array.t }
+type ('k, 'v) t =
+  { mutable a : ('k * 'v) Option_array.t
+  ; sexp_of_key : 'k -> Sexp.t
+  }
 
-let create ?(size = 0) () = { a = OA.create ~len:size }
+let create ?(sexp_of_key = sexp_of_opaque) ?(size = 0) () =
+  { a = OA.create ~len:size; sexp_of_key }
+;;
+
 let size t = OA.length t.a
 
 let resize_for_index t index =
@@ -24,7 +30,9 @@ let mem t k ~to_id =
 
 let find_exn t k ~to_id =
   let i = Raw_id.to_int @@ to_id k in
-  if i >= size t then raise_s [%message "key not found"] else snd @@ OA.get_some_exn t.a i
+  if i >= size t
+  then raise_s [%message "key not found" ~key:(t.sexp_of_key k : Sexp.t)]
+  else snd @@ OA.get_some_exn t.a i
 ;;
 
 let set t ~key:k ~data:v ~to_id =
@@ -56,22 +64,33 @@ let sexp_of_t f g t = to_list t |> List.sexp_of_t (Tuple2.sexp_of_t f g)
 let update t k ~to_id ~f = set t ~key:k ~data:(f (find t k ~to_id)) ~to_id
 
 module Make_gen (Arg : Gen_arg) = struct
-  let create = create
-  let find = find ~to_id:Arg.to_raw
-  let find_exn = find_exn ~to_id:Arg.to_raw
-  let set = set ~to_id:Arg.to_raw
-  let mem = mem ~to_id:Arg.to_raw
-  let update = update ~to_id:Arg.to_raw
+  open struct
+    let to_id = Arg.to_raw
+  end
+
+  let create ?size () = create ?size ()
+  let find = find ~to_id
+  let find_exn = find_exn ~to_id
+  let set = set ~to_id
+  let mem = mem ~to_id
+  let update = update ~to_id
+  let of_list = of_list ~to_id
   let ( .![] ) = find_exn
   let ( .?[] ) = find
   let ( .![]<- ) t key data = set t ~key ~data
 end
 
-module Make (Arg : Arg) = Make_gen (struct
-    type ('a, 'b, 'c) t = Arg.t
+module Make (Arg : Arg) = struct
+  let create_real ?size () = create ~sexp_of_key:Arg.sexp_of_t ?size ()
 
-    let to_raw = Arg.to_raw
-  end)
+  include Make_gen (struct
+      type ('a, 'b, 'c) t = Arg.t
+
+      let to_raw = Arg.to_raw
+    end)
+
+  let create = create_real
+end
 
 let%test_module _ =
   (module struct

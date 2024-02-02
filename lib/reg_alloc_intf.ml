@@ -37,7 +37,7 @@ module type S = sig
   val run
     :  precolored:(Name.t, Register.t) Entity.Map.t
     -> register_order:Register.t list
-    -> Interference.t
+    -> interference:Interference.t
     -> (Allocation.t, error) result
 end
 
