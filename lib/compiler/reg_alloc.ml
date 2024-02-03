@@ -28,14 +28,8 @@ module IntHeap = Heap.Make (struct
     include Comparator.Make (T)
   end)
 
-module Make (Register : Register) (RegisterSet : Set with type value = Register.t) =
-struct
-  module Alloc_reg = struct
-    type t =
-      | InReg of Register.t
-      | Spilled
-    [@@deriving sexp_of, variants]
-  end
+module Make_greedy (Arch : Arch) = struct
+  open Arch
 
   type error = InvalidRegisterConstraint of Register.t * Register.t
 
@@ -129,7 +123,8 @@ struct
           ())
       with
       | exception E.InvalidRegisterConstraint (reg, reg') ->
-        Error (InvalidRegisterConstraint (reg, reg'))
+        Or_error.error_s
+          [%message "invalid regigster constraint" (reg : Register.t) (reg' : Register.t)]
       | _ -> Ok ()
     in
     Ok register_constraints_of_color
@@ -176,14 +171,14 @@ struct
 
   module Allocation = struct
     type t =
-      { alloc_of_name : (Name.t, Alloc_reg.t) Entity.Map.t
+      { alloc_of_name : (Name.t, Register.t Alloc_reg.t) Entity.Map.t
       ; used_registers : RegisterSet.t
       }
     [@@deriving sexp_of]
 
     let find_exn t name = NameMap.find_exn t.alloc_of_name name
     let did_use_reg t reg = RegisterSet.mem t.used_registers reg
-    let invariant interference = ()
+    let invariant ~precolored ~interference = ()
   end
 
   let run ~precolored ~register_order ~interference =
@@ -191,13 +186,43 @@ struct
     let%bind color_of_name, alloc_of_color, used_registers =
       alloc_colors ~precolored ~register_order ~interference
     in
-    let alloc_of_name = NameMap.create ~size:(Entity.Map.size color_of_name) () in
-    Entity.Map.iteri color_of_name ~f:(fun (name, color) ->
-      let alloc = ColorMap.find_exn alloc_of_color color in
-      NameMap.set alloc_of_name ~key:name ~data:alloc;
-      ());
+    let alloc_of_name =
+      Entity.Map.to_iteri color_of_name
+      |> F.Iter.map ~f:(fun (name, color) ->
+        let alloc = ColorMap.find_exn alloc_of_color color in
+        name, alloc)
+      |> NameMap.of_iter ~size:(Interference.size interference)
+    in
     Ok { Allocation.alloc_of_name; used_registers }
   ;;
+end
+
+module Make_spill_all (Arch : Arch) = struct
+  module Allocation = struct
+    type t = unit [@@deriving sexp]
+
+    let find_exn t name = todo ()
+    let did_use_reg _ = todo ()
+    let invariant ~precolored ~interference = todo ()
+  end
+
+  let run ~precolored:_ ~register_order:_ ~interference =
+    let alloc_of_name =
+      Interference.nodes interference
+      |> F.Iter.map ~f:(fun node -> node, Alloc_reg.Spilled)
+      |> NameMap.of_iter ~size:(Interference.size interference)
+    in
+    Ok ()
+  ;;
+end
+
+module Make = Make_greedy
+
+module Make_all (Arch : Arch) = struct
+  module type S = S with module Arch := Arch
+
+  module Greedy = Make_greedy (Arch)
+  module Spill_all = Make_spill_all (Arch)
 end
 
 let%test_module _ =
@@ -220,7 +245,10 @@ let%test_module _ =
       let add = Hash_set.add
     end
 
-    module Reg_alloc = Make (Register) (RegisterSet)
+    module Reg_alloc = Make_all (struct
+        module Register = Register
+        module RegisterSet = RegisterSet
+      end)
 
     let tbl = Hashtbl.create (module String)
 
@@ -246,11 +274,14 @@ let%test_module _ =
       Interference.add_node i c;
       Interference.add_node i d;
       let allocation =
-        Reg_alloc.run ~precolored:(Entity.Map.create ()) ~register_order ~interference:i
+        Reg_alloc.Greedy.run
+          ~precolored:(Entity.Map.create ())
+          ~register_order
+          ~interference:i
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
-      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      print_s @@ [%sexp (allocation : Reg_alloc.Greedy.Allocation.t)];
       ();
       [%expect
         {|
@@ -272,11 +303,11 @@ let%test_module _ =
       I.add_edge i b d;
       let precolored = Entity.Map.create () in
       let allocation =
-        Reg_alloc.run ~precolored ~register_order ~interference:i
+        Reg_alloc.Greedy.run ~precolored ~register_order ~interference:i
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
-      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      print_s @@ [%sexp (allocation : Reg_alloc.Greedy.Allocation.t)];
       [%expect
         {|
         ((alloc_of_name
@@ -299,11 +330,11 @@ let%test_module _ =
       I.add_edge i a d;
       let precolored = Entity.Map.create () in
       let allocation =
-        Reg_alloc.run ~precolored ~register_order ~interference:i
+        Reg_alloc.Greedy.run ~precolored ~register_order ~interference:i
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
-      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      print_s @@ [%sexp (allocation : Reg_alloc.Greedy.Allocation.t)];
       [%expect
         {|
         ((alloc_of_name

@@ -50,6 +50,8 @@ val fold : ('a, [> read ]) t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val fold_right : ('a, [> read ]) t -> init:'b -> f:('a -> 'b -> 'b) -> 'b
 val freeze : ('a, [> read ]) t -> ('a, [< read ]) t
 val copy : ('a, [> read ]) t -> ('a, [< _ perms ]) t
-val shrink_to_fit : ('a, _) t -> unit
+val copy_exact : ('a, [> read ]) t -> ('a, [< _ perms ]) t
+val shrink_to_fit : ('a, [> read_write ]) t -> unit
 val of_raw : 'a Raw.t -> ('a, [< _ perms ]) t
 val to_raw : ('a, [> read_write ]) t -> 'a Raw.t
+val clear : ('a, [> read_write ]) t -> unit

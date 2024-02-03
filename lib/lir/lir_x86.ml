@@ -8,19 +8,31 @@ module X86 = struct
 end
 
 module Context = struct
-  type t = { instrs : (X86.Instr.t, Perms.Read_write.t) Vec.t }
+  type t =
+    { instrs : (X86.Instr.t, Perms.Read_write.t) Vec.t
+    ; mutable unique_name : Name.Id.t
+    }
 
-  let create () = { instrs = Vec.create () }
+  let create (fn : Tir.Function.t) =
+    { instrs = Vec.create (); unique_name = fn.unique_name }
+  ;;
+
   let add cx instr = Vec.push cx.instrs instr
 end
 
 module Cx = Context
 
-let pre_colored name reg = X86.(Operand.Reg (Reg.VReg (VReg.PreColored { name; reg })))
-
 let ty_to_size = function
-  | Ty.U1 -> X86.Size.B
+  | Ty.U1 -> X86.Size.L
   | Ty.U64 -> X86.Size.Q
+;;
+
+let precolored (v : Value.t) reg =
+  X86.(
+    Operand.Reg
+      { s = ty_to_size v.ty
+      ; reg = Reg_kind.VReg (VReg.PreColored { name = v.name; reg })
+      })
 ;;
 
 let cmp_op_to_cond ty op =
@@ -30,7 +42,22 @@ let cmp_op_to_cond ty op =
      | Cmp_op.Gt -> X86.Cond.A)
 ;;
 
-let temp (v : Value.t) = X86.(Reg.VReg (VReg.Temp { name = v.name }))
+let temp (v : Value.t) : X86.Reg.t =
+  X86.{ s = ty_to_size v.ty; reg = Reg_kind.VReg (VReg.Temp { name = v.name }) }
+;;
+
+let fresh_value (cx : Context.t) (v : Value.t) : Value.t =
+  let id = cx.unique_name in
+  let name = Name.create v.name.name id in
+  { v with name }
+;;
+
+(* let fresh_temp (v : Value.t) (cx : Context.t) : X86.Reg.t =
+  let id = cx.unique_name in
+  cx.unique_name <- Name.Id.next id;
+  let name = Name.create v.name.name id in
+  X86.{ s = ty_to_size v.ty; reg = Reg_kind.VReg (VReg.Temp { name }) }
+;; *)
 
 let rec lower_value cx = function
   | Tir.Value.I i -> lower_instr cx i
@@ -77,10 +104,8 @@ and lower_assign cx dst expr =
     dst
   | Expr.Val { ty; v } ->
     let dst = temp dst in
-    Cx.add
-      cx
-      (X86.Instr.Mov
-         { s = ty_to_size ty; dst = X86.Operand.Reg dst; src = lower_value_op cx v });
+    let src = lower_value_op cx v in
+    Cx.add cx (X86.Instr.Mov { s = ty_to_size ty; dst = X86.Operand.Reg dst; src });
     dst
   | Expr.Alloca _ -> todo ()
   | Expr.Load _ -> todo ()
@@ -107,7 +132,7 @@ and lower_control_instr cx instr =
     let bc1 = lower_block_call cx bc1 in
     let bc2 = lower_block_call cx bc2 in
     Cx.add cx
-    @@ X86.Instr.Test { s = ty_to_size @@ Tir.Value.get_ty v; dst = op1; src = op1 };
+    @@ X86.Instr.Test { s = ty_to_size @@ Tir.Value.get_ty v; src1 = op1; src2 = op1 };
     Cx.add cx @@ X86.Instr.CondJump { cond = X86.Cond.NE; j1 = bc1; j2 = bc2 }
   | Control_instr.Jump j ->
     let j = lower_block_call cx j in
@@ -115,37 +140,34 @@ and lower_control_instr cx instr =
   | Ret None -> Cx.add cx @@ X86.Instr.Ret
   | Ret (Some v) ->
     let op = lower_value_op cx v in
-    Cx.add cx
-    @@ X86.Instr.Mov
-         { s = ty_to_size @@ Tir.Value.get_ty v
-         ; dst = pre_colored (Tir.Value.get_name v) X86.MachReg.RAX
-         ; src = op
-         };
+    let v' = fresh_value cx (Tir.Value.to_value v) in
+    let dst = precolored v' X86.MachReg.RAX in
+    Cx.add cx @@ X86.Instr.Mov { s = ty_to_size @@ Tir.Value.get_ty v; dst; src = op };
     Cx.add cx @@ X86.Instr.Ret
 ;;
 
-let lower_block (block : Tir.Block.t) =
-  let cx = Context.create () in
+let lower_block cx (block : Tir.Block.t) =
   lower_block_args cx block.entry;
   List.iter block.body ~f:(fun instr ->
     let _ = lower_instr cx instr in
     ());
   lower_control_instr cx block.exit;
-  Vec.shrink_to_fit cx.instrs;
-  let instrs = cx.instrs |> Vec.freeze in
+  let instrs = cx.instrs |> Vec.copy_exact |> Vec.freeze in
+  Vec.clear cx.instrs;
   { X86.Block.instrs }
 ;;
 
-let lower_graph graph =
-  (Cfg.Graph.map_blocks & FC.Map.map) graph ~f:(fun block -> lower_block block)
+let lower_graph cx graph =
+  (Cfg.Graph.map_blocks & FC.Map.map) graph ~f:(fun block -> lower_block cx block)
 ;;
 
 let lower_function (fn : Tir.Function.t) =
-  let graph = lower_graph fn.graph in
-  { X86.Procedure.graph }
+  let cx = Context.create fn in
+  let graph = lower_graph cx fn.graph in
+  { X86.Function.graph }
 ;;
 
 let lower (prog : Tir.Program.t) =
-  let procedures = List.map ~f:lower_function prog.functions in
-  { X86.Program.procedures }
+  let functions = List.map ~f:lower_function prog.functions in
+  { X86.Program.functions }
 ;;

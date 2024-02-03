@@ -5,6 +5,10 @@ module Name = Name
 module Label = Label
 module Control = Control
 
+module Reg_kind = struct
+  include T.Reg_kind
+end
+
 module Reg = struct
   include T.Reg
 end
@@ -37,8 +41,8 @@ end
 module Operand = struct
   include T.Operand
 
-  let reg_val_fold o k = reg_val o |> Option.map ~f:k |> ignore
-  let mem_val_fold o k = mem_val o |> Option.map ~f:k |> ignore
+  let reg_val_fold o k = reg_val o |> Option.iter ~f:k
+  let mem_val_fold o k = mem_val o |> Option.iter ~f:k
   let mem_regs_fold o k = (mem_val_fold @> Address.regs_fold) o k
 
   let any_regs_fold o k =
@@ -49,29 +53,59 @@ module Operand = struct
   ;;
 end
 
-module Mov = struct
-  include T.Mov
+module Block_call = struct
+  include T.Block_call
 
-  let defs_fold mov k = Operand.reg_val_fold mov.dst k
-
-  let uses_fold mov k =
-    Operand.mem_regs_fold mov.dst k;
-    Operand.any_regs_fold mov.src k
-  ;;
+  let uses_fold block_call k = List.iter block_call.args ~f:k
+  let regs_fold block_call k = uses_fold block_call k
 end
 
 module Instr = struct
   include T.Instr
 
+  let regs_fold i k =
+    let module O = Operand in
+    let module A = Address in
+    match i with
+    | Lea { dst; src; _ } ->
+      k dst;
+      A.regs_fold src k
+    | Add { dst; src1; src2; _ } ->
+      O.any_regs_fold dst k;
+      O.any_regs_fold src1 k;
+      O.any_regs_fold src2 k
+    | StoreStack { src; _ } -> O.any_regs_fold src k
+    | LoadStack { dst; _ } -> O.any_regs_fold dst k
+    | MovImm64 { dst; _ } -> O.any_regs_fold dst k
+    | Mov { dst; src; _ } ->
+      O.any_regs_fold dst k;
+      O.any_regs_fold src k
+    | Par_mov movs -> (FC.List.fold @> FC.Tuple2.fold_both) movs k
+    | Cmp { src1; src2; _ } | Test { src1; src2; _ } ->
+      O.any_regs_fold src1 k;
+      O.any_regs_fold src2 k
+    | Set { dst; _ } -> O.any_regs_fold dst k
+    | Def { dst; _ } -> k dst
+    | Block_args regs -> FC.List.fold regs k
+    | Jump j -> Block_call.regs_fold j k
+    | CondJump { j1; j2; _ } ->
+      Block_call.regs_fold j1 k;
+      Block_call.regs_fold j2 k
+    | Ret -> ()
+  ;;
+
   let defs_fold i k =
     let module O = Operand in
     match i with
-    | Def { dst; _ } -> O.reg_val_fold dst k
+    | Def { dst; _ } -> k dst
     | Mov mov -> O.reg_val_fold mov.dst k
-    | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn Mov.dst @> O.reg_val_fold) movs k
+    | MovImm64 { dst; _ } -> O.reg_val_fold dst k
+    | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn fst) movs k
     | Add { dst; _ } -> O.reg_val_fold dst k
     | Lea { dst; _ } -> k dst
-    | Cmp _ | _ -> ()
+    | Set { dst; _ } -> O.reg_val_fold dst k
+    | Block_args args -> FC.List.fold args k
+    | Cmp _ | LoadStack _ | StoreStack _ | Test _ | Ret | Jump _ | CondJump _ -> ()
   ;;
 
   let uses_fold i k =
@@ -81,27 +115,27 @@ module Instr = struct
       O.mem_regs_fold dst k;
       O.any_regs_fold src1 k;
       O.any_regs_fold src2 k
-    | Mov mov -> Mov.uses_fold mov k
-    | Par_mov movs -> (FC.List.fold @> Mov.uses_fold) movs k
+    | Mov { dst; src; _ } ->
+      O.mem_regs_fold dst k;
+      O.any_regs_fold src k
+    | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn snd) movs k
     | Cmp { src1; src2; _ } ->
       O.any_regs_fold src1 k;
       O.any_regs_fold src2 k
     | Lea { src; _ } -> Address.regs_fold src k
-    | Def { dst } -> O.mem_regs_fold dst k
-    | _ -> ()
+    | StoreStack { src; _ } -> O.any_regs_fold src k
+    | LoadStack { dst; _ } -> O.mem_regs_fold dst k
+    | MovImm64 { dst; _ } -> O.mem_regs_fold dst k
+    | Cmp { src1; src2; _ } | Test { src1; src2; _ } ->
+      O.any_regs_fold src1 k;
+      O.any_regs_fold src2 k
+    | Set { dst; _ } -> O.mem_regs_fold dst k
+    | Jump j -> Block_call.uses_fold j k
+    | CondJump { j1; j2; _ } ->
+      Block_call.uses_fold j1 k;
+      Block_call.uses_fold j2 k
+    | Block_args _ | Def _ | Ret -> ()
   ;;
-end
-
-module Block_call = struct
-  include T.Block_call
-end
-
-module Procedure = struct
-  include T.Procedure
-end
-
-module Program = struct
-  include T.Program
 end
 
 module Block = struct
@@ -128,6 +162,26 @@ end
 
 module Graph = struct
   include T.Graph
+
+  include Cfg.Graph.Make_gen (struct
+      type 'a t = Block.t
+
+      let jumps_fold =
+        F.Fold.of_fn (fun g -> Vec.last g.Block.instrs)
+        @> FC.Option.fold
+        @> Instr.jumps_fold
+      ;;
+    end)
+end
+
+module Function = struct
+  include T.Function
+
+  let instrs_forward_fold fn = (FC.Map.fold @> Block.instrs_forward_fold) fn.graph.blocks
+end
+
+module Program = struct
+  include T.Program
 end
 
 module Dataflow = struct
@@ -154,6 +208,6 @@ module Dataflow = struct
     ;;
 
     let block_transfer = instr_to_block_transfer instr_transfer
-    let run fn = run_block_transfer block_transfer fn.Procedure.graph
+    let run fn = run_block_transfer block_transfer fn.Function.graph
   end
 end

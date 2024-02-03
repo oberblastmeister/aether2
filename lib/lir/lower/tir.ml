@@ -7,6 +7,12 @@ module Value = struct
     | I of t Lir.Instr.t
   [@@deriving sexp_of]
 
+  let to_value = function
+    | V v -> v
+    | I (Lir.Instr.Assign { dst; _ }) -> dst
+    | _ -> failwith "should be assign"
+  ;;
+
   let get_name = function
     | V v -> v.name
     | I (Lir.Instr.Assign { dst = { name; _ }; _ }) -> name

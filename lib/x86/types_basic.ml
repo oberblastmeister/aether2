@@ -80,18 +80,35 @@ module VReg = struct
   let to_name (Temp { name } | PreColored { name; _ }) = name
 end
 
+module Size = struct
+  type t =
+    | Q
+    | L
+    | W
+    | B
+  [@@deriving equal, compare, hash, sexp]
+end
+
+module Reg_kind = struct
+  type t =
+    | VReg of VReg.t
+    | MachReg of MachReg.t
+  [@@deriving equal, compare, hash, sexp, variants]
+end
+
 module Reg = struct
   module T = struct
     type t =
-      | VReg of VReg.t
-      | MachReg of MachReg.t
-    [@@deriving equal, compare, hash, sexp, variants]
+      { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
+      ; reg : Reg_kind.t
+      }
+    [@@deriving equal, compare, hash, sexp]
   end
 
   include T
   include Comparator.Make (T)
 
-  let vreg_val_exn r = vreg_val r |> Option.value_exn
+  let vreg_val_exn r = Reg_kind.vreg_val r.reg |> Option.value_exn
 end
 
 module Address = struct
@@ -102,15 +119,6 @@ module Address = struct
     ; displacement : int32
     }
   [@@deriving equal, compare, sexp, hash, fields]
-end
-
-module Size = struct
-  type t =
-    | Q
-    | L
-    | W
-    | B
-  [@@deriving sexp]
 end
 
 module Operand = struct
@@ -127,23 +135,12 @@ module Cmp_op = struct
   type t = Gt [@@deriving equal, compare, sexp]
 end
 
-module Mov = struct
-  type t =
-    { s : Size.t
-    ; dst : Operand.t
-    ; src : Operand.t
-    }
-  [@@deriving sexp, fields]
-end
-
 module Block_call = struct
   type t =
     { label : Label.t
     ; args : Reg.t list
     }
   [@@deriving sexp, fields]
-
-  let uses_fold block_call k = List.iter block_call.args ~f:k
 end
 
 module Instr = struct
@@ -173,8 +170,12 @@ module Instr = struct
         { dst : Operand.t
         ; imm : int64
         }
-    | Mov of Mov.t
-    | Par_mov of Mov.t list
+    | Mov of
+        { s : Size.t
+        ; dst : Operand.t
+        ; src : Operand.t
+        }
+    | Par_mov of (Reg.t * Reg.t) list
     | Cmp of
         { s : Size.t
         ; src1 : Operand.t
@@ -182,8 +183,8 @@ module Instr = struct
         }
     | Test of
         { s : Size.t
-        ; dst : Operand.t
-        ; src : Operand.t
+        ; src1 : Operand.t
+        ; src2 : Operand.t
         }
     | Set of
         { s : Size.t
@@ -191,7 +192,7 @@ module Instr = struct
         ; dst : Operand.t
         }
     (* for calling conventions *)
-    | Def of { dst : Operand.t }
+    | Def of { dst : Reg.t }
     | Block_args of Reg.t list
     | Jump of Block_call.t
     | CondJump of
@@ -218,22 +219,12 @@ end
 
 module Graph = struct
   type t = Block.t Cfg.Graph.t [@@deriving sexp]
-
-  include Cfg.Graph.Make_gen (struct
-      type 'a t = Block.t
-
-      let jumps_fold =
-        F.Fold.of_fn (fun g -> Vec.last g.Block.instrs)
-        @> FC.Option.fold
-        @> Instr.jumps_fold
-      ;;
-    end)
 end
 
-module Procedure = struct
+module Function = struct
   type t = { graph : Graph.t } [@@deriving sexp, fields]
 end
 
 module Program = struct
-  type t = { procedures : Procedure.t list } [@@deriving sexp, fields]
+  type t = { functions : Function.t list } [@@deriving sexp, fields]
 end

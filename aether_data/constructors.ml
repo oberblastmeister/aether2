@@ -69,13 +69,3 @@ let hashtbl (type k) (module Key : Hashtbl.Key with type t = k) =
 ;;
 
 let some_hashtbl key = hashtbl key |> to_some_map
-
-module Result : sig
-  type ('a, 'e) t = ('a, 'e) result
-
-  include Higher_kinded.S2 with type ('a, 'e) t := ('a, 'e) t
-end = struct
-  type ('a, 'e) t = ('a, 'e) result
-
-  include Higher_kinded.Make2 (Base.Result)
-end

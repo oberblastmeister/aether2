@@ -195,60 +195,80 @@ let%test_module _ =
       print_s @@ [%sexp_of: X86.Types.Program.t] program;
       [%expect
         {|
-        ((procedures
+        ((functions
           (((graph
              ((entry ((name start) (id 0)))
               (blocks
                ((((name body) (id 3))
                  ((instrs
                    ((Block_args ())
-                    (MovImm64 (dst (Reg (VReg (Temp (name ((name one) (id 7)))))))
+                    (MovImm64
+                     (dst
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name one) (id 7)))))))))
                      (imm 1))
-                    (Add (s Q) (dst (Reg (VReg (Temp (name ((name e) (id 8)))))))
-                     (src1 (Reg (VReg (Temp (name ((name e) (id 10)))))))
-                     (src2 (Reg (VReg (Temp (name ((name one) (id 7))))))))
-                    (Add (s Q) (dst (Reg (VReg (Temp (name ((name r) (id 6)))))))
-                     (src1 (Reg (VReg (Temp (name ((name r) (id 11)))))))
-                     (src2 (Reg (VReg (Temp (name ((name b) (id 0))))))))
+                    (Add (s Q)
+                     (dst (Reg ((s Q) (reg (VReg (Temp (name ((name e) (id 8)))))))))
+                     (src1
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name e) (id 10)))))))))
+                     (src2
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name one) (id 7))))))))))
+                    (Add (s Q)
+                     (dst (Reg ((s Q) (reg (VReg (Temp (name ((name r) (id 6)))))))))
+                     (src1
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name r) (id 11)))))))))
+                     (src2
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name b) (id 0))))))))))
                     (Jump
                      ((label ((name loop) (id 1)))
                       (args
-                       ((VReg (Temp (name ((name e) (id 8)))))
-                        (VReg (Temp (name ((name r) (id 6)))))))))))))
+                       (((s Q) (reg (VReg (Temp (name ((name e) (id 8)))))))
+                        ((s Q) (reg (VReg (Temp (name ((name r) (id 6)))))))))))))))
                 (((name done) (id 2))
                  ((instrs
                    ((Block_args ())
-                    (Mov
-                     ((s Q)
-                      (dst
-                       (Reg (VReg (PreColored (name ((name r) (id 11))) (reg RAX)))))
-                      (src (Reg (VReg (Temp (name ((name r) (id 11)))))))))
+                    (Mov (s Q)
+                     (dst
+                      (Reg
+                       ((s Q)
+                        (reg (VReg (PreColored (name ((name r) (id 15))) (reg RAX)))))))
+                     (src
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name r) (id 11))))))))))
                     Ret))))
                 (((name loop) (id 1))
                  ((instrs
                    ((Block_args
-                     ((VReg (Temp (name ((name e) (id 10)))))
-                      (VReg (Temp (name ((name r) (id 11)))))))
-                    (MovImm64 (dst (Reg (VReg (Temp (name ((name z) (id 12)))))))
+                     (((s Q) (reg (VReg (Temp (name ((name e) (id 10)))))))
+                      ((s Q) (reg (VReg (Temp (name ((name r) (id 11)))))))))
+                    (MovImm64
+                     (dst
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name z) (id 12)))))))))
                      (imm 0))
-                    (Cmp (s Q) (src1 (Reg (VReg (Temp (name ((name e) (id 10)))))))
-                     (src2 (Reg (VReg (Temp (name ((name z) (id 12))))))))
+                    (Cmp (s Q)
+                     (src1
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name e) (id 10)))))))))
+                     (src2
+                      (Reg ((s Q) (reg (VReg (Temp (name ((name z) (id 12))))))))))
                     (Set (s Q) (cond A)
-                     (dst (Reg (VReg (Temp (name ((name f) (id 13))))))))
-                    (Test (s B) (dst (Reg (VReg (Temp (name ((name f) (id 13)))))))
-                     (src (Reg (VReg (Temp (name ((name f) (id 13))))))))
+                     (dst
+                      (Reg ((s L) (reg (VReg (Temp (name ((name f) (id 13))))))))))
+                    (Test (s L)
+                     (src1
+                      (Reg ((s L) (reg (VReg (Temp (name ((name f) (id 13)))))))))
+                     (src2
+                      (Reg ((s L) (reg (VReg (Temp (name ((name f) (id 13))))))))))
                     (CondJump (cond NE) (j1 ((label ((name done) (id 2))) (args ())))
                      (j2 ((label ((name body) (id 3))) (args ()))))))))
                 (((name start) (id 0))
                  ((instrs
                    ((Block_args ())
-                    (MovImm64 (dst (Reg (VReg (Temp (name ((name r) (id 2)))))))
+                    (MovImm64
+                     (dst (Reg ((s Q) (reg (VReg (Temp (name ((name r) (id 2)))))))))
                      (imm 1))
                     (Jump
                      ((label ((name loop) (id 1)))
                       (args
-                       ((VReg (Temp (name ((name e) (id 1)))))
-                        (VReg (Temp (name ((name r) (id 2)))))))))))))))
+                       (((s Q) (reg (VReg (Temp (name ((name e) (id 1)))))))
+                        ((s Q) (reg (VReg (Temp (name ((name r) (id 2)))))))))))))))))
               (exit ((name done) (id 2))))))))) |}]
     ;;
   end)

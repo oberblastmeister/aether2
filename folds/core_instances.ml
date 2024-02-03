@@ -27,3 +27,10 @@ end
 module Hash_set = struct
   let fold x k = Hash_set.iter x ~f:k
 end
+
+module Tuple2 = struct
+  let fold_both (x, y) k =
+    k x;
+    k y
+  ;;
+end

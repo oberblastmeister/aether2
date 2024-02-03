@@ -17,15 +17,21 @@ module Raw = struct
     }
   ;;
 
+  let create_exact ~size =
+    { size = 0; data = Option_array.create ~len:size; frozen = false }
+  ;;
+
   let freeze t =
     t.frozen <- true;
     t
   ;;
 
   let[@inline] check_not_frozen t = if t.frozen then invalid_arg "vec was frozen" else ()
+  let shallow_copy t = { size = t.size; data = t.data; frozen = t.frozen }
 
   let copy t =
     let t' = create ~size:t.size () in
+    t'.size <- t.size;
     OA.blit ~src:t.data ~dst:t'.data ~src_pos:0 ~dst_pos:0 ~len:t.size;
     t'
   ;;
@@ -56,6 +62,19 @@ module Raw = struct
       let new_data = Option_array.create ~len:t.size in
       Option_array.blit ~src:t.data ~dst:new_data ~src_pos:0 ~dst_pos:0 ~len:t.size;
       t.data <- new_data)
+  ;;
+
+  let copy_exact t =
+    let t' = create_exact ~size:t.size in
+    t'.size <- t.size;
+    OA.blit ~src:t.data ~dst:t'.data ~src_pos:0 ~dst_pos:0 ~len:t.size;
+    t'
+  ;;
+
+  let clear t =
+    check_not_frozen t;
+    OA.clear t.data;
+    t.size <- 0
   ;;
 
   let grow t ~desired =

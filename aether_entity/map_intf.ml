@@ -24,6 +24,7 @@ module type Gen_S = sig
   val mem : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> bool
   val update : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> f:('v option -> 'v) -> unit
   val of_list : (('a, 'b, 'c) k * 'v) list -> ('a, 'b, 'c, 'v) t
+  val of_iter : ?size:int -> (('a, 'b, 'c) k * 'v) F.Iter.t -> ('a, 'b, 'c, 'v) t
   val ( .![] ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v
   val ( .?[] ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v option
   val ( .![]<- ) : ('a, 'b, 'c, 'v) t -> ('a, 'b, 'c) k -> 'v -> unit

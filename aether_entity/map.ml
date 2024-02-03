@@ -60,6 +60,12 @@ let of_list l ~to_id =
   t
 ;;
 
+let of_iter ?size i ~to_id =
+  let t = create ?size () in
+  F.Iter.iter i ~f:(fun (k, v) -> set t ~key:k ~data:v ~to_id);
+  t
+;;
+
 let sexp_of_t f g t = to_list t |> List.sexp_of_t (Tuple2.sexp_of_t f g)
 let update t k ~to_id ~f = set t ~key:k ~data:(f (find t k ~to_id)) ~to_id
 
@@ -75,6 +81,7 @@ module Make_gen (Arg : Gen_arg) = struct
   let mem = mem ~to_id
   let update = update ~to_id
   let of_list = of_list ~to_id
+  let of_iter = of_iter ~to_id
   let ( .![] ) = find_exn
   let ( .?[] ) = find
   let ( .![]<- ) t key data = set t ~key ~data
