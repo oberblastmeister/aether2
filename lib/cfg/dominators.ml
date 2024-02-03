@@ -151,11 +151,7 @@ let%test_module _ =
       print_s [%sexp (idoms : Idoms.t)];
       [%expect
         {|
-        ((((name start) (id 0)) ((name start) (id 0)))
-         (((name 4) (id 1)) ((name start) (id 0)))
-         (((name 3) (id 2)) ((name start) (id 0)))
-         (((name 1) (id 3)) ((name start) (id 0)))
-         (((name 2) (id 4)) ((name start) (id 0)))) |}]
+        ((start.0 start.0) (4.1 start.0) (3.2 start.0) (1.3 start.0) (2.4 start.0)) |}]
     ;;
 
     (* Figure 4 *)
@@ -174,12 +170,8 @@ let%test_module _ =
       print_s [%sexp (idoms : Idoms.t)];
       [%expect
         {|
-        ((((name start) (id 0)) ((name start) (id 0)))
-         (((name 4) (id 1)) ((name start) (id 0)))
-         (((name 3) (id 2)) ((name start) (id 0)))
-         (((name 1) (id 3)) ((name start) (id 0)))
-         (((name 2) (id 4)) ((name start) (id 0)))
-         (((name 5) (id 5)) ((name start) (id 0)))) |}]
+        ((start.0 start.0) (4.1 start.0) (3.2 start.0) (1.3 start.0) (2.4 start.0)
+         (5.5 start.0)) |}]
     ;;
   end)
 ;;

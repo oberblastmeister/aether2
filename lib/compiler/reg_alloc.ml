@@ -286,8 +286,7 @@ let%test_module _ =
       [%expect
         {|
         ((alloc_of_name
-          ((((name b) (id 0)) (InReg R1)) (((name d) (id 1)) (InReg R1))
-           (((name a) (id 2)) (InReg R1)) (((name c) (id 3)) (InReg R1))))
+          ((b.0 (InReg R1)) (d.1 (InReg R1)) (a.2 (InReg R1)) (c.3 (InReg R1))))
          (used_registers (R1))) |}]
     ;;
 
@@ -311,8 +310,7 @@ let%test_module _ =
       [%expect
         {|
         ((alloc_of_name
-          ((((name b) (id 0)) (InReg R1)) (((name d) (id 1)) (InReg R2))
-           (((name a) (id 2)) (InReg R2)) (((name c) (id 3)) (InReg R2))))
+          ((b.0 (InReg R1)) (d.1 (InReg R2)) (a.2 (InReg R2)) (c.3 (InReg R2))))
          (used_registers (R1 R2))) |}];
       ()
     ;;
@@ -338,8 +336,7 @@ let%test_module _ =
       [%expect
         {|
         ((alloc_of_name
-          ((((name b) (id 0)) (InReg R1)) (((name d) (id 1)) (InReg R3))
-           (((name a) (id 2)) (InReg R2)) (((name c) (id 3)) (InReg R2))))
+          ((b.0 (InReg R1)) (d.1 (InReg R3)) (a.2 (InReg R2)) (c.3 (InReg R2))))
          (used_registers (R1 R2 R3))) |}]
     ;;
   end)

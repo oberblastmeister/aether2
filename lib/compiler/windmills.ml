@@ -108,9 +108,7 @@ let%test_module _ =
       ();
       [%expect
         {|
-        (((dst ((name c) (id 12))) (src ((name b) (id 11))))
-         ((dst ((name b) (id 11))) (src ((name a) (id 10))))
-         ((dst ((name d) (id 13))) (src ((name a) (id 10))))) |}]
+        (((dst c.12) (src b.11)) ((dst b.11) (src a.10)) ((dst d.13) (src a.10))) |}]
     ;;
 
     let%expect_test "simple scratch" =
@@ -120,11 +118,9 @@ let%test_module _ =
       ();
       [%expect
         {|
-        (((dst ((name scratch) (id 14))) (src ((name a) (id 10))))
-         ((dst ((name d) (id 13))) (src ((name a) (id 10))))
-         ((dst ((name a) (id 10))) (src ((name c) (id 12))))
-         ((dst ((name c) (id 12))) (src ((name b) (id 11))))
-         ((dst ((name b) (id 11))) (src ((name scratch) (id 14))))) |}]
+        (((dst scratch.14) (src a.10)) ((dst d.13) (src a.10))
+         ((dst a.10) (src c.12)) ((dst c.12) (src b.11))
+         ((dst b.11) (src scratch.14))) |}]
     ;;
 
     let%expect_test "multiple components" =
@@ -136,14 +132,10 @@ let%test_module _ =
       ();
       [%expect
         {|
-        (((dst ((name scratch) (id 14))) (src ((name rsi) (id 0))))
-         ((dst ((name rdx) (id 2))) (src ((name rsi) (id 0))))
-         ((dst ((name rcx) (id 3))) (src ((name rsi) (id 0))))
-         ((dst ((name rsi) (id 0))) (src ((name rdi) (id 1))))
-         ((dst ((name rdi) (id 1))) (src ((name scratch) (id 14))))
-         ((dst ((name scratch) (id 14))) (src ((name r9) (id 7))))
-         ((dst ((name r9) (id 7))) (src ((name r8) (id 6))))
-         ((dst ((name r8) (id 6))) (src ((name scratch) (id 14))))) |}]
+        (((dst scratch.14) (src rsi.0)) ((dst rdx.2) (src rsi.0))
+         ((dst rcx.3) (src rsi.0)) ((dst rsi.0) (src rdi.1))
+         ((dst rdi.1) (src scratch.14)) ((dst scratch.14) (src r9.7))
+         ((dst r9.7) (src r8.6)) ((dst r8.6) (src scratch.14))) |}]
     ;;
   end)
 ;;

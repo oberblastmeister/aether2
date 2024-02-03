@@ -10,7 +10,8 @@ let to_dotted_string (name_id : _ t) =
   name_id.name ^ "." ^ string_of_int (Raw_id.to_int @@ Id.to_raw name_id.id)
 ;;
 
-(* let sexp_of_t _f t = Sexp.Atom (to_dotted_string t) *)
+(* TODO: fix t_of_sexp *)
+let sexp_of_t _f t = Sexp.Atom (to_dotted_string t)
 
 module type S = sig
   module Id : Id.S

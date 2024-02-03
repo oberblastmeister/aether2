@@ -238,18 +238,16 @@ let%expect_test _ =
     {|
     ((functions
       (((name testing)
-        (params
-         (((name ((name first) (id 0))) (ty U64))
-          ((name ((name second) (id 1))) (ty U64))))
+        (params (((name first.0) (ty U64)) ((name second.1) (ty U64))))
         (graph
-         ((entry ((name first) (id 0)))
+         ((entry first.0)
           (blocks
-           ((((name first) (id 0))
-             ((entry (((name ((name arg) (id 2))) (ty U64))))
+           ((first.0
+             ((entry (((name arg.2) (ty U64))))
               (body
-               ((Assign (dst ((name ((name x) (id 3))) (ty U64)))
+               ((Assign (dst ((name x.3) (ty U64)))
                  (expr (Bin (ty U64) (op Add) (v1 _) (v2 _))))))
               (exit (Ret ()))))))
-          (exit ((name first) (id 0)))))
+          (exit first.0)))
         (return_ty U64) (unique_label 1) (unique_name 4))))) |}]
 ;;
