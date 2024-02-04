@@ -2,8 +2,9 @@ open O
 open Types
 open Utils.Instr_types
 module Interference = Compiler.Interference
+module Reg_alloc = Compiler.Reg_alloc
 
-module Reg_alloc = Compiler.Reg_alloc.Make (struct
+module Ra = Reg_alloc.Make (struct
     module Register = MachReg
 
     module RegisterSet = struct
@@ -99,16 +100,55 @@ let alloc_fn fn =
   let open Result.Let_syntax in
   let interference = construct_fn fn in
   let precolored = collect_precolored fn in
-  let%bind allocation = Reg_alloc.run ~precolored ~interference ~register_order in
+  let%bind allocation = Ra.run ~precolored ~interference ~register_order in
   Ok allocation
 ;;
 
-let apply_allocation_instr ~allocation instr =
+type context =
+  { allocation : Ra.Allocation.t
+  ; instrs : (Instr.t, read_write) Vec.t
+  }
+
+let apply_allocation_instr ~cx instr =
+  let open Instr in
   match instr with
+  | Par_mov movs ->
+    let convert movs =
+      Compiler.Windmills.convert
+        ~move:(fun ~dst ~src -> `dst dst, `src src)
+        ~get_name:Reg.name_exn
+        ~scratch:(fun reg ->
+          let s = reg.Reg.s in
+          { s; reg = Reg_kind.MachReg R11 })
+        (movs
+         |> List.map ~f:(fun (dst, src) -> Compiler.Windmills.Move.create ~dst ~src)
+         |> Array.of_list)
+    in
+    let res, did_use_scratch = convert movs in
+    (* let spill reg =
+       let name =
+       in *)
+    let maybe_spill reg =
+      match Ra.Allocation.find_exn cx.allocation (Reg.name_exn reg) with
+      | Reg_alloc.Alloc_reg.Spilled -> ()
+      | _ -> ()
+    in
+    Vec.iter res ~f:(fun (`dst dst, `src src) ->
+      ();
+      ());
+    let _f dst src =
+      (* let s = dst.Reg.s in
+      assert (Size.(equal s src.Reg.s));
+      let dst_alloc = Reg_alloc.Allocation.find_exn cx.allocation (Reg.name_exn dst) in
+      let src_alloc = Reg_alloc.Allocation.find_exn cx.allocation (Reg.name_exn src) in
+      Mov { s; dst; src } *)
+      todo ()
+    in
+    ()
   | _ -> ()
 ;;
 
-let apply_allocation_block ~allocation (block : Block.t) =
+let apply_allocation_block ~cx ~allocation (block : Block.t) =
   let instrs = Vec.create () in
   (Block.instrs_forward_fold block) (fun instr -> ());
   ()

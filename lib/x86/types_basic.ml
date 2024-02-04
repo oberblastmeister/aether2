@@ -107,8 +107,6 @@ module Reg = struct
 
   include T
   include Comparator.Make (T)
-
-  let vreg_val_exn r = Reg_kind.vreg_val r.reg |> Option.value_exn
 end
 
 module Address = struct

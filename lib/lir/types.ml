@@ -37,6 +37,8 @@ module Expr = struct
     | Cmp _ -> U1
     | Alloca _ -> todo ()
   ;;
+
+  let uses_fold i k = iter k i
 end
 
 module Instr = struct

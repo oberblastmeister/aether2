@@ -53,7 +53,10 @@ and lower_value cx color value =
       || Side_effects.Color.is_before value_instr_color color
     in
     if can_inline
-    then Tir.Value.I (lower_instr cx value_instr index)
+    then (
+      match lower_instr cx value_instr index with
+      | Lir.Instr.Assign { dst; expr } -> Tir.Value.I { dst; expr }
+      | _ -> raise_s [%message "expected an assign instr if can_inline"])
     else Tir.Value.V value
   | Some _ -> Tir.Value.V value
 ;;

@@ -20,7 +20,3 @@ module Make () = struct
   module C = Comparable.Make (T)
   include C
 end
-
-let to_dotted_string (name_id : _ t) =
-  name_id.name ^ "." ^ string_of_int (Raw_id.to_int @@ Id.to_raw name_id.id)
-;;

@@ -1,6 +1,13 @@
 open O
 open Utils.Instr_types
 
+module Alloc_reg = struct
+  type 'r t =
+    | InReg of 'r
+    | Spilled
+  [@@deriving sexp_of, variants]
+end
+
 module type Register = sig
   type t [@@deriving equal, compare, hash, sexp_of]
 end
@@ -14,18 +21,13 @@ module type Set = sig
   val add : t -> value -> unit
 end
 
+(* information about registers *)
 module type Arch = sig
   module Register : Register
   module RegisterSet : Set with type value = Register.t
 end
 
-module Alloc_reg = struct
-  type 'r t =
-    | InReg of 'r
-    | Spilled
-  [@@deriving sexp_of, variants]
-end
-
+(* a register allocation algorithm *)
 module type S = sig
   module Arch : Arch
   open Arch
@@ -49,15 +51,5 @@ module type S = sig
     -> Allocation.t Or_error.t
 end
 
-module type Intf = sig
-  module Alloc_reg : module type of Alloc_reg
-
-  module Make_all : functor (Arch : Arch) -> sig
-    module type S = S with module Arch := Arch
-
-    module Greedy : S
-    module Spill_all : S
-  end
-
-  module Make : functor (Arch : Arch) -> S with module Arch := Arch
-end
+(* a register allocation algorithm depending on the architecture *)
+module type Make_S = functor (Arch : Arch) -> S with module Arch := Arch

@@ -34,6 +34,7 @@ module Expr : sig
   include module type of T.Expr
 
   val get_ty : 'v t -> Ty.t
+  val uses_fold : ('v, 'v t) F.Fold.t
 end
 
 module Some_instr : sig

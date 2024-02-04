@@ -9,10 +9,6 @@ module Reg_kind = struct
   include T.Reg_kind
 end
 
-module Reg = struct
-  include T.Reg
-end
-
 module Cond = struct
   include T.Cond
 end
@@ -23,6 +19,15 @@ end
 
 module VReg = struct
   include T.VReg
+end
+
+module Reg = struct
+  include T.Reg
+
+  let vreg_val_exn r = Reg_kind.vreg_val r.reg |> Option.value_exn
+  let name_exn r = VReg.to_name (vreg_val_exn r)
+  let mach_reg s r = { s; reg = Reg_kind.MachReg r }
+  let vreg s r = { s; reg = Reg_kind.VReg r }
 end
 
 module Size = struct
@@ -51,6 +56,8 @@ module Operand = struct
     | Mem m -> Address.regs_fold m k
     | Imm _ -> ()
   ;;
+
+  let mach_reg s r = Reg.mach_reg s r |> reg
 end
 
 module Block_call = struct

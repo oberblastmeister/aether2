@@ -52,15 +52,8 @@ let fresh_value (cx : Context.t) (v : Value.t) : Value.t =
   { v with name }
 ;;
 
-(* let fresh_temp (v : Value.t) (cx : Context.t) : X86.Reg.t =
-  let id = cx.unique_name in
-  cx.unique_name <- Name.Id.next id;
-  let name = Name.create v.name.name id in
-  X86.{ s = ty_to_size v.ty; reg = Reg_kind.VReg (VReg.Temp { name }) }
-;; *)
-
 let rec lower_value cx = function
-  | Tir.Value.I i -> lower_instr cx i
+  | Tir.Value.I { dst; expr } -> lower_assign cx dst expr
   | Tir.Value.V v -> temp v
 
 and lower_value_op cx v = X86.Operand.Reg (lower_value cx v)
