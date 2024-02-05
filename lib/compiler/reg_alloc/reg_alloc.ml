@@ -1,4 +1,5 @@
 include Types
+module Interference = Interference
 
 (* the optimal algorithm *)
 module Make = Greedy.Make

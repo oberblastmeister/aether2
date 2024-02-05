@@ -108,8 +108,9 @@ end
 
 module Stack_off = struct
   type t =
+    (* use ReserveStackEnd *)
     | End of int32
-    | Any
+    | Local of Name.t
   [@@deriving sexp_of]
 end
 
@@ -130,8 +131,8 @@ module Operand = struct
   [@@deriving sexp_of, variants]
 
   let imm i = Imm (Imm.Int i)
-  let stack_off i = Imm (Imm.Stack (Stack_off.End i))
-  let stack_loc = Imm (Imm.Stack Stack_off.Any)
+  let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
+  let stack_local name = Imm (Imm.Stack (Stack_off.Local name))
 end
 
 module Cmp_op = struct
@@ -183,9 +184,15 @@ end
 
 module VInstr = struct
   type t =
+    (* for calling conventions*)
     | Def of { dst : VReg.t }
+    | ReserveStackEnd of { size : int32 }
+    | ReserveStackLocal of
+        { name : Name.t
+        ; size : int32
+        }
+    (* for ssa *)
     | Block_args of VReg.t list
-    | ReserveStackEnd of int32
     | Par_mov of (VReg.t * VReg.t) list
   [@@deriving sexp_of]
 end
@@ -218,7 +225,7 @@ end
 
 module Instr_variant = struct
   type 'r t =
-    | Virtual of VInstr.t
+    | Virt of VInstr.t
     | Real of 'r MInstr.t
     | Jump of 'r Jump.t
   [@@deriving sexp_of]
@@ -226,10 +233,15 @@ end
 
 module Instr = struct
   type 'r t =
-    | Virtual : VInstr.t -> VReg.t t
+    | Virt : VInstr.t -> VReg.t t
     | Real : 'r MInstr.t -> 'r t
     | Jump : 'r Jump.t -> 'r t
   [@@deriving sexp_of]
+
+  let get_virt = function
+    | Virt v -> Some v
+    | _ -> None
+  ;;
 end
 
 module Some_instr = struct

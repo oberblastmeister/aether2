@@ -137,7 +137,7 @@ module Make (Config : Config) = struct
       ~ordering:(simplicial_elimination_ordering ~interference ~precolored)
   ;;
 
-  let alloc_colors ~precolored ~register_order ~interference =
+  let alloc_colors ~precolored ~interference =
     let open Result.Let_syntax in
     let used_registers = RegisterSet.create () in
     let color_of_name, max_color = color ~interference ~precolored in
@@ -152,7 +152,7 @@ module Make (Config : Config) = struct
         let register_constraints = ColorMap.find register_constraints_of_color color in
         let reg =
           F.Iter.(
-            of_list register_order
+            of_list Register.order
             |> F.Iter.find_pred ~f:(fun reg ->
               Option.value_map
                 register_constraints
@@ -170,22 +170,12 @@ module Make (Config : Config) = struct
     Ok (color_of_name, alloc_of_color, used_registers)
   ;;
 
-  module Allocation = struct
-    type t =
-      { alloc_of_name : (Name.t, Register.t Alloc_reg.t) Entity.Map.t
-      ; used_registers : RegisterSet.t
-      }
-    [@@deriving sexp_of]
+  module Allocation = Types.Make_allocation (Config)
 
-    let find_exn t name = NameMap.find_exn t.alloc_of_name name
-    let did_use_reg t reg = RegisterSet.mem t.used_registers reg
-    let to_iter _ = todo ()
-  end
-
-  let run ~precolored ~register_order ~interference =
+  let run ~precolored ~interference =
     let open Result.Let_syntax in
     let%bind color_of_name, alloc_of_color, used_registers =
-      alloc_colors ~precolored ~register_order ~interference
+      alloc_colors ~precolored ~interference
     in
     let alloc_of_name =
       Entity.Map.to_iteri color_of_name
@@ -207,6 +197,8 @@ let%test_module _ =
         | R3
         | R4
       [@@deriving equal, compare, hash, sexp]
+
+      let order = [ R1; R2; R3; R4 ]
     end
 
     module RegisterSet = struct
@@ -238,7 +230,6 @@ let%test_module _ =
     let d = name "d"
     let a = name "a"
     let c = name "c"
-    let register_order = Register.[ R1; R2; R3; R4 ]
 
     let%expect_test "no interfer" =
       let i = Interference.create () in
@@ -247,7 +238,7 @@ let%test_module _ =
       Interference.add_node i c;
       Interference.add_node i d;
       let allocation =
-        Reg_alloc.run ~precolored:(Entity.Map.create ()) ~register_order ~interference:i
+        Reg_alloc.run ~precolored:(Entity.Map.create ()) ~interference:i
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
@@ -272,7 +263,7 @@ let%test_module _ =
       I.add_edge i b d;
       let precolored = Entity.Map.create () in
       let allocation =
-        Reg_alloc.run ~precolored ~register_order ~interference:i
+        Reg_alloc.run ~precolored ~interference:i
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
@@ -298,7 +289,7 @@ let%test_module _ =
       I.add_edge i a d;
       let precolored = Entity.Map.create () in
       let allocation =
-        Reg_alloc.run ~precolored ~register_order ~interference:i
+        Reg_alloc.run ~precolored ~interference:i
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in

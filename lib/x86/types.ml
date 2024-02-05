@@ -23,6 +23,13 @@ end
 
 module Size = struct
   include T.Size
+
+  let to_byte_size = function
+    | Q -> 8
+    | L -> 4
+    | W -> 2
+    | B -> 1
+  ;;
 end
 
 module Address = struct
@@ -192,7 +199,7 @@ module Instr = struct
   include T.Instr
 
   let to_variant = function
-    | Virtual v -> Instr_variant.Virtual v
+    | Virt v -> Instr_variant.Virt v
     | Real r -> Instr_variant.Real r
     | Jump j -> Instr_variant.Jump j
   ;;
@@ -201,7 +208,7 @@ module Instr = struct
     let module O = Operand in
     let module A = Address in
     match i with
-    | Virtual i -> VInstr.regs_fold i k
+    | Virt i -> VInstr.regs_fold i k
     | Real i -> MInstr.regs_fold i k
     | Jump i -> Jump.regs_fold i k
   ;;
@@ -210,7 +217,7 @@ module Instr = struct
     let module O = Operand in
     let open Instr_variant in
     match to_variant i with
-    | Virtual i -> VInstr.defs_fold i k
+    | Virt i -> VInstr.defs_fold i k
     | Real i -> MInstr.defs_fold i k
     | Jump _ -> ()
   ;;
@@ -219,7 +226,7 @@ module Instr = struct
     let module O = Operand in
     let open Instr_variant in
     match i with
-    | Virtual i -> VInstr.uses_fold i k
+    | Virt i -> VInstr.uses_fold i k
     | Real i -> MInstr.uses_fold i k
     | Jump i -> Jump.uses_fold i k
   ;;

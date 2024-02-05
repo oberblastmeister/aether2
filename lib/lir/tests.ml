@@ -192,7 +192,7 @@ let%test_module _ =
               (blocks
                ((body.3
                  ((instrs
-                   ((Virtual (Block_args ()))
+                   ((Virt (Block_args ()))
                     (Real
                      (MovImm64 (dst (Reg ((s Q) (name one.7) (precolored ()))))
                       (imm 1)))
@@ -213,14 +213,14 @@ let%test_module _ =
                           ((s Q) (name r.6) (precolored ()))))))))))))
                 (done.2
                  ((instrs
-                   ((Virtual (Block_args ()))
+                   ((Virt (Block_args ()))
                     (Real
                      (Mov (s Q) (dst (Reg ((s Q) (name r.15) (precolored (RAX)))))
                       (src (Reg ((s Q) (name r.11) (precolored ()))))))
                     (Real Ret)))))
                 (loop.1
                  ((instrs
-                   ((Virtual
+                   ((Virt
                      (Block_args
                       (((s Q) (name e.10) (precolored ()))
                        ((s Q) (name r.11) (precolored ())))))
@@ -241,7 +241,7 @@ let%test_module _ =
                       (j2 ((label body.3) (args (Block_call ()))))))))))
                 (start.0
                  ((instrs
-                   ((Virtual (Block_args ()))
+                   ((Virt (Block_args ()))
                     (Real
                      (MovImm64 (dst (Reg ((s Q) (name r.2) (precolored ()))))
                       (imm 1)))

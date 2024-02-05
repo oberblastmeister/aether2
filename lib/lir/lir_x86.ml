@@ -21,7 +21,7 @@ module Context = struct
   ;;
 
   let add cx instr = Vec.push cx.instrs (X86.Instr.Real instr)
-  let addv cx instr = Vec.push cx.instrs (X86.Instr.Virtual instr)
+  let addv cx instr = Vec.push cx.instrs (X86.Instr.Virt instr)
   let addj cx instr = Vec.push cx.instrs (X86.Instr.Jump instr)
 end
 
@@ -99,7 +99,6 @@ and lower_assign cx dst expr =
     dst
   | Expr.Alloca _ -> todo ()
   | Expr.Load _ -> todo ()
-  | _ -> todo ()
 
 and lower_instr cx instr =
   match instr with

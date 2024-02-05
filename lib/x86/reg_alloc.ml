@@ -1,11 +1,33 @@
 open O
 open Types
 open Utils.Instr_types
-module Interference = Compiler.Interference
+module Interference = Compiler.Reg_alloc.Interference
 module Reg_alloc = Compiler.Reg_alloc
 
 module Ra = Reg_alloc.Make (struct
-    module Register = Mach_reg
+    module Register = struct
+      include Mach_reg
+
+      let order =
+        [ (* callee saved *)
+          RAX
+        ; RDI
+        ; RSI
+        ; RDX
+        ; RCX
+        ; R8
+        ; R9
+        ; R10
+        ; (* 11 used for scratch register *)
+          (* caller saved *)
+          RBX
+        ; R12
+        ; R13
+        ; R14
+        ; R15
+        ]
+      ;;
+    end
 
     module RegisterSet = struct
       type t = Register.t Hash_set.t [@@deriving sexp_of]
@@ -72,59 +94,69 @@ let construct_fn fn =
   interference
 ;;
 
-let register_order =
-  Mach_reg.
-    [ (* callee saved *)
-      RAX
-    ; RDI
-    ; RSI
-    ; RDX
-    ; RCX
-    ; R8
-    ; R9
-    ; R10
-    ; (* 11 used for scratch register *)
-      (* caller saved *)
-      RBX
-    ; R12
-    ; R13
-    ; R14
-    ; R15
-    ]
-;;
-
 let alloc_fn fn =
   let open Result.Let_syntax in
   let interference = construct_fn fn in
   let precolored = collect_precolored fn in
-  let%bind allocation = Ra.run ~precolored ~interference ~register_order in
+  let%bind allocation = Ra.run ~precolored ~interference in
   Ok allocation
 ;;
 
-let get_name_to_reg fn =
-  (Function.instrs_forward_fold @> Instr.regs_fold) fn (fun reg -> todo ());
-  todo ()
+let collect_all_vregs fn =
+  (Function.instrs_forward_fold @> Instr.regs_fold) fn
+  |> F.Iter.map ~f:(fun (reg : VReg.t) -> reg.name, reg)
+  |> NameMap.of_iter
 ;;
-
-(* let calculate_stack_layout fn = _ *)
 
 type context =
   { allocation : Ra.Allocation.t
   ; instrs : (Mach_reg.t Instr.t, read_write) Vec.t
   }
 
-module F (T : sig
-    type t
-  end) =
-struct
-  type t = T.t option
-end
+type stack_layout =
+  { stack_size : int32
+  ; offset_of_local : (Name.t, int32) Hashtbl.t
+  ; locals_offset : int32
+  ; end_offset : int32
+  ; spilled_offset : int32
+  ; offset_of_spilled : (Name.t, int32) Hashtbl.t
+  }
 
-module T = struct
-  type t = int
-end
-
-let another : F(T).t = Some 1
+let calculate_stack_layout ~vregs ~allocation fn =
+  let open Int32 in
+  let locals_size = ref 0l in
+  let offset_of_local = Hashtbl.create (module Name) in
+  let end_size = ref 0l in
+  F.Fold.(Function.instrs_forward_fold @> of_fn Instr.get_virt @> FC.Option.fold)
+    fn
+    (fun instr ->
+       (match instr with
+        | VInstr.ReserveStackEnd { size } -> end_size := max !end_size size
+        | VInstr.ReserveStackLocal { name; size } ->
+          Hashtbl.add_exn offset_of_local ~key:name ~data:!locals_size;
+          locals_size := !locals_size + size;
+          ()
+        | _ -> ());
+       ());
+  let offset_of_spilled = Hashtbl.create (module Name) in
+  let spilled_size = ref 0l in
+  Ra.Allocation.to_spilled_iter allocation
+  |> F.Iter.iter ~f:(fun spilled ->
+    let vreg = NameMap.find_exn vregs spilled in
+    let size =
+      Size.to_byte_size vreg.VReg.s |> of_int_exn |> round_up ~to_multiple_of:8l
+    in
+    Hashtbl.add_exn offset_of_spilled ~key:spilled ~data:!spilled_size;
+    spilled_size := !spilled_size + size);
+  (* TODO: align stack, align stuff *)
+  { stack_size = !locals_size + !spilled_size + !end_size
+  ; end_offset = 0l
+  ; locals_offset = !end_size
+  ; offset_of_local
+  ; spilled_offset = !locals_size + !end_size
+  ; offset_of_spilled
+  }
+;;
 
 let apply_allocation_vinstr ~cx instr =
   let open VInstr in
