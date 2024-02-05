@@ -5,16 +5,12 @@ module Name = Name
 module Label = Label
 module Control = Control
 
-(* module Reg_kind = struct
-   include T.Reg_kind
-   end *)
-
 module Cond = struct
   include T.Cond
 end
 
-module MachReg = struct
-  include T.MachReg
+module Mach_reg = struct
+  include T.Mach_reg
 end
 
 module MReg = struct
@@ -24,15 +20,6 @@ end
 module VReg = struct
   include T.VReg
 end
-
-(* module Reg = struct
-  include T.Reg
-
-  let vreg_val_exn r = Reg_kind.vreg_val r.reg |> Option.value_exn
-  let name_exn r = VReg.to_name (vreg_val_exn r)
-  let mach_reg s r = { s; reg = Reg_kind.MachReg r }
-  let vreg s r = { s; reg = Reg_kind.VReg r }
-end *)
 
 module Size = struct
   include T.Size
@@ -45,6 +32,10 @@ module Address = struct
     k a.base;
     k a.index
   ;;
+end
+
+module Imm = struct
+  include T.Imm
 end
 
 module Operand = struct
@@ -67,7 +58,7 @@ end
 module Block_call = struct
   include T.Block_call
 
-  let uses_fold (type r) (instr : r t) k =
+  let uses_fold (type r) (instr : r t) (k : r -> unit) =
     match instr.args with
     | Block_call args -> List.iter args ~f:k
     | No_block_call -> ()
@@ -78,10 +69,6 @@ end
 
 module Maybe_block_call = struct
   include T.Maybe_block_call
-
-  let regs_fold i k = todo ()
-  let uses_fold i k = todo ()
-  let defs_fold i k = todo ()
 end
 
 module Jump = struct
@@ -89,18 +76,18 @@ module Jump = struct
 
   let regs_fold i k =
     match i with
-    | Jump j -> Maybe_block_call.regs_fold j k
+    | Jump j -> Block_call.regs_fold j k
     | CondJump { j1; j2; _ } ->
-      Maybe_block_call.regs_fold j1 k;
-      Maybe_block_call.regs_fold j2 k
+      Block_call.regs_fold j1 k;
+      Block_call.regs_fold j2 k
   ;;
 
   let uses_fold i k =
     match i with
-    | Jump j -> Maybe_block_call.uses_fold j k
+    | Jump j -> Block_call.uses_fold j k
     | CondJump { j1; j2; _ } ->
-      Maybe_block_call.uses_fold j1 k;
-      Maybe_block_call.uses_fold j2 k
+      Block_call.uses_fold j1 k;
+      Block_call.uses_fold j2 k
   ;;
 end
 
@@ -111,11 +98,10 @@ module VInstr = struct
     let module O = Operand in
     let module A = Address in
     match i with
-    | StoreStack { src; _ } -> O.any_regs_fold src k
-    | LoadStack { dst; _ } -> O.any_regs_fold dst k
     | Par_mov movs -> (FC.List.fold @> FC.Tuple2.fold_both) movs k
     | Def { dst; _ } -> k dst
     | Block_args regs -> FC.List.fold regs k
+    | ReserveStackEnd _ -> ()
   ;;
 
   let defs_fold i k =
@@ -124,16 +110,15 @@ module VInstr = struct
     | Def { dst; _ } -> k dst
     | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn fst) movs k
     | Block_args args -> FC.List.fold args k
-    | LoadStack _ | StoreStack _ -> ()
+    | ReserveStackEnd _ -> ()
   ;;
 
   let uses_fold i k =
     let module O = Operand in
     match i with
     | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn snd) movs k
-    | StoreStack { src; _ } -> O.any_regs_fold src k
-    | LoadStack { dst; _ } -> O.mem_regs_fold dst k
     | Block_args _ -> ()
+    | Def _ | ReserveStackEnd _ -> ()
   ;;
 end
 
@@ -160,6 +145,8 @@ module MInstr = struct
       O.any_regs_fold src2 k
     | Set { dst; _ } -> O.any_regs_fold dst k
     | Ret -> ()
+    | Push { src; _ } -> k src
+    | Pop { dst; _ } -> k dst
   ;;
 
   let defs_fold i k =
@@ -171,7 +158,8 @@ module MInstr = struct
     | Add { dst; _ } -> O.reg_val_fold dst k
     | Lea { dst; _ } -> k dst
     | Set { dst; _ } -> O.reg_val_fold dst k
-    | Cmp _ | Test _ | Ret -> ()
+    | Pop { dst; _ } -> k dst
+    | Push _ | Cmp _ | Test _ | Ret -> ()
   ;;
 
   let uses_fold i k =
@@ -185,16 +173,14 @@ module MInstr = struct
     | Mov { dst; src; _ } ->
       O.mem_regs_fold dst k;
       O.any_regs_fold src k
-    | Cmp { src1; src2; _ } ->
-      O.any_regs_fold src1 k;
-      O.any_regs_fold src2 k
     | Lea { src; _ } -> Address.regs_fold src k
     | MovImm64 { dst; _ } -> O.mem_regs_fold dst k
     | Cmp { src1; src2; _ } | Test { src1; src2; _ } ->
       O.any_regs_fold src1 k;
       O.any_regs_fold src2 k
     | Set { dst; _ } -> O.mem_regs_fold dst k
-    | Ret -> ()
+    | Push { src; _ } -> k src
+    | Pop _ | Ret -> ()
   ;;
 end
 
@@ -228,18 +214,6 @@ module Instr = struct
     | Real i -> MInstr.defs_fold i k
     | Jump _ -> ()
   ;;
-
-  (* match i with
-    | Def { dst; _ } -> k dst
-    | Mov mov -> O.reg_val_fold mov.dst k
-    | MovImm64 { dst; _ } -> O.reg_val_fold dst k
-    | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn fst) movs k
-    | Add { dst; _ } -> O.reg_val_fold dst k
-    | Lea { dst; _ } -> k dst
-    | Set { dst; _ } -> O.reg_val_fold dst k
-    | Block_args args -> FC.List.fold args k
-    | Cmp _ | LoadStack _ | StoreStack _ | Test _ | Ret | Jump _ | CondJump _ -> ()
-  ;; *)
 
   let uses_fold (type r) (i : r t) (k : r -> unit) =
     let module O = Operand in

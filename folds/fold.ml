@@ -1,7 +1,6 @@
 open Core
 
 type 'a iter = ('a -> unit) -> unit
-
 type ('b, 'a) t = 'a -> 'b Iter.t
 
 let of_field field k x = Field.get field x |> k

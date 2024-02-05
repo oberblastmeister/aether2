@@ -131,7 +131,7 @@ and lower_control_instr cx instr =
   | Ret (Some v) ->
     let op = lower_value_op cx v in
     let v' = fresh_value cx (Tir.Value.to_value v) in
-    let dst = precolored v' X86.MachReg.RAX in
+    let dst = precolored v' X86.Mach_reg.RAX in
     Cx.add cx @@ MInstr.Mov { s = ty_to_size @@ Tir.Value.get_ty v; dst; src = op };
     Cx.add cx @@ MInstr.Ret
 ;;

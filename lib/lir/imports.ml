@@ -1,13 +1,13 @@
 (* open! O
-include Lir_instr
-include Lir_pretty
-module Ssa = Lir_ssa
-module Lower = Lir_lower
-module Check = Lir_check
+   include Lir_instr
+   include Lir_pretty
+   module Ssa = Lir_ssa
+   module Lower = Lir_lower
+   module Check = Lir_check
 
-let parse s =
-  let open! Or_error.Let_syntax in
-  let%bind fns = Lir_parse.parse s in
-  let%bind fns = Lir_elaborate.elaborate fns in
-  return fns
-;; *)
+   let parse s =
+   let open! Or_error.Let_syntax in
+   let%bind fns = Lir_parse.parse s in
+   let%bind fns = Lir_elaborate.elaborate fns in
+   return fns
+   ;; *)

@@ -5,7 +5,7 @@ module Interference = Compiler.Interference
 module Reg_alloc = Compiler.Reg_alloc
 
 module Ra = Reg_alloc.Make (struct
-    module Register = MachReg
+    module Register = Mach_reg
 
     module RegisterSet = struct
       type t = Register.t Hash_set.t [@@deriving sexp_of]
@@ -73,7 +73,7 @@ let construct_fn fn =
 ;;
 
 let register_order =
-  MachReg.
+  Mach_reg.
     [ (* callee saved *)
       RAX
     ; RDI
@@ -110,7 +110,7 @@ let get_name_to_reg fn =
 
 type context =
   { allocation : Ra.Allocation.t
-  ; instrs : (MachReg.t Instr.t, read_write) Vec.t
+  ; instrs : (Mach_reg.t Instr.t, read_write) Vec.t
   }
 
 module F (T : sig
@@ -153,7 +153,7 @@ let apply_allocation_vinstr ~cx instr =
           , find_exn cx.allocation (Reg.name_exn src) ))
       with
       | Spilled, Spilled when did_use_scratch ->
-        (* Vec.push cx.instrs (Push { src = Reg.mach_reg reg.s MachReg.R11 }); *)
+        (* Vec.push cx.instrs (Push { src = Reg.mach_reg reg.s Mach_reg.R11 }); *)
         ()
       | Spilled, _ | _, Spilled -> ()
       | InReg dst_reg, InReg src_reg -> ()

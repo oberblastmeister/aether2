@@ -77,8 +77,8 @@ module Dominators : sig
   val make_transfer : ?sexp_of_block:('b -> Sexp.t) -> ('b, Label.Set.t) Block_transfer.t
   (* val compute_idoms_from_facts : Label.t -> Label.Set.t Fact_base.t -> Label.t Label.Map.t
 
-  val compute_idom_tree_from_facts
-    :  Label.t
-    -> Label.Set.t Fact_base.t
-    -> Label.Set.t Fact_base.t *)
+     val compute_idom_tree_from_facts
+     :  Label.t
+     -> Label.Set.t Fact_base.t
+     -> Label.Set.t Fact_base.t *)
 end

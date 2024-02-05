@@ -49,7 +49,7 @@ module Scale = struct
   ;;
 end
 
-module MachReg = struct
+module Mach_reg = struct
   type t =
     | RAX
     | RCX
@@ -73,16 +73,9 @@ end
 module MReg = struct
   type t =
     { s : Size.t
-    ; reg : MachReg.t
+    ; reg : Mach_reg.t
     }
   [@@deriving equal, compare, sexp, hash]
-end
-
-module AllocReg = struct
-  type t =
-    | Reg of MachReg.t
-    | Stack
-  [@@deriving sexp]
 end
 
 module VReg = struct
@@ -90,7 +83,7 @@ module VReg = struct
     type t =
       { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
       ; name : Name.t
-      ; precolored : MachReg.t option [@equal.ignore] [@compare.ignore] [@hash.ignore]
+      ; precolored : Mach_reg.t option [@equal.ignore] [@compare.ignore] [@hash.ignore]
       }
     [@@deriving equal, compare, sexp, hash]
   end
@@ -103,26 +96,6 @@ module VReg = struct
   let precolored s name precolored = { s; name; precolored = Some precolored }
 end
 
-module Reg_kind = struct
-  type t =
-    | VReg of VReg.t
-    | MachReg of MachReg.t
-  [@@deriving equal, compare, hash, sexp, variants]
-end
-
-module Reg = struct
-  module T = struct
-    type t =
-      { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
-      ; reg : Reg_kind.t
-      }
-    [@@deriving equal, compare, hash, sexp]
-  end
-
-  include T
-  include Comparator.Make (T)
-end
-
 module Address = struct
   type 'r t =
     { base : 'r
@@ -133,22 +106,23 @@ module Address = struct
   [@@deriving equal, compare, sexp, hash, fields]
 end
 
-module Imm = struct
-  type 'r t =
-    | Int : int32 -> 'r t
-    | StackOff : int32 -> VReg.t t
+module Stack_off = struct
+  type t =
+    | End of int32
+    | Any
   [@@deriving sexp_of]
 end
 
-module Operand = struct
-  (* todo: add virtual stack offset thingy here *)
-  (* so we don't need separate stack instructions *)
-  (* type t =
-     | Imm of int32
-     | Reg of Reg.t
-     | Mem of Address.t
-     [@@deriving sexp, variants] *)
+module Imm = struct
+  type 'r t =
+    | Int : int32 -> 'r t
+    | Stack : Stack_off.t -> VReg.t t
+  [@@deriving sexp_of]
 
+  let get (Int i) = i
+end
+
+module Operand = struct
   type 'r t =
     | Imm of 'r Imm.t
     | Reg of 'r
@@ -156,26 +130,12 @@ module Operand = struct
   [@@deriving sexp_of, variants]
 
   let imm i = Imm (Imm.Int i)
-  let stack_off i = Imm (Imm.StackOff i)
+  let stack_off i = Imm (Imm.Stack (Stack_off.End i))
+  let stack_loc = Imm (Imm.Stack Stack_off.Any)
 end
 
 module Cmp_op = struct
   type t = Gt [@@deriving equal, compare, sexp]
-end
-
-(* module Block_call = struct
-  type t =
-    { label : Label.t
-    ; args : VReg.t list
-    }
-  [@@deriving sexp, fields]
-end *)
-
-module Stack_off = struct
-  type t =
-    | Start of int32
-    | End of int32
-  [@@deriving sexp]
 end
 
 module MInstr = struct
@@ -225,16 +185,7 @@ module VInstr = struct
   type t =
     | Def of { dst : VReg.t }
     | Block_args of VReg.t list
-    | StoreStack of
-        { s : Size.t
-        ; dst : Stack_off.t
-        ; src : VReg.t Operand.t
-        }
-    | LoadStack of
-        { s : Size.t
-        ; dst : VReg.t Operand.t
-        ; src : Stack_off.t
-        }
+    | ReserveStackEnd of int32
     | Par_mov of (VReg.t * VReg.t) list
   [@@deriving sexp_of]
 end
@@ -242,7 +193,7 @@ end
 module Maybe_block_call = struct
   type 'r t =
     | Block_call : VReg.t list -> VReg.t t
-    | No_block_call : MachReg.t t
+    | No_block_call : Mach_reg.t t
   [@@deriving sexp_of]
 end
 
@@ -279,90 +230,11 @@ module Instr = struct
     | Real : 'r MInstr.t -> 'r t
     | Jump : 'r Jump.t -> 'r t
   [@@deriving sexp_of]
-
-  (* let to_some (type r) instr =
-     match instr with
-     | Virtual v -> Some_instr.Virtual v
-     | Real r -> Some_instr.Real r
-     | Jump j -> Some_instr.Jump j
-     ;; *)
 end
 
 module Some_instr = struct
   type t = T : 'r Instr.t -> t [@@deriving sexp_of]
 end
-
-(* module Instr = struct
-  type t =
-    | Lea of
-        { s : Size.t
-        ; dst : Reg.t
-        ; src : Address.t
-        }
-    | Add of
-        { s : Size.t
-        ; dst : Operand.t
-        ; src1 : Operand.t
-        ; src2 : Operand.t
-        }
-    | Push of { src : Reg.t }
-    | Pop of { src : Reg.t }
-    | StoreStack of
-        { s : Size.t
-        ; dst : Stack_off.t
-        ; src : Operand.t
-        }
-    | LoadStack of
-        { s : Size.t
-        ; dst : Operand.t
-        ; src : Stack_off.t
-        }
-    | MovImm64 of
-        { dst : Operand.t
-        ; imm : int64
-        }
-    | Mov of
-        { s : Size.t
-        ; dst : Operand.t
-        ; src : Operand.t
-        }
-    | Par_mov of (Reg.t * Reg.t) list
-    | Cmp of
-        { s : Size.t
-        ; src1 : Operand.t
-        ; src2 : Operand.t
-        }
-    | Test of
-        { s : Size.t
-        ; src1 : Operand.t
-        ; src2 : Operand.t
-        }
-    | Set of
-        { s : Size.t
-        ; cond : Cond.t
-        ; dst : Operand.t
-        }
-    (* for calling conventions *)
-    | Def of { dst : Reg.t }
-    | Block_args of Reg.t list
-    | Jump of Block_call.t
-    | CondJump of
-        { cond : Cond.t
-        ; j1 : Block_call.t
-        ; j2 : Block_call.t
-        }
-    | Ret
-  [@@deriving sexp, variants]
-
-  let jumps_fold instr k =
-    match instr with
-    | Jump block_call -> k block_call.label
-    | CondJump { j1; j2; _ } ->
-      k j1.label;
-      k j2.label
-    | _ -> ()
-  ;;
-end *)
 
 module Block = struct
   type 'r t = { instrs : ('r Instr.t, Perms.Read.t) Vec.t } [@@deriving sexp_of, fields]

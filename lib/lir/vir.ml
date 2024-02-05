@@ -26,9 +26,9 @@ module Liveness = struct
 end
 
 (* module DataflowDominators = struct
-  let block_transfer =
-    Cfg.Dataflow.Dominators.make_transfer ~sexp_of_block:[%sexp_of: Block.t]
-  ;;
+   let block_transfer =
+   Cfg.Dataflow.Dominators.make_transfer ~sexp_of_block:[%sexp_of: Block.t]
+   ;;
 
-  let run = Lir.Dataflow.run_block_transfer block_transfer
-end *)
+   let run = Lir.Dataflow.run_block_transfer block_transfer
+   end *)
