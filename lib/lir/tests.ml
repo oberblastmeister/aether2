@@ -183,7 +183,7 @@ let%test_module _ =
       let program =
         Lazy.force loop_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower
       in
-      print_s @@ [%sexp_of: X86.Types.Program.t] program;
+      print_s @@ [%sexp_of: X86.Types.VReg.t X86.Types.Program.t] program;
       [%expect
         {|
         ((functions
@@ -192,53 +192,66 @@ let%test_module _ =
               (blocks
                ((body.3
                  ((instrs
-                   ((Block_args ())
-                    (MovImm64 (dst (Reg ((s Q) (reg (VReg (Temp (name one.7)))))))
-                     (imm 1))
-                    (Add (s Q) (dst (Reg ((s Q) (reg (VReg (Temp (name e.8)))))))
-                     (src1 (Reg ((s Q) (reg (VReg (Temp (name e.10)))))))
-                     (src2 (Reg ((s Q) (reg (VReg (Temp (name one.7))))))))
-                    (Add (s Q) (dst (Reg ((s Q) (reg (VReg (Temp (name r.6)))))))
-                     (src1 (Reg ((s Q) (reg (VReg (Temp (name r.11)))))))
-                     (src2 (Reg ((s Q) (reg (VReg (Temp (name b.0))))))))
+                   ((Virtual (Block_args ()))
+                    (Real
+                     (MovImm64 (dst (Reg ((s Q) (name one.7) (precolored ()))))
+                      (imm 1)))
+                    (Real
+                     (Add (s Q) (dst (Reg ((s Q) (name e.8) (precolored ()))))
+                      (src1 (Reg ((s Q) (name e.10) (precolored ()))))
+                      (src2 (Reg ((s Q) (name one.7) (precolored ()))))))
+                    (Real
+                     (Add (s Q) (dst (Reg ((s Q) (name r.6) (precolored ()))))
+                      (src1 (Reg ((s Q) (name r.11) (precolored ()))))
+                      (src2 (Reg ((s Q) (name b.0) (precolored ()))))))
                     (Jump
-                     ((label loop.1)
-                      (args
-                       (((s Q) (reg (VReg (Temp (name e.8)))))
-                        ((s Q) (reg (VReg (Temp (name r.6)))))))))))))
+                     (Jump
+                      ((label loop.1)
+                       (args
+                        (Block_call
+                         (((s Q) (name e.8) (precolored ()))
+                          ((s Q) (name r.6) (precolored ()))))))))))))
                 (done.2
                  ((instrs
-                   ((Block_args ())
-                    (Mov (s Q)
-                     (dst
-                      (Reg ((s Q) (reg (VReg (PreColored (name r.15) (reg RAX)))))))
-                     (src (Reg ((s Q) (reg (VReg (Temp (name r.11))))))))
-                    Ret))))
+                   ((Virtual (Block_args ()))
+                    (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name r.15) (precolored (RAX)))))
+                      (src (Reg ((s Q) (name r.11) (precolored ()))))))
+                    (Real Ret)))))
                 (loop.1
                  ((instrs
-                   ((Block_args
-                     (((s Q) (reg (VReg (Temp (name e.10)))))
-                      ((s Q) (reg (VReg (Temp (name r.11)))))))
-                    (MovImm64 (dst (Reg ((s Q) (reg (VReg (Temp (name z.12)))))))
-                     (imm 0))
-                    (Cmp (s Q) (src1 (Reg ((s Q) (reg (VReg (Temp (name e.10)))))))
-                     (src2 (Reg ((s Q) (reg (VReg (Temp (name z.12))))))))
-                    (Set (s Q) (cond A)
-                     (dst (Reg ((s L) (reg (VReg (Temp (name f.13))))))))
-                    (Test (s L) (src1 (Reg ((s L) (reg (VReg (Temp (name f.13)))))))
-                     (src2 (Reg ((s L) (reg (VReg (Temp (name f.13))))))))
-                    (CondJump (cond NE) (j1 ((label done.2) (args ())))
-                     (j2 ((label body.3) (args ()))))))))
+                   ((Virtual
+                     (Block_args
+                      (((s Q) (name e.10) (precolored ()))
+                       ((s Q) (name r.11) (precolored ())))))
+                    (Real
+                     (MovImm64 (dst (Reg ((s Q) (name z.12) (precolored ()))))
+                      (imm 0)))
+                    (Real
+                     (Cmp (s Q) (src1 (Reg ((s Q) (name e.10) (precolored ()))))
+                      (src2 (Reg ((s Q) (name z.12) (precolored ()))))))
+                    (Real
+                     (Set (s Q) (cond A)
+                      (dst (Reg ((s L) (name f.13) (precolored ()))))))
+                    (Real
+                     (Test (s L) (src1 (Reg ((s L) (name f.13) (precolored ()))))
+                      (src2 (Reg ((s L) (name f.13) (precolored ()))))))
+                    (Jump
+                     (CondJump (cond NE) (j1 ((label done.2) (args (Block_call ()))))
+                      (j2 ((label body.3) (args (Block_call ()))))))))))
                 (start.0
                  ((instrs
-                   ((Block_args ())
-                    (MovImm64 (dst (Reg ((s Q) (reg (VReg (Temp (name r.2)))))))
-                     (imm 1))
+                   ((Virtual (Block_args ()))
+                    (Real
+                     (MovImm64 (dst (Reg ((s Q) (name r.2) (precolored ()))))
+                      (imm 1)))
                     (Jump
-                     ((label loop.1)
-                      (args
-                       (((s Q) (reg (VReg (Temp (name e.1)))))
-                        ((s Q) (reg (VReg (Temp (name r.2)))))))))))))))
+                     (Jump
+                      ((label loop.1)
+                       (args
+                        (Block_call
+                         (((s Q) (name e.1) (precolored ()))
+                          ((s Q) (name r.2) (precolored ()))))))))))))))
               (exit done.2))))))) |}]
     ;;
   end)

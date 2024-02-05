@@ -2,7 +2,7 @@ open O
 open Types
 
 let legalize_instr instr ~force_same ~force_register =
-  let open Types_basic.Instr in
+  let open Types_basic.MInstr in
   let force_register_op o = Operand.reg @@ force_register o in
   let not_both_mem o1 o2 =
     match o1, o2 with
@@ -29,11 +29,5 @@ let legalize_instr instr ~force_same ~force_register =
   | Test ({ src1; src2; _ } as p) ->
     let src1, src2 = not_both_mem src1 src2 in
     Test { p with src1; src2 }
-  | StoreStack ({ src; _ } as p) ->
-    let src = force_register_op src in
-    StoreStack { p with src }
-  | LoadStack ({ dst; _ } as p) ->
-    let dst = force_register_op dst in
-    LoadStack { p with dst }
   | _ -> todo ()
 ;;

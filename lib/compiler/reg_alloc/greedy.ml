@@ -29,8 +29,8 @@ module IntHeap = Heap.Make (struct
   end)
 
 (* TODO: do greedy coalescing *)
-module Make (Arch : Arch) = struct
-  open Arch
+module Make (Config : Config) = struct
+  open Config
 
   type error = InvalidRegisterConstraint of Register.t * Register.t
 

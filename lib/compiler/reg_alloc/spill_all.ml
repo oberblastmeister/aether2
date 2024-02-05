@@ -3,7 +3,7 @@ open Utils.Instr_types
 open Types
 module NameMap = Entity.Map.Make (Name)
 
-module Make (Arch : Arch) = struct
+module Make (Config : Config) = struct
   module Allocation = struct
     type t = unit [@@deriving sexp]
 

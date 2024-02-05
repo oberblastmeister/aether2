@@ -22,15 +22,15 @@ module type Set = sig
 end
 
 (* information about registers *)
-module type Arch = sig
+module type Config = sig
   module Register : Register
   module RegisterSet : Set with type value = Register.t
 end
 
 (* a register allocation algorithm *)
 module type S = sig
-  module Arch : Arch
-  open Arch
+  module Config : Config
+  open Config
 
   module Allocation : sig
     type t [@@deriving sexp_of]
@@ -48,4 +48,4 @@ module type S = sig
 end
 
 (* a register allocation algorithm depending on the architecture *)
-module type Make_S = functor (Arch : Arch) -> S with module Arch := Arch
+module type Make_S = functor (Config : Config) -> S with module Config := Config
