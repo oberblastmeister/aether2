@@ -141,6 +141,52 @@ module Block_call = struct
   [@@deriving sexp, fields]
 end
 
+module Stack_off = struct
+  type t =
+    | Start of int32
+    | End of int32
+  [@@deriving sexp]
+end
+
+module Real_instr = struct
+  type 'r t =
+    | Mov of
+        { s : Size.t
+        ; dst : (* 'r *) Operand.t
+        ; src : (* 'r *) Operand.t
+        }
+  [@@deriving sexp_of]
+end
+
+module Virtual_instr = struct
+  type t = Def of { dst : VReg.t } [@@deriving sexp_of]
+end
+
+module Maybe_block_call = struct
+  type 'r t =
+    | Block_call : Block_call.t -> VReg.t t
+    | No_call : MachReg.t t
+  [@@deriving sexp_of]
+end
+
+(* module Jump = struct
+  type 'r t =
+    | Jump of 'r Maybe_block_call.t
+    | CondJump of
+        { cond : Cond.t
+        ; j1 : 'r Maybe_block_call.t
+        ; j2 : 'r Maybe_block_call.t
+        }
+  [@@deriving sexp_of]
+end *)
+
+module Instr_phase = struct
+  type 'r t =
+    | Virtual : Virtual_instr.t -> VReg.t t
+    | Real : 'r Real_instr.t -> 'r t
+  [@@deriving sexp_of]
+end
+
 module Instr = struct
   type t =
     | Lea of
@@ -154,15 +200,17 @@ module Instr = struct
         ; src1 : Operand.t
         ; src2 : Operand.t
         }
+    | Push of { src : Reg.t }
+    | Pop of { src : Reg.t }
     | StoreStack of
         { s : Size.t
-        ; dst : int32
+        ; dst : Stack_off.t
         ; src : Operand.t
         }
     | LoadStack of
         { s : Size.t
         ; dst : Operand.t
-        ; src : int32
+        ; src : Stack_off.t
         }
     | MovImm64 of
         { dst : Operand.t

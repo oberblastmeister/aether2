@@ -86,7 +86,7 @@ let register_order =
     ; R8
     ; R9
     ; R10
-    ; (* R11 used for scratch register *)
+    ; (* 11 used for scratch register *)
       (* caller saved *)
       RBX
     ; R12
@@ -103,6 +103,15 @@ let alloc_fn fn =
   let%bind allocation = Ra.run ~precolored ~interference ~register_order in
   Ok allocation
 ;;
+
+let get_name_to_reg fn =
+  (Function.instrs_forward_fold @> Instr.regs_fold) fn (fun reg ->
+    let name = Reg.name_exn reg in
+    todo ());
+  todo ()
+;;
+
+(* let calculate_stack_layout fn = _ *)
 
 type context =
   { allocation : Ra.Allocation.t
@@ -128,10 +137,18 @@ let apply_allocation_instr ~cx instr =
     (* let spill reg =
        let name =
        in *)
-    let maybe_spill reg =
-      match Ra.Allocation.find_exn cx.allocation (Reg.name_exn reg) with
-      | Reg_alloc.Alloc_reg.Spilled -> ()
-      | _ -> ()
+    let maybe_spill ~dst src =
+      let open Reg_alloc.Alloc_reg in
+      match
+        Ra.Allocation.(
+          ( find_exn cx.allocation (Reg.name_exn dst)
+          , find_exn cx.allocation (Reg.name_exn src) ))
+      with
+      | Spilled, Spilled when did_use_scratch ->
+        (* Vec.push cx.instrs (Push { src = Reg.mach_reg reg.s MachReg.R11 }); *)
+        ()
+      | Spilled, _ | _, Spilled -> ()
+      | InReg dst_reg, InReg src_reg -> ()
     in
     Vec.iter res ~f:(fun (`dst dst, `src src) ->
       ();

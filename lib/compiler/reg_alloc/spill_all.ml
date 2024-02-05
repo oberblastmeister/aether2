@@ -9,7 +9,7 @@ module Make (Arch : Arch) = struct
 
     let find_exn t name = todo ()
     let did_use_reg _ = todo ()
-    let invariant ~precolored ~interference = todo ()
+    let to_iter _ = todo ()
   end
 
   let run ~precolored:_ ~register_order:_ ~interference =

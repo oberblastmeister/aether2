@@ -125,7 +125,7 @@ module Make (Arch : Arch) = struct
       with
       | exception E.InvalidRegisterConstraint (reg, reg') ->
         Or_error.error_s
-          [%message "invalid regigster constraint" (reg : Register.t) (reg' : Register.t)]
+          [%message "invalid register constraint" (reg : Register.t) (reg' : Register.t)]
       | _ -> Ok ()
     in
     Ok register_constraints_of_color
@@ -179,7 +179,7 @@ module Make (Arch : Arch) = struct
 
     let find_exn t name = NameMap.find_exn t.alloc_of_name name
     let did_use_reg t reg = RegisterSet.mem t.used_registers reg
-    let invariant ~precolored ~interference = ()
+    let to_iter _ = todo ()
   end
 
   let run ~precolored ~register_order ~interference =
@@ -197,13 +197,6 @@ module Make (Arch : Arch) = struct
     Ok { Allocation.alloc_of_name; used_registers }
   ;;
 end
-
-(* module Make_all (Arch : Arch) = struct
-   module type S = S with module Arch := Arch
-
-   module Greedy = Make_greedy (Arch)
-   module Spill_all = Make_spill_all (Arch)
-   end *)
 
 let%test_module _ =
   (module struct

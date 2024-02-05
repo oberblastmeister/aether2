@@ -35,13 +35,9 @@ module type S = sig
   module Allocation : sig
     type t [@@deriving sexp_of]
 
+    val to_iter : t -> (Name.t * Register.t Alloc_reg.t) F.Iter.t
     val find_exn : t -> Name.t -> Register.t Alloc_reg.t
     val did_use_reg : t -> Register.t -> bool
-
-    val invariant
-      :  precolored:(Name.t, Register.t) Entity.Map.t
-      -> interference:Interference.t
-      -> unit
   end
 
   val run
