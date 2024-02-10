@@ -96,16 +96,6 @@ module VReg = struct
   let precolored s name precolored = { s; name; precolored = Some precolored }
 end
 
-module Address = struct
-  type 'r t =
-    { base : 'r
-    ; index : 'r
-    ; scale : Scale.t
-    ; displacement : int32
-    }
-  [@@deriving equal, compare, sexp, hash, fields]
-end
-
 module Stack_off = struct
   type t =
     (* use ReserveStackEnd *)
@@ -121,6 +111,38 @@ module Imm = struct
   [@@deriving sexp_of]
 
   let get (Int i) = i
+end
+
+module Address = struct
+  module Base = struct
+    type 'r t =
+      | None
+      | Reg of 'r
+      | Rip
+    [@@deriving sexp_of, variants]
+  end
+
+  module Index = struct
+    type 'r t =
+      | None
+      | Some of
+          { index : 'r
+          ; scale : int
+          }
+    [@@deriving sexp_of, variants]
+  end
+
+  type 'r t =
+    | Imm of
+        { offset : 'r Imm.t
+        ; scale : int
+        }
+    | Complex of
+        { base : 'r Base.t
+        ; index : 'r Index.t
+        ; offset : 'r Imm.t
+        }
+  [@@deriving sexp_of]
 end
 
 module Operand = struct
@@ -141,6 +163,7 @@ end
 
 module MInstr = struct
   type 'r t =
+    | NoOp
     | Mov of
         { s : Size.t
         ; dst : 'r Operand.t
@@ -194,7 +217,7 @@ module VInstr = struct
     (* for ssa *)
     | Block_args of VReg.t list
     | Par_mov of (VReg.t * VReg.t) list
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, variants]
 end
 
 module Maybe_block_call = struct
@@ -202,6 +225,12 @@ module Maybe_block_call = struct
     | Block_call : VReg.t list -> VReg.t t
     | No_block_call : Mach_reg.t t
   [@@deriving sexp_of]
+
+  let get_args b =
+    match b with
+    | Block_call args -> args
+    | _ -> .
+  ;;
 end
 
 module Block_call = struct
@@ -228,7 +257,7 @@ module Instr_variant = struct
     | Virt of VInstr.t
     | Real of 'r MInstr.t
     | Jump of 'r Jump.t
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, variants]
 end
 
 module Instr = struct

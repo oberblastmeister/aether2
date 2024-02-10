@@ -21,9 +21,9 @@ let collect_types (fn : Name.t Function.t) =
   in
   let tys_of_name =
     F.Fold.reduce
-      (F.Core.Map.fold @> Block.instrs_forward_fold)
+      (Cfg.Graph.to_iter @> Block.instrs_forward_fold)
       (F.Reduce.T (add_instr, Name.Map.empty, Fn.id))
-      fn.graph.blocks
+      fn.graph
   in
   let tys_of_name_with_fn_params =
     List.fold_left

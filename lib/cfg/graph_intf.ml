@@ -1,13 +1,6 @@
 open! O
 open Utils.Instr_types
 
-type 'b t =
-  { entry : Label.t
-  ; blocks : 'b Label.Map.t
-  ; exit : Label.t
-  }
-[@@deriving sexp, fields]
-
 module type Block_gen = sig
   type 'a t
 
@@ -15,6 +8,7 @@ module type Block_gen = sig
 end
 
 module type Gen_S = sig
+  type 'b t
   type 'a block
 
   val to_graph : 'a block t -> Label.t Data.Graph.t
@@ -29,14 +23,15 @@ module type Gen_S = sig
 end
 
 module type Intf = sig
-  type nonrec 'b t = 'b t [@@deriving sexp]
+  type 'b t [@@deriving sexp]
 
+  module type Gen_S = Gen_S with type 'b t := 'b t
+
+  val of_alist : entry:Label.t -> exit:Label.t -> (Label.t * 'b) list -> 'b t
+  val to_alist : 'b t -> (Label.t * 'b) list
   val entry : 'b t -> Label.t
   val blocks : 'b t -> 'b Label.Map.t
   val exit : 'b t -> Label.t
-
-  module Fields : module type of Fields
-
   val to_graph : jumps:('b -> Label.t F.Iter.t) -> 'b t -> Label.t Data.Graph.t
 
   val to_double_graph
@@ -44,9 +39,16 @@ module type Intf = sig
     -> 'b t
     -> Label.t Data.Graph.double
 
-  val map_blocks : 'b t -> f:('b Label.Map.t -> 'c Label.Map.t) -> 'c t
-  val set_block : 'b t -> Label.t -> 'b -> 'b t
-  val add_block_exn : 'b t -> Label.t -> 'b -> 'b t
+  val find_exn : Label.t -> 'b t -> 'b
+  val entry : 'b t -> Label.t
+  val exit : 'b t -> Label.t
+  val set : Label.t -> 'b -> 'b t -> 'b t
+  val set_blocks_alist : (Label.t * 'b) list -> _ t -> 'b t
+  val foldi : 'b t -> init:'a -> f:('a -> Label.t * 'b -> 'a) -> 'a
+  val to_iteri : 'b t -> (Label.t * 'b) F.Iter.t
+  val fold : 'b t -> init:'a -> f:('a -> 'b -> 'a) -> 'a
+  val to_iter : 'b t -> 'b F.Iter.t
+  val add_exn : 'b t -> Label.t -> 'b -> 'b t
   val validate : 'b t -> unit
 
   val predecessors_of_label
@@ -54,6 +56,8 @@ module type Intf = sig
     -> 'b t
     -> Label.t list Label.Map.t
 
+  val map : 'a t -> f:('a -> 'b) -> 'b t
+  val mapi : 'a t -> f:(Label.t * 'a -> 'b) -> 'b t
   val map_simple_order : 'b t -> f:(Label.t * 'b -> 'b) -> 'b t
   val fold_labels : (Label.t, [> read ]) Vec.t -> (Label.t * 'b, 'b t) F.Fold.t
 
@@ -63,8 +67,6 @@ module type Intf = sig
       -> 'b t
       -> (Label.t, Perms.Read_write.t) Vec.t
   end
-
-  module type Gen_S = Gen_S
 
   module Make_gen : functor (Block : Block_gen) -> Gen_S with type 'a block := 'a Block.t
 end

@@ -176,11 +176,7 @@ let parse_graph st xs =
   let blocks = Parser.rest xs (parse_block st) in
   match blocks with
   | (label, _) :: _ ->
-    ({ entry = label
-     ; blocks = Label.Map.of_alist_exn blocks
-     ; exit = List.last_exn blocks |> fst
-     }
-     : _ Graph.t)
+    Cfg.Graph.of_alist ~entry:label ~exit:(List.last_exn blocks |> fst) blocks
   | _ -> Parser.parse_error [%message "graph must have at least one block"]
 ;;
 

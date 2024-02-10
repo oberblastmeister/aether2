@@ -3,6 +3,18 @@ open! O
 
 module Lir = Types
 
+module type Sig = sig
+  type t
+
+  val id : t -> t
+end
+
+module Testing : Sig = struct
+  type t = int
+
+  let id = Fn.id
+end
+
 let make_lir s =
   lazy (s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn)
 ;;

@@ -22,10 +22,10 @@ module Graph = struct
     }
 
   let of_cfg ~jumps (graph : _ Graph.t) =
-    { entry = graph.entry
+    { entry = Graph.entry graph
     ; v = Graph.to_double_graph ~jumps graph
-    ; exit = graph.exit
-    ; get_block = Map.find_exn graph.blocks
+    ; exit = Graph.exit graph
+    ; get_block = (fun label -> Graph.find_exn label graph)
     }
   ;;
 end

@@ -246,7 +246,7 @@ module Graph = struct
   let validate graph =
     Cfg.Graph.validate graph;
     let preds = predecessors_of_label graph in
-    let res = Map.find preds graph.entry in
+    let res = Map.find preds (Cfg.Graph.entry graph) in
     match res with
     | None -> ()
     | Some [ _ ] -> ()
@@ -285,21 +285,18 @@ module Mut_function = struct
     Label.create s unique
   ;;
 
-  let set_block fn label block = fn.graph <- Cfg.Graph.set_block fn.graph label block
-
-  let add_block_exn fn label block =
-    fn.graph <- Cfg.Graph.add_block_exn fn.graph label block
-  ;;
+  let set_block fn label block = fn.graph <- Cfg.Graph.set label block fn.graph
+  let add_block_exn fn label block = fn.graph <- Cfg.Graph.add_exn fn.graph label block
 end
 
 module Function = struct
   include T.Function
 
   let map_graph fn ~f = { fn with graph = f fn.graph }
-  let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn
+  (* let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn *)
 
   let instrs_forward_fold fn =
-    F.Fold.(FC.Map.fold @> Block.instrs_forward_fold) fn.graph.blocks
+    F.Fold.(Cfg.Graph.to_iter @> Block.instrs_forward_fold) fn.graph
   ;;
 
   let thaw fn =

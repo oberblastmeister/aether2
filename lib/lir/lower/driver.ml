@@ -88,12 +88,12 @@ let lower_fn (fn : Vir.Function.t) =
   let blocks =
     blocks_fold fn.graph
     |> F.Iter.map ~f:(fun (label, block) -> label, lower_block cx block instr_index)
-    |> F.Iter.fold
-         ~f:(fun m (label, block) -> Map.set m ~key:label ~data:block)
-         ~init:Lir.Label.Map.empty
+    |> F.Iter.to_list
+    (* |> F.Iter.fold
+       ~f:(fun m (label, block) -> Map.set m ~key:label ~data:block)
+       ~init:Lir.Label.Map.empty *)
   in
-  let fn = Lir.Function.map_blocks fn ~f:(Fn.const blocks) in
-  fn
+  Lir.Function.map_graph fn ~f:(fun graph -> Cfg.Graph.set_blocks_alist blocks graph)
 ;;
 
 let lower program = (Lir.Program.map_functions & List.map) program ~f:lower_fn

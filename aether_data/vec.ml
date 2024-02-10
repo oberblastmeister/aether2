@@ -43,6 +43,7 @@ module Raw = struct
   ;;
 
   let get_opt t i = if i < 0 || i >= t.size then None else Some (unsafe_get t i)
+  let first t = get_opt t 0
   let last t = get_opt t (t.size - 1)
   let[@inline] unsafe_set t i x = A.unsafe_set_some t.data i x
 
@@ -64,8 +65,8 @@ module Raw = struct
       t.data <- new_data)
   ;;
 
-  let copy_exact t =
-    let t' = create_exact ~size:t.size in
+  let copy_exact ?(size = 0) t =
+    let t' = create_exact ~size:(max size t.size) in
     t'.size <- t.size;
     OA.blit ~src:t.data ~dst:t'.data ~src_pos:0 ~dst_pos:0 ~len:t.size;
     t'

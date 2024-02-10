@@ -2,16 +2,47 @@ open! O
 open Utils.Instr_types
 include Graph_intf
 
+type 'b t =
+  { entry : Label.t
+  ; blocks : 'b Label.Map.t
+  ; exit : Label.t
+  }
+[@@deriving sexp, fields]
+
+module type Gen_S = Gen_S with type 'b t := 'b t
+
+let of_alist ~entry ~exit blocks = { entry; blocks = Label.Map.of_alist_exn blocks; exit }
+let to_alist { blocks; _ } = Map.to_alist blocks
 let map_blocks graph ~f = { graph with blocks = f graph.blocks }
 let get_block_exn graph label = Map.find_exn graph.blocks label
+let find_exn label graph = Map.find_exn graph.blocks label
 
-let set_block graph label block =
+let set label block graph =
   map_blocks graph ~f:(fun blocks -> Map.set ~key:label ~data:block blocks)
 ;;
 
-let add_block_exn graph label block =
+let mapi graph ~f =
+  map_blocks graph ~f:(Map.mapi ~f:(fun ~key:label ~data:block -> f (label, block)))
+;;
+
+let map graph ~f = map_blocks graph ~f:(Map.map ~f)
+
+let foldi graph ~init ~f =
+  Map.fold graph.blocks ~init ~f:(fun ~key:label ~data:block acc -> f acc (label, block))
+;;
+
+let fold graph ~init ~f =
+  Map.fold graph.blocks ~init ~f:(fun ~key:_ ~data:block acc -> f acc block)
+;;
+
+let to_iteri graph f = foldi graph ~init:() ~f:(fun () x -> f x)
+let to_iter graph f = fold graph ~init:() ~f:(fun () x -> f x)
+
+let add_exn graph label block =
   map_blocks graph ~f:(Map.add_exn ~key:label ~data:block)
 ;;
+
+let set_blocks_alist blocks graph = { graph with blocks = Label.Map.of_alist_exn blocks }
 
 let validate graph =
   let _ = Map.find_exn graph.blocks graph.entry in

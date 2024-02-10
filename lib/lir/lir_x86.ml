@@ -146,9 +146,7 @@ let lower_block cx (block : Tir.Block.t) =
   { X86.Block.instrs }
 ;;
 
-let lower_graph cx graph =
-  (Cfg.Graph.map_blocks & FC.Map.map) graph ~f:(fun block -> lower_block cx block)
-;;
+let lower_graph cx graph = Cfg.Graph.map graph ~f:(fun block -> lower_block cx block)
 
 let lower_function (fn : Tir.Function.t) =
   let cx = Context.create fn in

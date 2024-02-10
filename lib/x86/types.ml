@@ -32,12 +32,33 @@ module Size = struct
   ;;
 end
 
+module Stack_off = struct
+  include T.Stack_off
+end
+
 module Address = struct
   include T.Address
 
+  module Base = struct
+    include Base
+
+    let regs_fold a k = reg_val a |> Option.iter ~f:k
+  end
+
+  module Index = struct
+    include Index
+
+    let regs_fold a k =
+      some_val a |> Option.iter ~f:(fun (`index index, `scale _) -> k index)
+    ;;
+  end
+
   let regs_fold a k =
-    k a.base;
-    k a.index
+    match a with
+    | Imm _ -> ()
+    | Complex { base; index; _ } ->
+      Base.regs_fold base k;
+      Index.regs_fold index k
   ;;
 end
 
@@ -64,6 +85,12 @@ end
 
 module Block_call = struct
   include T.Block_call
+
+  let args (type r) (instr : r t) =
+    match instr.args with
+    | Block_call args -> args
+    | No_block_call -> []
+  ;;
 
   let uses_fold (type r) (instr : r t) (k : r -> unit) =
     match instr.args with
@@ -95,6 +122,20 @@ module Jump = struct
     | CondJump { j1; j2; _ } ->
       Block_call.uses_fold j1 k;
       Block_call.uses_fold j2 k
+  ;;
+
+  let block_calls_fold j k =
+    match j with
+    | Jump j -> k j
+    | CondJump { j1; j2; _ } ->
+      k j1;
+      k j2
+  ;;
+
+  let map_block_calls j ~f =
+    match j with
+    | Jump j -> Jump (f j)
+    | CondJump { j1; j2; cond } -> CondJump { j1 = f j1; j2 = f j2; cond }
   ;;
 end
 
@@ -198,7 +239,8 @@ end
 module Instr = struct
   include T.Instr
 
-  let to_variant = function
+  let to_variant (type r) (i : r t) =
+    match i with
     | Virt v -> Instr_variant.Virt v
     | Real r -> Instr_variant.Real r
     | Jump j -> Instr_variant.Jump j
@@ -235,20 +277,49 @@ end
 module Block = struct
   include T.Block
 
+  let get_jump block =
+    Vec.last block.instrs
+    |> Option.value_or_thunk ~default:(fun () ->
+      raise_s [%message "block must have a last instr"])
+    |> Instr.to_variant
+    |> fun instr ->
+    Instr_variant.jump_val instr
+    |> Option.value_or_thunk ~default:(fun () ->
+      raise_s [%message "last instr must be a jump" (instr : _ Instr_variant.t)])
+  ;;
+
+  let get_block_args block =
+    Vec.first block.instrs
+    |> Option.value_or_thunk ~default:(fun () ->
+      raise_s [%message "block must have a first instr"])
+    |> Instr.to_variant
+    |> fun instr ->
+    (let open Option.Let_syntax in
+     let%bind virt = Instr_variant.virt_val instr in
+     let%bind block_args = VInstr.block_args_val virt in
+     return block_args)
+    |> Option.value_or_thunk ~default:(fun () -> raise_s [%message ""])
+  ;;
+
+  let replace_first instr ({ instrs } as block) =
+    let _ = get_block_args block in
+    let instrs = Vec.copy_exact instrs in
+    Vec.set instrs 0 instr;
+    let instrs = Vec.freeze instrs in
+    { instrs }
+  ;;
+
+  (* |> Option.value ~default:(Instr.Virt (VInstr.Block_args []))
+     |> function
+     | Instr.Virt (VInstr.Block_args args) -> args
+     | _ -> [] *)
+
   let jumps_fold block k =
-    let last_instr =
-      Vec.last block.instrs
-      |> Option.value_or_thunk ~default:(fun () ->
-        raise_s [%message "block must have a last instr"])
-    in
-    match last_instr with
-    | Instr.Jump (Jump j) -> k j.label
-    | Instr.Jump (CondJump { j1; j2; _ }) ->
+    match get_jump block with
+    | Jump j -> k j.label
+    | CondJump { j1; j2; _ } ->
       k j1.label;
       k j2.label
-    | _ ->
-      raise_s
-        [%message "instruction was not control instr" ~instr:(last_instr : _ Instr.t)]
   ;;
 
   let instrs_forward_fold b = Vec.to_iter b.instrs
@@ -268,7 +339,7 @@ end
 module Function = struct
   include T.Function
 
-  let instrs_forward_fold fn = (FC.Map.fold @> Block.instrs_forward_fold) fn.graph.blocks
+  let instrs_forward_fold fn = (Cfg.Graph.to_iter @> Block.instrs_forward_fold) fn.graph
 end
 
 module Program = struct

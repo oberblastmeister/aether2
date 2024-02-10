@@ -164,7 +164,7 @@ module Function : sig
   include module type of T.Function
 
   val map_graph : 'v t -> f:('v Graph.t -> 'u Graph.t) -> 'u t
-  val map_blocks : 'v t -> f:('v Block.t Label.Map.t -> 'u Block.t Label.Map.t) -> 'u t
+  (* val map_blocks : 'v t -> f:('v Block.t Label.Map.t -> 'u Block.t Label.Map.t) -> 'u t *)
   val instrs_forward_fold : ('v Some_instr.t, 'v t) F.Fold.t
   val thaw : 'v t -> 'v Mut_function.t
   val freeze : 'v Mut_function.t -> 'v t

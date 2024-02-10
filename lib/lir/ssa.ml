@@ -55,12 +55,12 @@ let check_all_temps_unique (fn : Value.t Function.t) =
   List.iter fn.params ~f:(check_define None None);
   let fold =
     F.Fold.(
-      F.Core.Map.foldi @> ix (dup Block.instrs_forward_fold) @> ix2 Some_instr.defs_fold)
+      Cfg.Graph.to_iteri @> ix (dup Block.instrs_forward_fold) @> ix2 Some_instr.defs_fold)
   in
   F.Fold.iter
     fold
     ~f:(fun (label, (i, def)) -> check_define (Some label) (Some i) def)
-    fn.graph.blocks;
+    fn.graph;
   Stack.to_list errors |> or_error_of_list
 ;;
 
@@ -72,7 +72,7 @@ let validate_ssa_function (fn : Vir.Function.t) =
   let%bind () = check_all_temps_unique fn in
   let labels =
     Data.Graph.Dfs.preorder
-      ~start:[ fn.graph.entry ]
+      ~start:[ Cfg.Graph.entry fn.graph ]
       ~set:(Data.Constructors.some_hashset (module Label))
       (fn.graph |> Graph.to_graph)
   in
@@ -80,7 +80,7 @@ let validate_ssa_function (fn : Vir.Function.t) =
   let defined = Value.Hash_set.create () in
   List.iter fn.params ~f:(fun param -> Hash_set.add defined param);
   Vec.iter labels ~f:(fun label ->
-    let block = Map.find_exn fn.graph.blocks label in
+    let block = Cfg.Graph.find_exn label fn.graph in
     F.Fold.iter Block.instrs_forward_fold block ~f:(fun (Some_instr.T instr as i) ->
       let uses = Generic_instr.uses instr in
       List.iter uses ~f:(fun use ->
@@ -166,7 +166,7 @@ let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
   let liveness, _ = Vir.Liveness.run fn.graph in
   let add_block_args_and_calls label (block : Vir.Block.t) =
     let new_entry_instr =
-      if [%equal: Label.t] label fn.graph.entry
+      if [%equal: Label.t] (Cfg.Graph.entry fn.graph) label
       then []
       else Cfg.Dataflow.Fact_base.find_exn liveness label |> Set.to_list
     in
@@ -191,13 +191,16 @@ let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
 
 let get_phis (graph : Vir.Graph.t) =
   let initial_phis =
-    F.Core.Map.mapi graph.blocks ~f:(fun (label, block) ->
-      block.entry
-      |> List.map ~f:(fun arg : _ Phi.t ->
-        { dest_label = label; dest = arg; flow_values = [] }))
+    Cfg.Graph.to_alist graph
+    |> List.map ~f:(fun (label, block) ->
+      ( label
+      , block.entry
+        |> List.map ~f:(fun arg : _ Phi.t ->
+          { dest_label = label; dest = arg; flow_values = [] }) ))
+    |> Map.of_alist_exn (module Label)
   in
   let fold =
-    F.Fold.(F.Core.Map.foldi @> ix (of_fn Block.exit @> Control_instr.block_calls_fold))
+    F.Fold.(Cfg.Graph.to_iteri @> ix (of_fn Block.exit @> Control_instr.block_calls_fold))
   in
   let phis_of_block =
     F.Fold.fold
@@ -217,7 +220,7 @@ let get_phis (graph : Vir.Graph.t) =
           | _ -> raise_s [%message "called with more args then the block has"]
         in
         Map.set phi_map ~key:block_call.label ~data:phis)
-      graph.blocks
+      graph
   in
   phis_of_block
 ;;
@@ -278,7 +281,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
       phis_of_label
       phi.dest_label
       ~f:(Option.value_map ~default:[ phi ] ~f:(List.cons phi)));
-  (Field.map Cfg.Graph.Fields.blocks & F.Core.Map.mapi) graph ~f:(fun (label, block) ->
+  Cfg.Graph.mapi graph ~f:(fun (label, block) ->
     let phis = Hashtbl.find phis_of_label label |> Option.value ~default:[] in
     let entry = List.map phis ~f:(fun phi -> phi.dest) in
     let exit =
@@ -300,7 +303,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
 ;;
 
 let subst_graph subst (graph : Vir.Graph.t) =
-  (Field.map Cfg.Graph.Fields.blocks & F.Core.Map.map) graph ~f:(fun block ->
+  Cfg.Graph.map graph ~f:(fun block ->
     Block.map_instrs_forwards
       { f =
           (fun instr ->

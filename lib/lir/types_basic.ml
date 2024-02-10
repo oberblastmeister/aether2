@@ -124,6 +124,13 @@ module Generic_instr = struct
   ;;
 end
 
+module Variant_instr = struct
+  type 'v t =
+    | Block_args : Block_args.t -> 'v t
+    | Instr : 'v Instr.t -> 'v t
+    | Control : 'v Control_instr.t -> 'v t
+end
+
 module Some_instr = struct
   type 'v t = T : ('v, 'c) Generic_instr.t -> 'v t [@@unboxed]
 
@@ -150,7 +157,7 @@ end
 module Graph = struct
   type 'v t = 'v Block.t Cfg.Graph.t [@@deriving sexp_of]
 
-  let map f graph = (Cfg.Graph.map_blocks & FC.Map.map & F.Map.of_map Block.map) graph ~f
+  let map f graph = (Cfg.Graph.map & F.Map.of_map Block.map) graph ~f
 end
 
 module Mut_function = struct

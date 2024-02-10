@@ -88,7 +88,7 @@ let collect_precolored fn =
 let construct_fn fn =
   let _, live_out_facts = Dataflow.Liveness.run fn in
   let interference = Interference.create () in
-  (FC.Map.foldi fn.graph.blocks) (fun (label, block) ->
+  (Cfg.Graph.to_iteri fn.graph) (fun (label, block) ->
     let live_out = Cfg.Dataflow.Fact_base.find_exn live_out_facts label in
     add_block_edges interference block live_out);
   interference
@@ -108,60 +108,166 @@ let collect_all_vregs fn =
   |> NameMap.of_iter
 ;;
 
+module Stack_layout : sig
+  type t [@@deriving sexp_of]
+
+  val create
+    :  vregs:(Name.t, VReg.t) Entity.Map.t
+    -> allocation:Ra.Allocation.t
+    -> VReg.t Function.t
+    -> t
+
+  val end_offset : t -> int32 -> int32
+  val local_offset : t -> Name.t -> int32
+  val spilled_offset : t -> Name.t -> int32
+end = struct
+  type t =
+    { stack_size : int32
+    ; offset_of_local : (Name.t, int32) Hashtbl.t
+    ; locals_offset : int32
+    ; end_offset : int32
+    ; spilled_offset : int32
+    ; offset_of_spilled : (Name.t, int32) Hashtbl.t
+    }
+  [@@deriving sexp_of]
+
+  open Int32
+
+  let end_offset t i = t.end_offset + i
+  let local_offset t name = t.locals_offset + Hashtbl.find_exn t.offset_of_local name
+  let spilled_offset t name = t.spilled_offset + Hashtbl.find_exn t.offset_of_spilled name
+
+  let create ~vregs ~allocation fn =
+    let locals_size = ref 0l in
+    let offset_of_local = Hashtbl.create (module Name) in
+    let end_size = ref 0l in
+    F.Fold.(Function.instrs_forward_fold @> of_fn Instr.get_virt @> FC.Option.fold)
+      fn
+      (fun instr ->
+         (match instr with
+          | VInstr.ReserveStackEnd { size } -> end_size := max !end_size size
+          | VInstr.ReserveStackLocal { name; size } ->
+            Hashtbl.add_exn offset_of_local ~key:name ~data:!locals_size;
+            locals_size := !locals_size + size;
+            ()
+          | _ -> ());
+         ());
+    let offset_of_spilled = Hashtbl.create (module Name) in
+    let spilled_size = ref 0l in
+    Ra.Allocation.to_spilled_iter allocation
+    |> F.Iter.iter ~f:(fun spilled_name ->
+      let vreg = NameMap.find_exn vregs spilled_name in
+      let size =
+        Size.to_byte_size vreg.VReg.s |> of_int_exn |> round_up ~to_multiple_of:8l
+      in
+      Hashtbl.add_exn offset_of_spilled ~key:spilled_name ~data:!spilled_size;
+      spilled_size := !spilled_size + size);
+    let align size =
+      assert (size % 8l = 0l);
+      if size % 16l = 8l then size + 8l else size
+    in
+    (* TODO: align stack, align stuff *)
+    { stack_size = align @@ (!locals_size + !spilled_size + !end_size)
+    ; end_offset = 0l
+    ; locals_offset = !end_size
+    ; offset_of_local
+    ; spilled_offset = !locals_size + !end_size
+    ; offset_of_spilled
+    }
+  ;;
+end
+
 type context =
   { allocation : Ra.Allocation.t
   ; instrs : (Mach_reg.t Instr.t, read_write) Vec.t
+  ; stack_layout : Stack_layout.t
   }
 
-type stack_layout =
-  { stack_size : int32
-  ; offset_of_local : (Name.t, int32) Hashtbl.t
-  ; locals_offset : int32
-  ; end_offset : int32
-  ; spilled_offset : int32
-  ; offset_of_spilled : (Name.t, int32) Hashtbl.t
-  }
-
-let calculate_stack_layout ~vregs ~allocation fn =
-  let open Int32 in
-  let locals_size = ref 0l in
-  let offset_of_local = Hashtbl.create (module Name) in
-  let end_size = ref 0l in
-  F.Fold.(Function.instrs_forward_fold @> of_fn Instr.get_virt @> FC.Option.fold)
-    fn
-    (fun instr ->
-       (match instr with
-        | VInstr.ReserveStackEnd { size } -> end_size := max !end_size size
-        | VInstr.ReserveStackLocal { name; size } ->
-          Hashtbl.add_exn offset_of_local ~key:name ~data:!locals_size;
-          locals_size := !locals_size + size;
-          ()
-        | _ -> ());
-       ());
-  let offset_of_spilled = Hashtbl.create (module Name) in
-  let spilled_size = ref 0l in
-  Ra.Allocation.to_spilled_iter allocation
-  |> F.Iter.iter ~f:(fun spilled ->
-    let vreg = NameMap.find_exn vregs spilled in
-    let size =
-      Size.to_byte_size vreg.VReg.s |> of_int_exn |> round_up ~to_multiple_of:8l
-    in
-    Hashtbl.add_exn offset_of_spilled ~key:spilled ~data:!spilled_size;
-    spilled_size := !spilled_size + size);
-  (* TODO: align stack, align stuff *)
-  { stack_size = !locals_size + !spilled_size + !end_size
-  ; end_offset = 0l
-  ; locals_offset = !end_size
-  ; offset_of_local
-  ; spilled_offset = !locals_size + !end_size
-  ; offset_of_spilled
-  }
+(* precondition, mov must be legalized*)
+let lower_stack_off ~cx off =
+  let open Stack_off in
+  match off with
+  | End i -> Stack_layout.end_offset cx.stack_layout i
+  | Local name -> Stack_layout.local_offset cx.stack_layout name
 ;;
 
-let apply_allocation_vinstr ~cx instr =
+let lower_imm ~cx (imm : VReg.t Imm.t) : Mach_reg.t Imm.t =
+  let open Imm in
+  match imm with
+  | Int i -> Int i
+  | Stack off -> Int (lower_stack_off ~cx off)
+;;
+
+let lower_address ~cx ~can_use_scratch address =
+  let open Address in
+  let vreg_is_spilled reg =
+    match Ra.Allocation.find_exn cx.allocation reg.VReg.name with
+    | Spilled -> true
+    | InReg _ -> false
+  in
+  let base_is_spilled (base : _ Base.t) =
+    match base with
+    | Reg reg -> vreg_is_spilled reg
+    | None | Rip -> false
+  in
+  let index_is_spilled (index : _ Index.t) =
+    match index with
+    | None -> false
+    | Some { index; _ } -> vreg_is_spilled index
+  in
+  let move_base_scratch (base : _ Base.t) =
+    match base with
+    | Reg reg -> ()
+    | None | Rip -> ()
+  in
+  (* match address with
+  | Imm { offset; scale } -> Imm { offset = lower_imm ~cx offset; scale }
+  | Complex { base; index; offset }
+    when base_is_spilled base && index_is_spilled index && can_use_scratch ->
+    
+       ()
+  | Complex { base; index; offset } -> () *)
+  ()
+;;
+
+(* if can_use_scratch then (
+
+   ) else () *)
+let lower_mov ~cx ~can_use_scratch ~dst ~src = ()
+
+(* let apply_allocation_vinstr ~cx instr =
   let open VInstr in
+  let open MInstr in
   match instr with
   | Par_mov movs ->
+    let convert movs =
+      let movs =
+        List.map movs ~f:(fun (dst, src) -> Compiler.Windmills.Move.create ~dst ~src)
+        |> Array.of_list
+      in
+      Compiler.Windmills.convert
+        ~move:(fun ~dst ~src -> Either.First dst, Either.First src)
+        ~get_name:VReg.to_name
+        ~scratch:(fun reg ->
+          (* this is not valid ssa *)
+          Either.Left { reg with precolored = Some R11 })
+        movs
+      |> Tuple2.map_fst ~f:Vec.to_list
+    in
+    let instrs, did_use_scratch = convert movs in
+    let open Reg_alloc.Alloc_reg in
+    (* let maybe_spill ~dst ~src =
+      (match
+         Ra.Allocation.(
+           find_exn cx.allocation dst.VReg.name, find_exn cx.allocation src.VReg.name)
+       with
+       | Spilled, Spilled when did_use_scratch ->
+         Vec.push cx.instrs (Push { src = Reg.mach_reg reg.s Mach_reg.R11 });
+         ()
+       | Spilled, _ | _, Spilled -> ()
+       | InReg dst_reg, InReg src_reg -> ());
+      ()
+    in *)
     (* let convert movs =
       Compiler.Windmills.convert
         ~move:(fun ~dst ~src -> `dst dst, `src src)
@@ -203,10 +309,59 @@ let apply_allocation_vinstr ~cx instr =
     in
     ()
   | _ -> ()
-;;
+;; *)
 
 let apply_allocation_block ~cx ~allocation (block : _ Block.t) =
   let instrs = Vec.create () in
   (Block.instrs_forward_fold block) (fun instr -> ());
   ()
+;;
+
+let map_last vec ~f =
+  let vec = Vec.copy_exact ~size:(Vec.length vec + 1) vec in
+  Vec.set vec (Vec.length vec - 1) (f (Vec.get vec (Vec.length vec - 1)));
+  Vec.freeze vec
+;;
+
+let remove_ssa (fn : VReg.t Function.t) =
+  let graph = fn.graph in
+  let graph =
+    Cfg.Graph.foldi graph ~init:graph ~f:(fun graph (label, block) ->
+      let jump = Block.get_jump block in
+      let jump_with_no_args =
+        Jump.map_block_calls jump ~f:(fun j -> { j with args = Block_call [] })
+      in
+      let block_calls = Jump.block_calls_fold jump |> F.Iter.to_list in
+      let get_data (j : _ Block_call.t) =
+        let args = Maybe_block_call.get_args j.args in
+        let to_block = Cfg.Graph.find_exn j.label graph in
+        let params = to_block |> Block.get_block_args in
+        let par_mov = List.zip_exn params args |> VInstr.Par_mov in
+        to_block, par_mov
+      in
+      match block_calls with
+      | [ j ] ->
+        let to_block, par_mov = get_data j in
+        let instrs =
+          block.instrs |> fun vec -> Vec.copy_exact ~size:(Vec.length vec + 1) vec
+        in
+        let _ = Vec.pop_exn instrs in
+        Vec.push instrs @@ Instr.Virt par_mov;
+        Vec.push instrs @@ Jump jump_with_no_args;
+        let instrs = Vec.freeze instrs in
+        graph
+        |> Cfg.Graph.set label { Block.instrs }
+        |> Cfg.Graph.set j.label (Block.replace_first (Real NoOp) to_block)
+      | js ->
+        List.fold js ~init:graph ~f:(fun graph j ->
+          let to_block, par_mov = get_data j in
+          let block =
+            { Block.instrs = block.instrs |> map_last ~f:(fun _ -> Jump jump_with_no_args)
+            }
+          in
+          graph
+          |> Cfg.Graph.set label block
+          |> Cfg.Graph.set label (Block.replace_first (Virt par_mov) to_block)))
+  in
+  { Function.graph }
 ;;

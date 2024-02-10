@@ -29,7 +29,9 @@ type ('a, -'perms) t [@@deriving equal, compare, hash, sexp]
 
 val create : ?size:int -> unit -> ('a, [< _ perms ]) t
 val get : ('a, [> read ]) t -> int -> 'a
+val set : ('a, [> write ]) t -> int -> 'a -> unit
 val get_opt : ('a, [> read ]) t -> int -> 'a option
+val first : ('a, [> read ]) t -> 'a option
 val last : ('a, [> read ]) t -> 'a option
 val pop : ('a, [> read_write ]) t -> 'a option
 val pop_exn : ('a, [> read_write ]) t -> 'a
@@ -50,7 +52,7 @@ val fold : ('a, [> read ]) t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val fold_right : ('a, [> read ]) t -> init:'b -> f:('a -> 'b -> 'b) -> 'b
 val freeze : ('a, [> read ]) t -> ('a, [< read ]) t
 val copy : ('a, [> read ]) t -> ('a, [< _ perms ]) t
-val copy_exact : ('a, [> read ]) t -> ('a, [< _ perms ]) t
+val copy_exact : ?size:int -> ('a, [> read ]) t -> ('a, [< _ perms ]) t
 val shrink_to_fit : ('a, [> read_write ]) t -> unit
 val of_raw : 'a Raw.t -> ('a, [< _ perms ]) t
 val to_raw : ('a, [> read_write ]) t -> 'a Raw.t
