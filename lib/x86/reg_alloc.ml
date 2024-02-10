@@ -181,9 +181,12 @@ type context =
   { allocation : Ra.Allocation.t
   ; instrs : (VReg.t Instr.t, write) Vec.t (* ; stack_layout : Stack_layout.t *)
   ; mutable unique_name : Name.Id.t
+  ; temp_name : Name.t
   }
 
 module Cx = struct
+  let r11 cx s = VReg.precolored s cx.temp_name R11
+
   let fresh_name cx s =
     let name = Name.create s cx.unique_name in
     cx.unique_name <- Name.Id.next cx.unique_name;
@@ -194,6 +197,12 @@ module Cx = struct
     match Ra.Allocation.find_exn cx.allocation vreg.VReg.name with
     | Spilled -> true
     | InReg _ -> false
+  ;;
+
+  let apply_vreg cx (vreg : VReg.t) =
+    match Ra.Allocation.find_exn cx.allocation vreg.name with
+    | Spilled -> Operand.stack_local vreg.name
+    | InReg reg -> Operand.precolored vreg.s vreg.name reg
   ;;
 
   let add_minstr cx minstr = Vec.push cx.instrs (Instr.Real minstr)
@@ -291,10 +300,67 @@ let apply_allocation_vinstr ~cx instr =
   | Block_args _ -> raise_s [%message "should have been remove by remove_ssa"]
 ;;
 
+let apply_allocation_address ~cx size address =
+  let r11 = Cx.r11 cx size in
+  match address with
+  | Address.Complex { base; index; offset } ->
+    let stack_slot_address = Cx.fresh_name cx "spill_address" |> Address.stack_local in
+    let stack_slot = Operand.Mem stack_slot_address in
+    (match base with
+     | None ->
+       Cx.add_minstr cx @@ Mov { s = size; dst = Reg r11; src = Imm offset };
+       ()
+     | Reg r ->
+       Cx.add_minstr cx @@ Mov { s = size; dst = Reg r11; src = Cx.apply_vreg cx r };
+       Cx.add_minstr cx
+       @@ Add { s = size; dst = stack_slot; src1 = Reg r11; src2 = Imm offset };
+       ()
+     | Rip ->
+       (* need to do this with the offset *)
+       Cx.add_minstr cx
+       @@ Mov { s = size; dst = Reg r11; src = Operand.Mem (Address.rip_relative offset) };
+       ());
+    Cx.add_minstr cx @@ Mov { s = size; dst = stack_slot; src = Reg r11 };
+    (match index with
+     | None -> ()
+     | Some { index; scale } ->
+       Cx.add_minstr cx
+       @@ Mov { s = size; dst = Operand.Reg r11; src = Cx.apply_vreg cx index };
+       Cx.add_minstr cx
+       @@ Lea { s = size; dst = r11; src = Address.index_scale r11 scale };
+       Cx.add_minstr cx
+       @@ MInstr.Add { s = size; dst = stack_slot; src1 = stack_slot; src2 = Reg r11 };
+       ());
+    Some stack_slot_address
+  | Address.Imm _ -> None
+;;
+
+let apply_allocation_operand ~cx size operand =
+  let r11 = Cx.r11 cx size in
+  match operand with
+  | Operand.Reg reg when Cx.is_spilled cx reg -> Operand.stack_local reg.name
+  | Operand.Mem address
+    when Address.regs_fold address |> F.Iter.exists ~f:(Cx.is_spilled cx) ->
+    let stack_slot = Cx.fresh_name cx "spill_address" |> Address.stack_local in
+    let address_of_address =
+      apply_allocation_address ~cx size address |> Option.value_exn
+    in
+    Cx.add_minstr cx
+    @@ Mov { s = size; dst = Mem stack_slot; src = Mem address_of_address };
+    Mem stack_slot
+  | Operand.Mem address -> todo ()
+  | Operand.Reg _ | Operand.Imm _ -> operand
+;;
+
 let apply_allocation_minstr minstr =
   match minstr with
-  | _ -> ()
+  | _ -> MInstr.operands_fold minstr (fun o -> ())
 ;;
+
+(* MInstr.operands_fold minstr ~on_def:(fun o ->
+   ) *)
+(* match minstr with
+   | _ -> () *)
 
 let apply_allocation_block ~cx ~allocation (block : _ Block.t) =
   let instrs = Vec.create () in

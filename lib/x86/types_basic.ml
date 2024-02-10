@@ -90,10 +90,6 @@ module VReg = struct
 
   include T
   include Comparator.Make (T)
-
-  let to_name r = r.name
-  let create s name = { s; name; precolored = None }
-  let precolored s name precolored = { s; name; precolored = Some precolored }
 end
 
 module Stack_off = struct
@@ -122,12 +118,21 @@ module Address = struct
     [@@deriving sexp_of, variants]
   end
 
+  module Scale = struct
+    type t =
+      | One
+      | Two
+      | Four
+      | Eight
+    [@@deriving sexp_of, variants]
+  end
+
   module Index = struct
     type 'r t =
       | None
       | Some of
           { index : 'r
-          ; scale : int
+          ; scale : Scale.t
           }
     [@@deriving sexp_of, variants]
   end
@@ -135,7 +140,7 @@ module Address = struct
   type 'r t =
     | Imm of
         { offset : 'r Imm.t
-        ; scale : int
+        ; scale : Scale.t
         }
     | Complex of
         { base : 'r Base.t
@@ -151,10 +156,6 @@ module Operand = struct
     | Reg of 'r
     | Mem of 'r Address.t
   [@@deriving sexp_of, variants]
-
-  let imm i = Imm (Imm.Int i)
-  let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
-  let stack_local name = Imm (Imm.Stack (Stack_off.Local name))
 end
 
 module Cmp_op = struct

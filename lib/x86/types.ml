@@ -19,6 +19,10 @@ end
 
 module VReg = struct
   include T.VReg
+
+  let to_name r = r.name
+  let create s name = { s; name; precolored = None }
+  let precolored s name precolored = { s; name; precolored = Some precolored }
 end
 
 module Size = struct
@@ -45,6 +49,10 @@ module Address = struct
     let regs_fold a k = reg_val a |> Option.iter ~f:k
   end
 
+  module Scale = struct
+    include Scale
+  end
+
   module Index = struct
     include Index
 
@@ -52,6 +60,16 @@ module Address = struct
       some_val a |> Option.iter ~f:(fun (`index index, `scale _) -> k index)
     ;;
   end
+
+  let stack_local name = Imm { offset = Stack (Local name); scale = One }
+  let base base = Complex { base; index = None; offset = Int 0l }
+
+  let index_scale index scale =
+    Complex { base = None; index = Some { index; scale }; offset = Int 0l }
+  ;;
+
+  let base_offset base offset = Complex { base; index = None; offset }
+  let rip_relative offset = base_offset Base.Rip offset
 
   let regs_fold a k =
     match a with
@@ -69,6 +87,11 @@ end
 module Operand = struct
   include T.Operand
 
+  let imm i = Imm (Imm.Int i)
+  let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
+  let stack_local name = Imm (Imm.Stack (Stack_off.Local name))
+  let vreg s name = Reg (VReg.create s name)
+  let precolored s name precolored = Reg (VReg.precolored s name precolored)
   let reg_val_fold o k = reg_val o |> Option.iter ~f:k
   let mem_val_fold o k = mem_val o |> Option.iter ~f:k
   let mem_regs_fold o k = (mem_val_fold @> Address.regs_fold) o k
@@ -79,8 +102,6 @@ module Operand = struct
     | Mem m -> Address.regs_fold m k
     | Imm _ -> ()
   ;;
-
-  (* let mach_reg s r = Reg.mach_reg s r |> reg *)
 end
 
 module Block_call = struct
@@ -173,7 +194,7 @@ end
 module MInstr = struct
   include T.MInstr
 
-  let operands_fold i ~on_def ~on_use =
+  let operands_fold_with i ~on_def ~on_use =
     let module O = Operand in
     let module A = Address in
     match i with
@@ -198,19 +219,15 @@ module MInstr = struct
     | Pop { dst; _ } -> on_def @@ O.Reg dst
   ;;
 
-  let regs_fold i k =
-    operands_fold
-      i
-      ~on_def:(fun o -> Operand.any_regs_fold o k)
-      ~on_use:(fun o -> Operand.any_regs_fold o k)
-  ;;
+  let operands_fold i k = operands_fold_with i ~on_def:k ~on_use:k
+  let regs_fold i k = operands_fold i (fun o -> Operand.any_regs_fold o k)
 
   let defs_fold i k =
-    operands_fold i ~on_def:(fun o -> Operand.reg_val_fold o k) ~on_use:(Fn.const ())
+    operands_fold_with i ~on_def:(fun o -> Operand.reg_val_fold o k) ~on_use:(Fn.const ())
   ;;
 
   let uses_fold i k =
-    operands_fold
+    operands_fold_with
       i
       ~on_def:(fun o -> Operand.mem_regs_fold o k)
       ~on_use:(fun o -> Operand.any_regs_fold o k)
