@@ -37,11 +37,7 @@ let fold graph ~init ~f =
 
 let to_iteri graph f = foldi graph ~init:() ~f:(fun () x -> f x)
 let to_iter graph f = fold graph ~init:() ~f:(fun () x -> f x)
-
-let add_exn graph label block =
-  map_blocks graph ~f:(Map.add_exn ~key:label ~data:block)
-;;
-
+let add_exn graph label block = map_blocks graph ~f:(Map.add_exn ~key:label ~data:block)
 let set_blocks_alist blocks graph = { graph with blocks = Label.Map.of_alist_exn blocks }
 
 let validate graph =

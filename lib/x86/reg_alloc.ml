@@ -179,12 +179,28 @@ end
 
 type context =
   { allocation : Ra.Allocation.t
-  ; instrs : (Mach_reg.t Instr.t, read_write) Vec.t
-  ; stack_layout : Stack_layout.t
+  ; instrs : (VReg.t Instr.t, write) Vec.t (* ; stack_layout : Stack_layout.t *)
+  ; mutable unique_name : Name.Id.t
   }
 
+module Cx = struct
+  let fresh_name cx s =
+    let name = Name.create s cx.unique_name in
+    cx.unique_name <- Name.Id.next cx.unique_name;
+    name
+  ;;
+
+  let is_spilled cx vreg =
+    match Ra.Allocation.find_exn cx.allocation vreg.VReg.name with
+    | Spilled -> true
+    | InReg _ -> false
+  ;;
+
+  let add_minstr cx minstr = Vec.push cx.instrs (Instr.Real minstr)
+end
+
 (* precondition, mov must be legalized*)
-let lower_stack_off ~cx off =
+(* let lower_stack_off ~cx off =
   let open Stack_off in
   match off with
   | End i -> Stack_layout.end_offset cx.stack_layout i
@@ -228,88 +244,57 @@ let lower_address ~cx ~can_use_scratch address =
        ()
   | Complex { base; index; offset } -> () *)
   ()
-;;
+;; *)
 
 (* if can_use_scratch then (
 
    ) else () *)
-let lower_mov ~cx ~can_use_scratch ~dst ~src = ()
 
-(* let apply_allocation_vinstr ~cx instr =
+let apply_allocation_vinstr ~cx instr =
   let open VInstr in
   let open MInstr in
   match instr with
   | Par_mov movs ->
+    let module W = Compiler.Windmills in
+    let scratch_name = Cx.fresh_name cx "scratch" in
+    let get_size = function
+      | First vreg -> vreg.VReg.s
+      | Second s -> s
+    in
+    let get_name = function
+      | First vreg -> vreg.VReg.name
+      | Second _ -> scratch_name
+    in
     let convert movs =
       let movs =
-        List.map movs ~f:(fun (dst, src) -> Compiler.Windmills.Move.create ~dst ~src)
-        |> Array.of_list
+        List.map movs ~f:(fun (dst, src) ->
+          W.Move.create ~dst:(First dst) ~src:(First src))
       in
-      Compiler.Windmills.convert
-        ~move:(fun ~dst ~src -> Either.First dst, Either.First src)
-        ~get_name:VReg.to_name
-        ~scratch:(fun reg ->
-          (* this is not valid ssa *)
-          Either.Left { reg with precolored = Some R11 })
-        movs
-      |> Tuple2.map_fst ~f:Vec.to_list
+      W.convert ~get_name ~scratch:(fun reg -> Second (get_size reg)) movs
     in
-    let instrs, did_use_scratch = convert movs in
-    let open Reg_alloc.Alloc_reg in
-    (* let maybe_spill ~dst ~src =
-      (match
-         Ra.Allocation.(
-           find_exn cx.allocation dst.VReg.name, find_exn cx.allocation src.VReg.name)
-       with
-       | Spilled, Spilled when did_use_scratch ->
-         Vec.push cx.instrs (Push { src = Reg.mach_reg reg.s Mach_reg.R11 });
-         ()
-       | Spilled, _ | _, Spilled -> ()
-       | InReg dst_reg, InReg src_reg -> ());
-      ()
-    in *)
-    (* let convert movs =
-      Compiler.Windmills.convert
-        ~move:(fun ~dst ~src -> `dst dst, `src src)
-        ~get_name:VReg.to_name
-        ~scratch:(fun reg : MReg.t ->
-          let s = reg.s in
-          { s; reg = R11 })
-        (movs
-         |> List.map ~f:(fun (dst, src) -> Compiler.Windmills.Move.create ~dst ~src)
-         |> Array.of_list)
+    let had_spilled_mov =
+      List.exists movs ~f:(fun (dst, src) -> Cx.is_spilled cx dst && Cx.is_spilled cx src)
     in
-    let res, did_use_scratch = convert movs in *)
-    (* let spill reg =
-       let name =
-       in *)
-    (* let maybe_spill ~dst src =
-      let open Reg_alloc.Alloc_reg in
-      match
-        Ra.Allocation.(
-          ( find_exn cx.allocation (Reg.name_exn dst)
-          , find_exn cx.allocation (Reg.name_exn src) ))
-      with
-      | Spilled, Spilled when did_use_scratch ->
-        (* Vec.push cx.instrs (Push { src = Reg.mach_reg reg.s Mach_reg.R11 }); *)
-        ()
-      | Spilled, _ | _, Spilled -> ()
-      | InReg dst_reg, InReg src_reg -> ()
-    in *)
-    (* Vec.iter res ~f:(fun (`dst dst, `src src) ->
-       ();
-       ()); *)
-    let _f dst src =
-      (* let s = dst.Reg.s in
-      assert (Size.(equal s src.Reg.s));
-      let dst_alloc = Reg_alloc.Allocation.find_exn cx.allocation (Reg.name_exn dst) in
-      let src_alloc = Reg_alloc.Allocation.find_exn cx.allocation (Reg.name_exn src) in
-      Mov { s; dst; src } *)
-      todo ()
+    let movs, _ = convert movs in
+    let movs =
+      List.map movs ~f:(fun ({ dst; src } : _ W.Move.t) ->
+        let to_operand = function
+          | First vreg -> Operand.Reg vreg
+          | Second _ when had_spilled_mov -> Operand.stack_local scratch_name
+          | Second s -> Operand.Reg (VReg.precolored s scratch_name R11)
+        in
+        Mov { s = get_size dst; dst = to_operand dst; src = to_operand src })
     in
+    List.iter movs ~f:(Cx.add_minstr cx);
     ()
+  | Def _ | ReserveStackEnd _ | ReserveStackLocal _ -> ()
+  | Block_args _ -> raise_s [%message "should have been remove by remove_ssa"]
+;;
+
+let apply_allocation_minstr minstr =
+  match minstr with
   | _ -> ()
-;; *)
+;;
 
 let apply_allocation_block ~cx ~allocation (block : _ Block.t) =
   let instrs = Vec.create () in

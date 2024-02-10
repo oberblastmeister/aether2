@@ -149,7 +149,7 @@ module VInstr = struct
     | Par_mov movs -> (FC.List.fold @> FC.Tuple2.fold_both) movs k
     | Def { dst; _ } -> k dst
     | Block_args regs -> FC.List.fold regs k
-    | ReserveStackEnd _ -> ()
+    | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 
   let defs_fold i k =
@@ -158,7 +158,7 @@ module VInstr = struct
     | Def { dst; _ } -> k dst
     | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn fst) movs k
     | Block_args args -> FC.List.fold args k
-    | ReserveStackEnd _ -> ()
+    | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 
   let uses_fold i k =
@@ -166,69 +166,54 @@ module VInstr = struct
     match i with
     | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn snd) movs k
     | Block_args _ -> ()
-    | Def _ | ReserveStackEnd _ -> ()
+    | Def _ | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 end
 
 module MInstr = struct
   include T.MInstr
 
-  let regs_fold (type r) (i : r t) (k : r -> unit) =
+  let operands_fold i ~on_def ~on_use =
     let module O = Operand in
     let module A = Address in
     match i with
+    | NoOp -> ()
     | Lea { dst; src; _ } ->
-      k dst;
-      A.regs_fold src k
+      on_def @@ O.Reg dst;
+      on_use @@ O.Mem src
     | Add { dst; src1; src2; _ } ->
-      O.any_regs_fold dst k;
-      O.any_regs_fold src1 k;
-      O.any_regs_fold src2 k
-    | MovImm64 { dst; _ } -> O.any_regs_fold dst k
+      on_def dst;
+      on_use src1;
+      on_use src2
+    | MovImm64 { dst; _ } -> on_def dst
     | Mov { dst; src; _ } ->
-      O.any_regs_fold dst k;
-      O.any_regs_fold src k
+      on_def dst;
+      on_use src
     | Cmp { src1; src2; _ } | Test { src1; src2; _ } ->
-      O.any_regs_fold src1 k;
-      O.any_regs_fold src2 k
-    | Set { dst; _ } -> O.any_regs_fold dst k
+      on_use src1;
+      on_use src2
+    | Set { dst; _ } -> on_def dst
     | Ret -> ()
-    | Push { src; _ } -> k src
-    | Pop { dst; _ } -> k dst
+    | Push { src; _ } -> on_use @@ O.Reg src
+    | Pop { dst; _ } -> on_def @@ O.Reg dst
+  ;;
+
+  let regs_fold i k =
+    operands_fold
+      i
+      ~on_def:(fun o -> Operand.any_regs_fold o k)
+      ~on_use:(fun o -> Operand.any_regs_fold o k)
   ;;
 
   let defs_fold i k =
-    let module O = Operand in
-    let module A = Address in
-    match i with
-    | Mov mov -> O.reg_val_fold mov.dst k
-    | MovImm64 { dst; _ } -> O.reg_val_fold dst k
-    | Add { dst; _ } -> O.reg_val_fold dst k
-    | Lea { dst; _ } -> k dst
-    | Set { dst; _ } -> O.reg_val_fold dst k
-    | Pop { dst; _ } -> k dst
-    | Push _ | Cmp _ | Test _ | Ret -> ()
+    operands_fold i ~on_def:(fun o -> Operand.reg_val_fold o k) ~on_use:(Fn.const ())
   ;;
 
   let uses_fold i k =
-    let module O = Operand in
-    let module A = Address in
-    match i with
-    | Add { dst; src1; src2; _ } ->
-      O.mem_regs_fold dst k;
-      O.any_regs_fold src1 k;
-      O.any_regs_fold src2 k
-    | Mov { dst; src; _ } ->
-      O.mem_regs_fold dst k;
-      O.any_regs_fold src k
-    | Lea { src; _ } -> Address.regs_fold src k
-    | MovImm64 { dst; _ } -> O.mem_regs_fold dst k
-    | Cmp { src1; src2; _ } | Test { src1; src2; _ } ->
-      O.any_regs_fold src1 k;
-      O.any_regs_fold src2 k
-    | Set { dst; _ } -> O.mem_regs_fold dst k
-    | Push { src; _ } -> k src
-    | Pop _ | Ret -> ()
+    operands_fold
+      i
+      ~on_def:(fun o -> Operand.mem_regs_fold o k)
+      ~on_use:(fun o -> Operand.any_regs_fold o k)
   ;;
 end
 

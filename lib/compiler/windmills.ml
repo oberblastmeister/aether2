@@ -21,7 +21,8 @@ type status =
 (* https://xavierleroy.org/publi/parallel-move.pdf *)
 (* key: every component has one cycle, because every destination is unique in the parallel move *)
 (* this means that we only need one temp because we know it won't be overwritten by another cycle *)
-let convert ~move ~get_name ~scratch (par_move : _ Move.t array) =
+let convert ~get_name ~scratch (par_move : _ Move.t list) =
+  let par_move = Array.of_list par_move in
   let n = Array.length par_move in
   let status = Array.init n ~f:(Fn.const To_move) in
   let sequential = Vec.create () in
@@ -34,7 +35,7 @@ let convert ~move ~get_name ~scratch (par_move : _ Move.t array) =
       status.(i) <- Being_moved;
       (* visit children *)
       for j = 0 to n - 1 do
-        (* found an child; move whose source depends on current move's destination *)
+        (* found an child; move whose source will be overwritten by the current move's destination *)
         if Name.equal (get_name par_move.(j).src) (get_name par_move.(i).dst)
         then (
           match status.(j) with
@@ -43,14 +44,16 @@ let convert ~move ~get_name ~scratch (par_move : _ Move.t array) =
             (* unique cycle! *)
             did_use_scratch := true;
             let t = scratch par_move.(j).src in
-            Vec.push sequential @@ move ~dst:t ~src:par_move.(j).src;
+            (* Vec.push sequential @@ move ~dst:t ~src:par_move.(j).src; *)
+            Vec.push sequential { Move.dst = t; src = par_move.(j).src };
             (* j now should move from the temp because we are about to overwrite j below *)
             par_move.(j) <- { (par_move.(j)) with src = t }
           | Moved -> ());
         ()
       done;
       (* move ourselves after all the children have been moved *)
-      Vec.push sequential @@ move ~dst:par_move.(i).dst ~src:par_move.(i).src;
+      (* Vec.push sequential @@ move ~dst:par_move.(i).dst ~src:par_move.(i).src; *)
+      Vec.push sequential @@ par_move.(i);
       status.(i) <- Moved;
       ())
   in
@@ -58,7 +61,7 @@ let convert ~move ~get_name ~scratch (par_move : _ Move.t array) =
   for i = 0 to n - 1 do
     if equal_status status.(i) To_move then move_one i
   done;
-  sequential |> Vec.freeze, !did_use_scratch
+  sequential |> Vec.to_list, !did_use_scratch
 ;;
 
 let%test_module _ =
@@ -89,20 +92,10 @@ let%test_module _ =
     let c = lab "c"
     let d = lab "d"
     let scratch = lab "scratch"
-
-    let convert par_move =
-      convert
-        ~move:(fun ~dst ~src -> { Move.dst; src })
-        ~get_name:Fn.id
-        ~scratch:(Fn.const scratch)
-        par_move
-      |> Tuple2.map_fst ~f:Vec.to_list
-    ;;
+    let convert par_move = convert ~get_name:Fn.id ~scratch:(Fn.const scratch) par_move
 
     let pmov dsts srcs =
-      List.zip_exn dsts srcs
-      |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src)
-      |> Array.of_list
+      List.zip_exn dsts srcs |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src)
     ;;
 
     let%expect_test "simple no scratch" =
