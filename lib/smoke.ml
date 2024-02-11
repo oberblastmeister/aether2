@@ -34,7 +34,110 @@ let f x =
 ;;
 
 (* type 'a expr =
-  | Var of 'a
-  | Lam of 'a * 'a expr
-  | App of 'a expr * 'a expr
-  | Int of int *)
+   | Var of 'a
+   | Lam of 'a * 'a expr
+   | App of 'a expr * 'a expr
+   | Int of int *)
+
+(* precondition, mov must be legalized*)
+(* let lower_stack_off ~cx off =
+  let open Stack_off in
+  match off with
+  | End i -> Stack_layout.end_offset cx.stack_layout i
+  | Local name -> Stack_layout.local_offset cx.stack_layout name
+;;
+
+let lower_imm ~cx (imm : VReg.t Imm.t) : Mach_reg.t Imm.t =
+  let open Imm in
+  match imm with
+  | Int i -> Int i
+  | Stack off -> Int (lower_stack_off ~cx off)
+;;
+
+let lower_address ~cx ~can_use_scratch address =
+  let open Address in
+  let vreg_is_spilled reg =
+    match Ra.Allocation.find_exn cx.allocation reg.VReg.name with
+    | Spilled -> true
+    | InReg _ -> false
+  in
+  let base_is_spilled (base : _ Base.t) =
+    match base with
+    | Reg reg -> vreg_is_spilled reg
+    | None | Rip -> false
+  in
+  let index_is_spilled (index : _ Index.t) =
+    match index with
+    | None -> false
+    | Some { index; _ } -> vreg_is_spilled index
+  in
+  let move_base_scratch (base : _ Base.t) =
+    match base with
+    | Reg reg -> ()
+    | None | Rip -> ()
+  in
+  (* match address with
+  | Imm { offset; scale } -> Imm { offset = lower_imm ~cx offset; scale }
+  | Complex { base; index; offset }
+    when base_is_spilled base && index_is_spilled index && can_use_scratch ->
+    
+       ()
+  | Complex { base; index; offset } -> () *)
+  ()
+;; *)
+
+(* if can_use_scratch then (
+
+   ) else () *)
+
+(* let apply_allocation_address ~cx size address =
+  let r11 = Cx.r11 cx size in
+  match address with
+  | Address.Complex { base; index; offset } ->
+    let stack_slot_address = Cx.fresh_name cx "spill_address" |> Address.stack_local in
+    let stack_slot = Operand.Mem stack_slot_address in
+    (match base with
+     | None ->
+       Cx.add_minstr cx @@ Mov { s = size; dst = Reg r11; src = Imm offset };
+       ()
+     | Reg r ->
+       Cx.add_minstr cx @@ Mov { s = size; dst = Reg r11; src = Cx.apply_vreg cx r };
+       Cx.add_minstr cx
+       @@ Add { s = size; dst = stack_slot; src1 = Reg r11; src2 = Imm offset };
+       ()
+     | Rip ->
+       (* need to do this with the offset *)
+       Cx.add_minstr cx
+       @@ Mov { s = size; dst = Reg r11; src = Operand.Mem (Address.rip_relative offset) };
+       ());
+    Cx.add_minstr cx @@ Mov { s = size; dst = stack_slot; src = Reg r11 };
+    (match index with
+     | None -> ()
+     | Some { index; scale } ->
+       Cx.add_minstr cx
+       @@ Mov { s = size; dst = Operand.Reg r11; src = Cx.apply_vreg cx index };
+       Cx.add_minstr cx
+       @@ Lea { s = size; dst = r11; src = Address.index_scale r11 scale };
+       Cx.add_minstr cx
+       @@ MInstr.Add { s = size; dst = stack_slot; src1 = stack_slot; src2 = Reg r11 };
+       ());
+    Some stack_slot_address
+  | Address.Imm _ -> None
+;; *)
+
+(* let apply_allocation_operand ~cx size operand =
+  let r11 = Cx.r11 cx size in
+  match operand with
+  | Operand.Reg reg when Cx.is_spilled cx reg -> Operand.stack_local reg.name
+  | Operand.Mem address
+    when Address.regs_fold address |> F.Iter.exists ~f:(Cx.is_spilled cx) ->
+    let stack_slot = Cx.fresh_name cx "spill_address" |> Address.stack_local in
+    let address_of_address =
+      apply_allocation_address ~cx size address |> Option.value_exn
+    in
+    Cx.add_minstr cx
+    @@ Mov { s = size; dst = Mem stack_slot; src = Mem address_of_address };
+    Mem stack_slot
+  | Operand.Mem address -> todo ()
+  | Operand.Reg _ | Operand.Imm _ -> operand
+;; *)

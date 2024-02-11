@@ -47,6 +47,7 @@ let vreg (v : Value.t) = X86.VReg.create (ty_to_size v.ty) v.name
 
 let fresh_value (cx : Context.t) (v : Value.t) : Value.t =
   let id = cx.unique_name in
+  cx.unique_name <- Name.Id.next cx.unique_name;
   let name = Name.create v.name.name id in
   { v with name }
 ;;
@@ -107,7 +108,7 @@ and lower_instr cx instr =
 
 and lower_block_call cx block_call =
   { X86.Block_call.label = block_call.Block_call.label
-  ; args = X86.Maybe_block_call.Block_call (List.map ~f:(lower_value cx) block_call.args)
+  ; args = List.map ~f:(lower_value cx) block_call.args
   }
 
 and lower_block_args cx (block_args : Block_args.t) =
@@ -151,7 +152,8 @@ let lower_graph cx graph = Cfg.Graph.map graph ~f:(fun block -> lower_block cx b
 let lower_function (fn : Tir.Function.t) =
   let cx = Context.create fn in
   let graph = lower_graph cx fn.graph in
-  { X86.Function.graph }
+  { X86.Function.graph; unique_name = cx.unique_name }
+
 ;;
 
 let lower (prog : Tir.Program.t) =

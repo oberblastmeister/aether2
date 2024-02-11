@@ -48,6 +48,8 @@ val iter_rev : ('a, [> read ]) t -> f:('a -> unit) -> unit
 val to_iter : ('a, [> read ]) t -> 'a F.Iter.t
 val to_iter_rev : ('a, [> read ]) t -> 'a F.Iter.t
 val iteri : ('a, [> read ]) t -> f:(int -> 'a -> unit) -> unit
+val map : ('a, [> read_write ]) t -> f:('a -> 'a) -> unit
+val map_copy : ('a, [> read ]) t -> f:('a -> 'b) -> ('b, [< _ perms ]) t
 val fold : ('a, [> read ]) t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 val fold_right : ('a, [> read ]) t -> init:'b -> f:('a -> 'b -> 'b) -> 'b
 val freeze : ('a, [> read ]) t -> ('a, [< read ]) t

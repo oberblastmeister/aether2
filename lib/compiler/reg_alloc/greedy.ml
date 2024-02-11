@@ -29,7 +29,8 @@ module IntHeap = Heap.Make (struct
   end)
 
 (* TODO: do greedy coalescing *)
-module Make (Config : Config) = struct
+module Make (Arg : Arg) = struct
+  open Arg
   open Config
 
   type error = InvalidRegisterConstraint of Register.t * Register.t
@@ -170,8 +171,6 @@ module Make (Config : Config) = struct
     Ok (color_of_name, alloc_of_color, used_registers)
   ;;
 
-  module Allocation = Types.Make_allocation (Config)
-
   let run ~precolored ~interference =
     let open Result.Let_syntax in
     let%bind color_of_name, alloc_of_color, used_registers =
@@ -196,24 +195,20 @@ let%test_module _ =
         | R2
         | R3
         | R4
-      [@@deriving equal, compare, hash, sexp]
+      [@@deriving equal, compare, hash, sexp, enum]
 
       let order = [ R1; R2; R3; R4 ]
     end
 
-    module RegisterSet = struct
-      type t = Register.t Hash_set.t [@@deriving sexp_of]
-      type value = Register.t
+    module RegisterSet = Data.Enum_set.Make (Register)
 
-      let create () = Hash_set.create (module Register)
-      let mem = Hash_set.mem
-      let add = Hash_set.add
-    end
-
-    module Reg_alloc = Make (struct
+    module Arg = Make_arg (struct
         module Register = Register
         module RegisterSet = RegisterSet
       end)
+
+    module Reg_alloc = Make (Arg)
+    module Allocation = Arg.Allocation
 
     let tbl = Hashtbl.create (module String)
 
@@ -242,7 +237,7 @@ let%test_module _ =
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
-      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      print_s @@ [%sexp (allocation : Allocation.t)];
       ();
       [%expect
         {|
@@ -267,7 +262,7 @@ let%test_module _ =
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
-      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      print_s @@ [%sexp (allocation : Allocation.t)];
       [%expect
         {|
         ((alloc_of_name
@@ -293,7 +288,7 @@ let%test_module _ =
         |> Result.map_error ~f:(fun _ -> "wrong")
         |> Result.ok_or_failwith
       in
-      print_s @@ [%sexp (allocation : Reg_alloc.Allocation.t)];
+      print_s @@ [%sexp (allocation : Allocation.t)];
       [%expect
         {|
         ((alloc_of_name

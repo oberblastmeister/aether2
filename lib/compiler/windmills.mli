@@ -12,7 +12,7 @@ module Move : sig
 end
 
 val convert
-  :  get_name:('a -> Name.t)
+  : eq:('a -> 'a -> bool)
   -> scratch:('a -> 'a)
   -> 'a Move.t list
   -> 'a Move.t list * bool

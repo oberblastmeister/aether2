@@ -28,6 +28,14 @@ module Hash_set = struct
   let fold x k = Hash_set.iter x ~f:k
 end
 
+module Hashtbl = struct
+  let of_iter key i =
+    let t = Hashtbl.create key in
+    i (fun (k, v) -> Hashtbl.set t ~key:k ~data:v);
+    t
+  ;;
+end
+
 module Tuple2 = struct
   let fold_both (x, y) k =
     k x;

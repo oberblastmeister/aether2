@@ -269,6 +269,26 @@ let of_list l =
   bv
 ;;
 
+let map_bytes_ (b : t) ~f =
+  for n = 0 to div_ b.size - 1 do
+    unsafe_set_ b.b n (f (unsafe_get_ b.b n))
+  done;
+  let r = mod_ b.size in
+  if r <> 0
+  then (
+    let last = div_ b.size in
+    let mask = lsb_mask_ r in
+    unsafe_set_ b.b last (mask land f (mask land unsafe_get_ b.b last)))
+;;
+
+let negate_self bv = map_bytes_ bv ~f:(fun b -> lnot b)
+
+let negate a =
+  let b = copy a in
+  negate_self b;
+  b
+;;
+
 (* naive implementation *)
 let concat bvs =
   let size = List.fold_left ~f:(fun s bv -> s + length bv) ~init:0 bvs in

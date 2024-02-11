@@ -3,7 +3,8 @@ open Utils.Instr_types
 open Types
 module NameMap = Entity.Map.Make (Name)
 
-module Make (Config : Config) = struct
+module Make (Arg : Arg) = struct
+  open Arg
   module Allocation = Types.Make_allocation (Config)
 
   let run ~precolored:_ ~interference =

@@ -205,6 +205,30 @@ module Raw = struct
     go 0
   ;;
 
+  let map t ~f =
+    let rec go i =
+      if i < t.size
+      then (
+        unsafe_set t i (f (unsafe_get t i));
+        go (i + 1))
+      else ()
+    in
+    go 0
+  ;;
+
+  let map_copy t ~f =
+    let t' = create_exact ~size:t.size in
+    let rec go i =
+      if i < t.size
+      then (
+        unsafe_set t' i (f (unsafe_get t i));
+        go (i + 1))
+      else ()
+    in
+    go 0;
+    t'
+  ;;
+
   let compare f t t' =
     let size_ord = Int.compare t.size t'.size in
     if size_ord <> 0

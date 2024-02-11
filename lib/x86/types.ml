@@ -13,8 +13,32 @@ module Mach_reg = struct
   include T.Mach_reg
 end
 
+module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
+
 module MReg = struct
   include T.MReg
+end
+
+module AReg = struct
+  include T.AReg
+
+  let reg_val = function
+    | InReg { reg; _ } -> Some reg
+    | _ -> None
+  ;;
+
+  let size (Spilled { s; _ } | InReg { s; _ }) = s
+
+  (* let in_reg s name reg = { s; name; reg = Some reg }
+  let spilled s name = { s; name; reg = None }
+  let is_spilled t = Option.is_none t.reg
+  let is_in_reg t = Option.is_some t.reg
+
+  let to_spilled t =
+    match t.reg with
+    | None -> Some (t.s, t.name)
+    | Some _ -> None
+  ;; *)
 end
 
 module VReg = struct
@@ -89,7 +113,7 @@ module Operand = struct
 
   let imm i = Imm (Imm.Int i)
   let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
-  let stack_local name = Imm (Imm.Stack (Stack_off.Local name))
+  let stack_local name = Mem (Address.stack_local name)
   let vreg s name = Reg (VReg.create s name)
   let precolored s name precolored = Reg (VReg.precolored s name precolored)
   let reg_val_fold o k = reg_val o |> Option.iter ~f:k
@@ -102,32 +126,29 @@ module Operand = struct
     | Mem m -> Address.regs_fold m k
     | Imm _ -> ()
   ;;
+
+  let of_areg = function
+    | AReg.InReg { name; reg; s } -> Reg (MReg.create ~name s reg)
+    | AReg.Spilled { name; _ } -> stack_local name
+  ;;
 end
 
 module Block_call = struct
   include T.Block_call
 
-  let args (type r) (instr : r t) =
-    match instr.args with
-    | Block_call args -> args
-    | No_block_call -> []
-  ;;
-
-  let uses_fold (type r) (instr : r t) (k : r -> unit) =
-    match instr.args with
-    | Block_call args -> List.iter args ~f:k
-    | No_block_call -> ()
-  ;;
-
+  let uses_fold (type r) (instr : r t) (k : r -> unit) = instr.args |> List.iter ~f:k
   let regs_fold block_call k = uses_fold block_call k
+  let map_regs i ~f = map f i
 end
 
-module Maybe_block_call = struct
-  include T.Maybe_block_call
-end
+(* module Maybe_block_call = struct
+   include T.Maybe_block_call
+   end *)
 
 module Jump = struct
   include T.Jump
+
+  let map_regs i ~f = map f i
 
   let regs_fold i k =
     match i with
@@ -158,10 +179,14 @@ module Jump = struct
     | Jump j -> Jump (f j)
     | CondJump { j1; j2; cond } -> CondJump { j1 = f j1; j2 = f j2; cond }
   ;;
+
+  let map_regs i = (map_block_calls & Block_call.map_regs) i
 end
 
 module VInstr = struct
   include T.VInstr
+
+  let map_regs i ~f = map f i
 
   let regs_fold i k =
     let module O = Operand in
@@ -201,6 +226,7 @@ module MInstr = struct
     | NoOp -> ()
     | Lea { dst; src; _ } ->
       on_def @@ O.Reg dst;
+      on_def @@ O.Reg dst;
       on_use @@ O.Mem src
     | Add { dst; src1; src2; _ } ->
       on_def dst;
@@ -221,6 +247,7 @@ module MInstr = struct
 
   let operands_fold i k = operands_fold_with i ~on_def:k ~on_use:k
   let regs_fold i k = operands_fold i (fun o -> Operand.any_regs_fold o k)
+  let map_regs i ~f = map f i
 
   let defs_fold i k =
     operands_fold_with i ~on_def:(fun o -> Operand.reg_val_fold o k) ~on_use:(Fn.const ())
@@ -246,6 +273,13 @@ module Instr = struct
     | Virt v -> Instr_variant.Virt v
     | Real r -> Instr_variant.Real r
     | Jump j -> Instr_variant.Jump j
+  ;;
+
+  let map_regs i ~f =
+    match i with
+    | Virt i -> Virt (VInstr.map_regs i ~f)
+    | Real i -> Real (MInstr.map_regs i ~f)
+    | Jump i -> Jump (Jump.map_regs i ~f)
   ;;
 
   let regs_fold (type r) (i : r t) (k : r -> unit) =
@@ -311,11 +345,6 @@ module Block = struct
     { instrs }
   ;;
 
-  (* |> Option.value ~default:(Instr.Virt (VInstr.Block_args []))
-     |> function
-     | Instr.Virt (VInstr.Block_args args) -> args
-     | _ -> [] *)
-
   let jumps_fold block k =
     match get_jump block with
     | Jump j -> k j.label
@@ -336,12 +365,15 @@ module Graph = struct
 
       let jumps_fold = Block.jumps_fold
     end)
+
+  let map_blocks = Cfg.Graph.map
 end
 
 module Function = struct
   include T.Function
 
   let instrs_forward_fold fn = (Cfg.Graph.to_iter @> Block.instrs_forward_fold) fn.graph
+  let map_blocks fn ~f = { fn with graph = Graph.map_blocks fn.graph ~f }
 end
 
 module Program = struct

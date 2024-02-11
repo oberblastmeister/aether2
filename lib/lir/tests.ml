@@ -220,9 +220,8 @@ let%test_module _ =
                      (Jump
                       ((label loop.1)
                        (args
-                        (Block_call
-                         (((s Q) (name e.8) (precolored ()))
-                          ((s Q) (name r.6) (precolored ()))))))))))))
+                        (((s Q) (name e.8) (precolored ()))
+                         ((s Q) (name r.6) (precolored ())))))))))))
                 (done.2
                  ((instrs
                    ((Virt (Block_args ()))
@@ -249,8 +248,8 @@ let%test_module _ =
                      (Test (s L) (src1 (Reg ((s L) (name f.13) (precolored ()))))
                       (src2 (Reg ((s L) (name f.13) (precolored ()))))))
                     (Jump
-                     (CondJump (cond NE) (j1 ((label done.2) (args (Block_call ()))))
-                      (j2 ((label body.3) (args (Block_call ()))))))))))
+                     (CondJump (cond NE) (j1 ((label done.2) (args ())))
+                      (j2 ((label body.3) (args ())))))))))
                 (start.0
                  ((instrs
                    ((Virt (Block_args ()))
@@ -261,10 +260,10 @@ let%test_module _ =
                      (Jump
                       ((label loop.1)
                        (args
-                        (Block_call
-                         (((s Q) (name e.1) (precolored ()))
-                          ((s Q) (name r.2) (precolored ()))))))))))))))
-              (exit done.2))))))) |}]
+                        (((s Q) (name e.1) (precolored ()))
+                         ((s Q) (name r.2) (precolored ())))))))))))))
+              (exit done.2)))
+            (unique_name 16))))) |}]
     ;;
   end)
 ;;
@@ -334,4 +333,17 @@ let%test_module _ =
             (ret r.12))) |}]
     ;;
   end)
+;;
+
+let%expect_test _ =
+  let module T = struct
+    type t =
+      | First
+      | Second
+      | Third
+    [@@deriving sexp_of, enum]
+  end
+  in
+  print_s [%sexp (T.max : int)];
+  [%expect {| 2 |}]
 ;;

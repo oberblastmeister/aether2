@@ -10,6 +10,7 @@ val empty : unit -> t
 val create : size:int -> bool -> t
 val copy : t -> t
 val set : t -> int -> unit
+val unset : t -> int -> unit
 val get : t -> int -> bool
 val union_into : into:t -> t -> unit
 val inter_into : into:t -> t -> unit
@@ -17,6 +18,8 @@ val union : t -> t -> t
 val inter : t -> t -> t
 val diff_into : into:t -> t -> unit
 val diff : t -> t -> t
+val negate_self : t -> unit
+val negate : t -> t
 val iteri : t -> f:(int -> bool -> unit) -> unit
 val iter : t -> f:(bool -> unit) -> unit
 val to_iter : t -> bool F.Iter.t

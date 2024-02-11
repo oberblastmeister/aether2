@@ -21,7 +21,7 @@ type status =
 (* https://xavierleroy.org/publi/parallel-move.pdf *)
 (* key: every component has one cycle, because every destination is unique in the parallel move *)
 (* this means that we only need one temp because we know it won't be overwritten by another cycle *)
-let convert ~get_name ~scratch (par_move : _ Move.t list) =
+let convert ~eq ~scratch (par_move : _ Move.t list) =
   let par_move = Array.of_list par_move in
   let n = Array.length par_move in
   let status = Array.init n ~f:(Fn.const To_move) in
@@ -29,14 +29,14 @@ let convert ~get_name ~scratch (par_move : _ Move.t list) =
   let did_use_scratch = ref false in
   let rec move_one i =
     (* self moves don't do anything, so skip them *)
-    if not (Name.equal (get_name par_move.(i).src) (get_name par_move.(i).dst))
+    if not (eq par_move.(i).src par_move.(i).dst)
     then (
       (* if we see Being_moved in the children then we found the unique cycle *)
       status.(i) <- Being_moved;
       (* visit children *)
       for j = 0 to n - 1 do
         (* found an child; move whose source will be overwritten by the current move's destination *)
-        if Name.equal (get_name par_move.(j).src) (get_name par_move.(i).dst)
+        if eq par_move.(j).src par_move.(i).dst
         then (
           match status.(j) with
           | To_move -> move_one j
@@ -92,7 +92,7 @@ let%test_module _ =
     let c = lab "c"
     let d = lab "d"
     let scratch = lab "scratch"
-    let convert par_move = convert ~get_name:Fn.id ~scratch:(Fn.const scratch) par_move
+    let convert par_move = convert ~eq:Name.equal ~scratch:(Fn.const scratch) par_move
 
     let pmov dsts srcs =
       List.zip_exn dsts srcs |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src)

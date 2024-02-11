@@ -67,15 +67,18 @@ module Mach_reg = struct
     | R13
     | R14
     | R15
-  [@@deriving equal, compare, sexp, hash, variants]
+  [@@deriving enum, equal, compare, sexp, hash, variants]
 end
 
 module MReg = struct
   type t =
     { s : Size.t
+    ; name : string option
     ; reg : Mach_reg.t
     }
   [@@deriving equal, compare, sexp, hash]
+
+  let create ?name s reg = { s; name; reg }
 end
 
 module VReg = struct
@@ -92,6 +95,20 @@ module VReg = struct
   include Comparator.Make (T)
 end
 
+module AReg = struct
+  type t =
+    | Spilled of
+        { s : Size.t [@equal.ignore]
+        ; name : Name.t
+        }
+    | InReg of
+        { s : Size.t [@equal.ignore]
+        ; name : string [@equal.ignore]
+        ; reg : Mach_reg.t
+        }
+  [@@deriving equal, sexp_of, variants]
+end
+
 module Stack_off = struct
   type t =
     (* use ReserveStackEnd *)
@@ -102,11 +119,9 @@ end
 
 module Imm = struct
   type 'r t =
-    | Int : int32 -> 'r t
-    | Stack : Stack_off.t -> VReg.t t
-  [@@deriving sexp_of]
-
-  let get (Int i) = i
+    | Int of int32
+    | Stack of Stack_off.t
+  [@@deriving sexp_of, map, fold]
 end
 
 module Address = struct
@@ -115,7 +130,7 @@ module Address = struct
       | None
       | Reg of 'r
       | Rip
-    [@@deriving sexp_of, variants]
+    [@@deriving sexp_of, variants, map, fold]
   end
 
   module Scale = struct
@@ -134,7 +149,7 @@ module Address = struct
           { index : 'r
           ; scale : Scale.t
           }
-    [@@deriving sexp_of, variants]
+    [@@deriving sexp_of, variants, map, fold]
   end
 
   type 'r t =
@@ -147,7 +162,7 @@ module Address = struct
         ; index : 'r Index.t
         ; offset : 'r Imm.t
         }
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, map, fold]
 end
 
 module Operand = struct
@@ -155,7 +170,7 @@ module Operand = struct
     | Imm of 'r Imm.t
     | Reg of 'r
     | Mem of 'r Address.t
-  [@@deriving sexp_of, variants]
+  [@@deriving sexp_of, variants, map, fold]
 end
 
 module Cmp_op = struct
@@ -203,43 +218,43 @@ module MInstr = struct
         ; dst : 'r Operand.t
         }
     | Ret
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, map, fold]
 end
 
 module VInstr = struct
-  type t =
+  type 'r t =
     (* for calling conventions*)
-    | Def of { dst : VReg.t }
+    | Def of { dst : 'r }
     | ReserveStackEnd of { size : int32 }
     | ReserveStackLocal of
         { name : Name.t
         ; size : int32
         }
     (* for ssa *)
-    | Block_args of VReg.t list
-    | Par_mov of (VReg.t * VReg.t) list
-  [@@deriving sexp_of, variants]
+    | Block_args of 'r list
+    | Par_mov of ('r * 'r) list
+  [@@deriving sexp_of, variants, map, fold]
 end
 
-module Maybe_block_call = struct
-  type 'r t =
-    | Block_call : VReg.t list -> VReg.t t
-    | No_block_call : Mach_reg.t t
-  [@@deriving sexp_of]
+(* module Maybe_block_call = struct
+   type 'r t =
+   | Block_call : VReg.t list -> VReg.t t
+   | No_block_call : Mach_reg.t t
+   [@@deriving sexp_of]
 
-  let get_args b =
-    match b with
-    | Block_call args -> args
-    | _ -> .
-  ;;
-end
+   let get_args b =
+   match b with
+   | Block_call args -> args
+   | _ -> .
+   ;;
+   end *)
 
 module Block_call = struct
   type 'r t =
     { label : Label.t
-    ; args : 'r Maybe_block_call.t
+    ; args : 'r list
     }
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, fold, map, iter]
 end
 
 module Jump = struct
@@ -250,12 +265,12 @@ module Jump = struct
         ; j1 : 'r Block_call.t
         ; j2 : 'r Block_call.t
         }
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, fold, map, iter]
 end
 
 module Instr_variant = struct
   type 'r t =
-    | Virt of VInstr.t
+    | Virt of 'r VInstr.t
     | Real of 'r MInstr.t
     | Jump of 'r Jump.t
   [@@deriving sexp_of, variants]
@@ -263,15 +278,17 @@ end
 
 module Instr = struct
   type 'r t =
-    | Virt : VInstr.t -> VReg.t t
+    | Virt : 'r VInstr.t -> 'r t
     | Real : 'r MInstr.t -> 'r t
     | Jump : 'r Jump.t -> 'r t
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, map]
 
   let get_virt = function
     | Virt v -> Some v
     | _ -> None
   ;;
+
+  let map_regs i ~f = map f i
 end
 
 module Some_instr = struct
@@ -280,14 +297,24 @@ end
 
 module Block = struct
   type 'r t = { instrs : ('r Instr.t, Perms.Read.t) Vec.t } [@@deriving sexp_of, fields]
+
+  let map_regs b ~f = { instrs = (Vec.map_copy & Instr.map_regs) b.instrs ~f }
 end
 
 module Graph = struct
   type 'r t = 'r Block.t Cfg.Graph.t [@@deriving sexp_of]
+
+  let map_regs g ~f = (Cfg.Graph.map & Block.map_regs) ~f g
 end
 
 module Function = struct
-  type 'r t = { graph : 'r Graph.t } [@@deriving sexp_of, fields]
+  type 'r t =
+    { graph : 'r Graph.t
+    ; unique_name : Name.Id.t
+    }
+  [@@deriving sexp_of, fields]
+
+  let map_regs fn ~f = { fn with graph = Graph.map_regs ~f fn.graph }
 end
 
 module Program = struct
