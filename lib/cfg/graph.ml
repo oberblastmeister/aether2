@@ -21,6 +21,8 @@ let set label block graph =
   map_blocks graph ~f:(fun blocks -> Map.set ~key:label ~data:block blocks)
 ;;
 
+let iter_labels graph f = Map.iter_keys graph.blocks ~f
+
 let mapi graph ~f =
   map_blocks graph ~f:(Map.mapi ~f:(fun ~key:label ~data:block -> f (label, block)))
 ;;

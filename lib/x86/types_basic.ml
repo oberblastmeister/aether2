@@ -92,7 +92,7 @@ module VReg = struct
   end
 
   include T
-  include Comparator.Make (T)
+  include Comparable.Make (T)
 end
 
 module AReg = struct
@@ -118,7 +118,7 @@ module Stack_off = struct
 end
 
 module Imm = struct
-  type 'r t =
+  type t =
     | Int of int32
     | Stack of Stack_off.t
   [@@deriving sexp_of, map, fold]
@@ -154,20 +154,20 @@ module Address = struct
 
   type 'r t =
     | Imm of
-        { offset : 'r Imm.t
+        { offset : Imm.t
         ; scale : Scale.t
         }
     | Complex of
         { base : 'r Base.t
         ; index : 'r Index.t
-        ; offset : 'r Imm.t
+        ; offset : Imm.t
         }
   [@@deriving sexp_of, map, fold]
 end
 
 module Operand = struct
   type 'r t =
-    | Imm of 'r Imm.t
+    | Imm of Imm.t
     | Reg of 'r
     | Mem of 'r Address.t
   [@@deriving sexp_of, variants, map, fold]
@@ -198,7 +198,7 @@ module MInstr = struct
         }
     | Push of { src : 'r }
     | Pop of { dst : 'r }
-    | MovImm64 of
+    | MovAbs of
         { dst : 'r Operand.t
         ; imm : int64
         }
@@ -217,7 +217,6 @@ module MInstr = struct
         ; cond : Cond.t
         ; dst : 'r Operand.t
         }
-    | Ret
   [@@deriving sexp_of, map, fold]
 end
 
@@ -265,6 +264,7 @@ module Jump = struct
         ; j1 : 'r Block_call.t
         ; j2 : 'r Block_call.t
         }
+    | Ret
   [@@deriving sexp_of, fold, map, iter]
 end
 
@@ -281,7 +281,7 @@ module Instr = struct
     | Virt : 'r VInstr.t -> 'r t
     | Real : 'r MInstr.t -> 'r t
     | Jump : 'r Jump.t -> 'r t
-  [@@deriving sexp_of, map]
+  [@@deriving sexp_of, map, variants]
 
   let get_virt = function
     | Virt v -> Some v
@@ -296,9 +296,9 @@ module Some_instr = struct
 end
 
 module Block = struct
-  type 'r t = { instrs : ('r Instr.t, Perms.Read.t) Vec.t } [@@deriving sexp_of, fields]
+  type 'r t = { instrs : ('r Instr.t, read) Vec.t } [@@deriving sexp_of, fields]
 
-  let map_regs b ~f = { instrs = (Vec.map_copy & Instr.map_regs) b.instrs ~f }
+  let map_regs b ~f = { b with instrs = (Vec.map_copy & Instr.map_regs) b.instrs ~f }
 end
 
 module Graph = struct

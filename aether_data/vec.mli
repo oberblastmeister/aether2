@@ -27,6 +27,7 @@ end
 
 type ('a, -'perms) t [@@deriving equal, compare, hash, sexp]
 
+val cons : 'a -> ('a, [> read ]) t -> ('a, [< _ perms ]) t
 val create : ?size:int -> unit -> ('a, [< _ perms ]) t
 val get : ('a, [> read ]) t -> int -> 'a
 val set : ('a, [> write ]) t -> int -> 'a -> unit

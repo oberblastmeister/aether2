@@ -141,10 +141,6 @@ module Block_call = struct
   let map_regs i ~f = map f i
 end
 
-(* module Maybe_block_call = struct
-   include T.Maybe_block_call
-   end *)
-
 module Jump = struct
   include T.Jump
 
@@ -156,6 +152,7 @@ module Jump = struct
     | CondJump { j1; j2; _ } ->
       Block_call.regs_fold j1 k;
       Block_call.regs_fold j2 k
+    | Ret -> ()
   ;;
 
   let uses_fold i k =
@@ -164,6 +161,7 @@ module Jump = struct
     | CondJump { j1; j2; _ } ->
       Block_call.uses_fold j1 k;
       Block_call.uses_fold j2 k
+    | Ret -> ()
   ;;
 
   let block_calls_fold j k =
@@ -172,12 +170,14 @@ module Jump = struct
     | CondJump { j1; j2; _ } ->
       k j1;
       k j2
+    | Ret -> ()
   ;;
 
   let map_block_calls j ~f =
     match j with
     | Jump j -> Jump (f j)
     | CondJump { j1; j2; cond } -> CondJump { j1 = f j1; j2 = f j2; cond }
+    | Ret -> Ret
   ;;
 
   let map_regs i = (map_block_calls & Block_call.map_regs) i
@@ -232,7 +232,7 @@ module MInstr = struct
       on_def dst;
       on_use src1;
       on_use src2
-    | MovImm64 { dst; _ } -> on_def dst
+    | MovAbs { dst; _ } -> on_def dst
     | Mov { dst; src; _ } ->
       on_def dst;
       on_use src
@@ -240,7 +240,6 @@ module MInstr = struct
       on_use src1;
       on_use src2
     | Set { dst; _ } -> on_def dst
-    | Ret -> ()
     | Push { src; _ } -> on_use @@ O.Reg src
     | Pop { dst; _ } -> on_def @@ O.Reg dst
   ;;
@@ -308,12 +307,32 @@ module Instr = struct
     | Real i -> MInstr.uses_fold i k
     | Jump i -> Jump.uses_fold i k
   ;;
+
+  let mov_to_reg_from_stack s reg (stack_name : Name.t) =
+    Real
+      (Mov
+         { s
+         ; dst = Reg (MReg.create ~name:stack_name.name s reg)
+         ; src = Mem (Address.stack_local stack_name)
+         })
+  ;;
+
+  let mov_to_stack_from_reg s (stack_name : Name.t) reg =
+    Real
+      (Mov
+         { s
+         ; dst = Mem (Address.stack_local stack_name)
+         ; src = Reg (MReg.create ~name:stack_name.name s reg)
+         })
+  ;;
 end
 
 module Block = struct
   include T.Block
 
-  let get_jump block =
+  let first_instr b = Vec.first b.instrs
+
+  let jump_exn block =
     Vec.last block.instrs
     |> Option.value_or_thunk ~default:(fun () ->
       raise_s [%message "block must have a last instr"])
@@ -324,33 +343,32 @@ module Block = struct
       raise_s [%message "last instr must be a jump" (instr : _ Instr_variant.t)])
   ;;
 
-  let get_block_args block =
+  let block_args_exn block =
     Vec.first block.instrs
     |> Option.value_or_thunk ~default:(fun () ->
       raise_s [%message "block must have a first instr"])
+    |> fun instr ->
+    instr
     |> Instr.to_variant
     |> fun instr ->
     (let open Option.Let_syntax in
      let%bind virt = Instr_variant.virt_val instr in
      let%bind block_args = VInstr.block_args_val virt in
      return block_args)
-    |> Option.value_or_thunk ~default:(fun () -> raise_s [%message ""])
+    |> Option.value_or_thunk ~default:(fun () ->
+      raise_s
+        [%message "first instruction must be block arguments" (instr : _ Instr_variant.t)])
   ;;
 
-  let replace_first instr ({ instrs } as block) =
-    let _ = get_block_args block in
-    let instrs = Vec.copy_exact instrs in
-    Vec.set instrs 0 instr;
-    let instrs = Vec.freeze instrs in
-    { instrs }
-  ;;
+  let cons instr b = { instrs = Vec.cons instr b.instrs }
 
   let jumps_fold block k =
-    match get_jump block with
+    match jump_exn block with
     | Jump j -> k j.label
     | CondJump { j1; j2; _ } ->
       k j1.label;
       k j2.label
+    | Ret -> ()
   ;;
 
   let instrs_forward_fold b = Vec.to_iter b.instrs
@@ -378,6 +396,8 @@ end
 
 module Program = struct
   include T.Program
+
+  let map_functions program ~f = { functions = List.map program.functions ~f }
 end
 
 module Dataflow = struct

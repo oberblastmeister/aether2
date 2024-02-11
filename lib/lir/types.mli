@@ -96,7 +96,7 @@ module Generic_instr : sig
 
   val get_instr : ('v, Control.o) t -> 'v Instr.t
   val map_instr : ('v, Control.o) t -> f:('v Instr.t -> 'u Instr.t) -> ('u, Control.o) t
-  val get_block_args : ('v, Control.e) t -> Block_args.t
+  val block_args_exn : ('v, Control.e) t -> Block_args.t
 
   val map_block_args
     :  ('v, Control.e) t

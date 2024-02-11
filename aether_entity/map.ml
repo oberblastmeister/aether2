@@ -28,10 +28,14 @@ let mem t k ~to_id =
   i < size t && OA.is_some t.a i
 ;;
 
+let key_not_found t k = raise_s [%message "key not found" ~key:(t.sexp_of_key k : Sexp.t)]
+
 let find_exn t k ~to_id =
   let i = Raw_id.to_int @@ to_id k in
   if i >= size t
-  then raise_s [%message "key not found" ~key:(t.sexp_of_key k : Sexp.t)]
+  then key_not_found t k
+  else if OA.is_none t.a i
+  then key_not_found t k
   else snd @@ OA.get_some_exn t.a i
 ;;
 
@@ -60,8 +64,8 @@ let of_list l ~to_id =
   t
 ;;
 
-let of_iter ?size i ~to_id =
-  let t = create ?size () in
+let of_iter ?sexp_of_key ?size i ~to_id =
+  let t = create ?sexp_of_key ?size () in
   F.Iter.iter i ~f:(fun (k, v) -> set t ~key:k ~data:v ~to_id);
   t
 ;;
@@ -81,7 +85,7 @@ module Make_gen (Arg : Gen_arg) = struct
   let mem = mem ~to_id
   let update = update ~to_id
   let of_list = of_list ~to_id
-  let of_iter = of_iter ~to_id
+  let of_iter ?size i = of_iter ~sexp_of_key:sexp_of_opaque ?size ~to_id i
   let ( .![] ) = find_exn
   let ( .?[] ) = find
   let ( .![]<- ) t key data = set t ~key ~data
@@ -89,6 +93,7 @@ end
 
 module Make (Arg : Arg) = struct
   let create_real ?size () = create ~sexp_of_key:Arg.sexp_of_t ?size ()
+  let of_iter_real ?size = of_iter ~sexp_of_key:Arg.sexp_of_t ?size ~to_id:Arg.to_raw
 
   include Make_gen (struct
       type ('a, 'b, 'c) t = Arg.t
@@ -97,6 +102,7 @@ module Make (Arg : Arg) = struct
     end)
 
   let create = create_real
+  let of_iter = of_iter_real
 end
 
 let%test_module _ =

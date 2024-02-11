@@ -45,6 +45,7 @@ module type Intf = sig
   val set : Label.t -> 'b -> 'b t -> 'b t
   val set_blocks_alist : (Label.t * 'b) list -> _ t -> 'b t
   val foldi : 'b t -> init:'a -> f:('a -> Label.t * 'b -> 'a) -> 'a
+  val iter_labels : 'b t -> Label.t F.Iter.t
   val to_iteri : 'b t -> (Label.t * 'b) F.Iter.t
   val fold : 'b t -> init:'a -> f:('a -> 'b -> 'a) -> 'a
   val to_iter : 'b t -> 'b F.Iter.t
@@ -55,7 +56,6 @@ module type Intf = sig
     :  jumps:('b -> Label.t F.Iter.t)
     -> 'b t
     -> Label.t list Label.Map.t
-
   val map : 'a t -> f:('a -> 'b) -> 'b t
   val mapi : 'a t -> f:(Label.t * 'a -> 'b) -> 'b t
   val map_simple_order : 'b t -> f:(Label.t * 'b -> 'b) -> 'b t

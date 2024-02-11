@@ -11,17 +11,17 @@ let legalize_instr instr ~force_same ~force_register =
       o1, o2
     | _ -> o1, o2
   in
-  let legal_move ~dst ~src =
+  let legal ~dst ~src =
     let `dst dst, `src src = force_same ~dst ~src in
     let dst, src = not_both_mem dst src in
     `dst dst, `src src
   in
   match instr with
   | Add ({ dst; src1; _ } as p) ->
-    let `dst dst, `src src1 = legal_move ~dst ~src:src1 in
+    let `dst dst, `src src1 = legal ~dst ~src:src1 in
     Add { p with dst; src1 }
   | Mov ({ dst; src; _ } as p) ->
-    let `dst dst, `src src = legal_move ~dst ~src in
+    let dst, src = not_both_mem dst src in
     Mov { p with dst; src }
   | Cmp ({ src1; src2; _ } as p) ->
     let src1, src2 = not_both_mem src1 src2 in

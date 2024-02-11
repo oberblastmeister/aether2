@@ -124,12 +124,12 @@ module Generic_instr = struct
 
   let map_instr i ~f = Instr (f (get_instr i))
 
-  let get_block_args : type v. (v, Control.e) t -> Value.t list = function
+  let block_args_exn : type v. (v, Control.e) t -> Value.t list = function
     | Block_args vs -> vs
     | _ -> .
   ;;
 
-  let map_block_args i ~f = Block_args (f (get_block_args i))
+  let map_block_args i ~f = Block_args (f (block_args_exn i))
 
   let map : type a b c. (a, c) t -> f:(a -> b) -> (b, c) t =
     fun i ~f ->
@@ -195,7 +195,7 @@ module Block = struct
   end
 
   let map_instrs_forwards (m : _ Mapper.t) { entry; body; exit } =
-    let entry = m.f (Generic_instr.Block_args entry) |> Generic_instr.get_block_args in
+    let entry = m.f (Generic_instr.Block_args entry) |> Generic_instr.block_args_exn in
     let body =
       List.map
         ~f:(fun body -> Generic_instr.Instr body |> m.f |> Generic_instr.get_instr)

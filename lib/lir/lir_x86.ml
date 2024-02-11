@@ -71,7 +71,7 @@ and lower_assign cx dst expr =
      | _ -> failwith "can't handle op yet")
   | Expr.Const { ty = Ty.U64; const } ->
     let dst = vreg dst in
-    Cx.add cx (MInstr.MovImm64 { dst = X86.Operand.Reg dst; imm = const });
+    Cx.add cx (MInstr.MovAbs { dst = X86.Operand.Reg dst; imm = const });
     dst
   | Expr.Const { ty; const } ->
     let dst = vreg dst in
@@ -127,13 +127,13 @@ and lower_control_instr cx instr =
   | Control_instr.Jump j ->
     let j = lower_block_call cx j in
     Cx.addj cx @@ X86.Jump.Jump j
-  | Ret None -> Cx.add cx @@ MInstr.Ret
+  | Ret None -> Cx.addj cx @@ X86.Jump.Ret
   | Ret (Some v) ->
     let op = lower_value_op cx v in
     let v' = fresh_value cx (Tir.Value.to_value v) in
     let dst = precolored v' X86.Mach_reg.RAX in
     Cx.add cx @@ MInstr.Mov { s = ty_to_size @@ Tir.Value.get_ty v; dst; src = op };
-    Cx.add cx @@ MInstr.Ret
+    Cx.addj cx @@ X86.Jump.Ret
 ;;
 
 let lower_block cx (block : Tir.Block.t) =
@@ -153,7 +153,6 @@ let lower_function (fn : Tir.Function.t) =
   let cx = Context.create fn in
   let graph = lower_graph cx fn.graph in
   { X86.Function.graph; unique_name = cx.unique_name }
-
 ;;
 
 let lower (prog : Tir.Program.t) =

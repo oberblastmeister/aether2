@@ -261,6 +261,18 @@ module Raw = struct
     else false
   ;;
 
+  let cons x t =
+    let t' =
+      { size = length t + 1
+      ; data = Option_array.create ~len:(length t + 1)
+      ; frozen = false
+      }
+    in
+    unsafe_set t' 0 x;
+    Option_array.blit ~dst:t'.data ~src:t.data ~dst_pos:1 ~src_pos:0 ~len:(length t);
+    t
+  ;;
+
   let sexp_of_t f t = Array.sexp_of_t f (to_array t)
 
   let t_of_sexp f sexp =

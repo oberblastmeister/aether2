@@ -206,7 +206,7 @@ let%test_module _ =
                  ((instrs
                    ((Virt (Block_args ()))
                     (Real
-                     (MovImm64 (dst (Reg ((s Q) (name one.7) (precolored ()))))
+                     (MovAbs (dst (Reg ((s Q) (name one.7) (precolored ()))))
                       (imm 1)))
                     (Real
                      (Add (s Q) (dst (Reg ((s Q) (name e.8) (precolored ()))))
@@ -228,7 +228,7 @@ let%test_module _ =
                     (Real
                      (Mov (s Q) (dst (Reg ((s Q) (name r.15) (precolored (RAX)))))
                       (src (Reg ((s Q) (name r.11) (precolored ()))))))
-                    (Real Ret)))))
+                    (Jump Ret)))))
                 (loop.1
                  ((instrs
                    ((Virt
@@ -236,8 +236,7 @@ let%test_module _ =
                       (((s Q) (name e.10) (precolored ()))
                        ((s Q) (name r.11) (precolored ())))))
                     (Real
-                     (MovImm64 (dst (Reg ((s Q) (name z.12) (precolored ()))))
-                      (imm 0)))
+                     (MovAbs (dst (Reg ((s Q) (name z.12) (precolored ())))) (imm 0)))
                     (Real
                      (Cmp (s Q) (src1 (Reg ((s Q) (name e.10) (precolored ()))))
                       (src2 (Reg ((s Q) (name z.12) (precolored ()))))))
@@ -254,14 +253,82 @@ let%test_module _ =
                  ((instrs
                    ((Virt (Block_args ()))
                     (Real
-                     (MovImm64 (dst (Reg ((s Q) (name r.2) (precolored ()))))
-                      (imm 1)))
+                     (MovAbs (dst (Reg ((s Q) (name r.2) (precolored ())))) (imm 1)))
                     (Jump
                      (Jump
                       ((label loop.1)
                        (args
                         (((s Q) (name e.1) (precolored ()))
                          ((s Q) (name r.2) (precolored ())))))))))))))
+              (exit done.2)))
+            (unique_name 16))))) |}]
+    ;;
+
+    let%expect_test "regalloc" =
+      let program =
+        Lazy.force loop_lir
+        |> Ssa.convert_ssa
+        |> Lower.run
+        |> Lir_x86.lower
+        |> X86.Reg_alloc.run
+      in
+      print_s @@ [%sexp_of: X86.Types.MReg.t X86.Types.Program.t] program;
+      [%expect {|
+        ((functions
+          (((graph
+             ((entry start.0)
+              (blocks
+               ((body.3
+                 ((instrs
+                   ((Real
+                     (MovAbs (dst (Reg ((s Q) (name (one)) (reg R10)))) (imm 1)))
+                    (Real
+                     (Add (s Q) (dst (Reg ((s Q) (name (e)) (reg RSI))))
+                      (src1 (Reg ((s Q) (name (e)) (reg R9))))
+                      (src2 (Reg ((s Q) (name (one)) (reg R10))))))
+                    (Real
+                     (Add (s Q) (dst (Reg ((s Q) (name (r)) (reg RDX))))
+                      (src1 (Reg ((s Q) (name (r)) (reg RDI))))
+                      (src2 (Reg ((s Q) (name (b)) (reg RAX))))))
+                    (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg R9))))
+                      (src (Reg ((s Q) (name (e)) (reg RSI))))))
+                    (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RDI))))
+                      (src (Reg ((s Q) (name (r)) (reg RDX))))))
+                    (Jump (Jump ((label loop.1) (args ()))))))))
+                (done.2
+                 ((instrs
+                   ((Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RAX))))
+                      (src (Reg ((s Q) (name (r)) (reg RDI))))))
+                    (Jump Ret)))))
+                (loop.1
+                 ((instrs
+                   ((Real
+                     (MovAbs (dst (Reg ((s Q) (name (one)) (reg R10)))) (imm 1)))
+                    (Real
+                     (Add (s Q) (dst (Reg ((s Q) (name (e)) (reg RSI))))
+                      (src1 (Reg ((s Q) (name (e)) (reg R9))))
+                      (src2 (Reg ((s Q) (name (one)) (reg R10))))))
+                    (Real
+                     (Add (s Q) (dst (Reg ((s Q) (name (r)) (reg RDX))))
+                      (src1 (Reg ((s Q) (name (r)) (reg RDI))))
+                      (src2 (Reg ((s Q) (name (b)) (reg RAX))))))
+                    (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg R9))))
+                      (src (Reg ((s Q) (name (e)) (reg RSI))))))
+                    (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RDI))))
+                      (src (Reg ((s Q) (name (r)) (reg RDX))))))
+                    (Jump (Jump ((label loop.1) (args ()))))))))
+                (start.0
+                 ((instrs
+                   ((Real (MovAbs (dst (Reg ((s Q) (name (r)) (reg RDI)))) (imm 1)))
+                    (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg R9))))
+                      (src (Reg ((s Q) (name (e)) (reg RAX))))))
+                    (Jump (Jump ((label loop.1) (args ()))))))))))
               (exit done.2)))
             (unique_name 16))))) |}]
     ;;
