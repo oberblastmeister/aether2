@@ -242,10 +242,10 @@ let%test_module _ =
                       (src2 (Reg ((s Q) (name z.12) (precolored ()))))))
                     (Real
                      (Set (s Q) (cond A)
-                      (dst (Reg ((s L) (name f.13) (precolored ()))))))
+                      (dst (Reg ((s Q) (name f.13) (precolored ()))))))
                     (Real
-                     (Test (s L) (src1 (Reg ((s L) (name f.13) (precolored ()))))
-                      (src2 (Reg ((s L) (name f.13) (precolored ()))))))
+                     (Test (s Q) (src1 (Reg ((s Q) (name f.13) (precolored ()))))
+                      (src2 (Reg ((s Q) (name f.13) (precolored ()))))))
                     (Jump
                      (CondJump (cond NE) (j1 ((label done.2) (args ())))
                       (j2 ((label body.3) (args ())))))))))
@@ -305,23 +305,18 @@ let%test_module _ =
                     (Jump Ret)))))
                 (loop.1
                  ((instrs
-                   ((Real
-                     (MovAbs (dst (Reg ((s Q) (name (one)) (reg R10)))) (imm 1)))
+                   ((Real (MovAbs (dst (Reg ((s Q) (name (z)) (reg R8)))) (imm 0)))
                     (Real
-                     (Add (s Q) (dst (Reg ((s Q) (name (e)) (reg RSI))))
-                      (src1 (Reg ((s Q) (name (e)) (reg R9))))
-                      (src2 (Reg ((s Q) (name (one)) (reg R10))))))
+                     (Cmp (s Q) (src1 (Reg ((s Q) (name (e)) (reg R9))))
+                      (src2 (Reg ((s Q) (name (z)) (reg R8))))))
                     (Real
-                     (Add (s Q) (dst (Reg ((s Q) (name (r)) (reg RDX))))
-                      (src1 (Reg ((s Q) (name (r)) (reg RDI))))
-                      (src2 (Reg ((s Q) (name (b)) (reg RAX))))))
+                     (Set (s Q) (cond A) (dst (Reg ((s Q) (name (f)) (reg RCX))))))
                     (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg R9))))
-                      (src (Reg ((s Q) (name (e)) (reg RSI))))))
-                    (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RDI))))
-                      (src (Reg ((s Q) (name (r)) (reg RDX))))))
-                    (Jump (Jump ((label loop.1) (args ()))))))))
+                     (Test (s Q) (src1 (Reg ((s Q) (name (f)) (reg RCX))))
+                      (src2 (Reg ((s Q) (name (f)) (reg RCX))))))
+                    (Jump
+                     (CondJump (cond NE) (j1 ((label done.2) (args ())))
+                      (j2 ((label body.3) (args ())))))))))
                 (start.0
                  ((instrs
                    ((Real (MovAbs (dst (Reg ((s Q) (name (r)) (reg RDI)))) (imm 1)))

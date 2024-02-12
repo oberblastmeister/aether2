@@ -358,7 +358,7 @@ let remove_ssa (fn : _ Function.t) =
           in
           graph
           |> Cfg.Graph.set label block
-          |> Cfg.Graph.set label (Block.cons (Virt par_mov) to_block)))
+          |> Cfg.Graph.set j.label (Block.cons (Virt par_mov) to_block)))
   in
   { fn with graph }
 ;;
@@ -366,9 +366,14 @@ let remove_ssa (fn : _ Function.t) =
 let legalize_instr instr = Legalize.legalize_instr @@ todo ()
 
 let run_function fn =
+  (* print_s [%message (fn : VReg.t Function.t)]; *)
   let allocation = alloc_fn fn |> Or_error.ok_exn in
+  (* print_s [%message (allocation : Ra.Allocation.t)]; *)
   let fn = apply_allocation_function ~allocation fn in
+  (* print_s [%message "apply_allocation" (fn : AReg.t Function.t)]; *)
+  (* something is wrong with the remove_ssa function, we need to add entry and exit to block *)
   let fn = remove_ssa fn in
+  (* print_s [%message "remove_ssa" (fn : AReg.t Function.t)]; *)
   let fn = lower_function fn in
   fn
 ;;

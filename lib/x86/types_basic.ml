@@ -111,6 +111,7 @@ end
 
 module Stack_off = struct
   type t =
+    | Start of int32
     (* use ReserveStackEnd *)
     | End of int32
     | Local of Name.t

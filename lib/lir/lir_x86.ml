@@ -28,7 +28,7 @@ end
 module Cx = Context
 
 let ty_to_size = function
-  | Ty.U1 -> X86.Size.L
+  | Ty.U1 -> X86.Size.Q
   | Ty.U64 -> X86.Size.Q
 ;;
 

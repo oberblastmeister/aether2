@@ -66,7 +66,9 @@ let of_list l ~to_id =
 
 let of_iter ?sexp_of_key ?size i ~to_id =
   let t = create ?sexp_of_key ?size () in
-  F.Iter.iter i ~f:(fun (k, v) -> set t ~key:k ~data:v ~to_id);
+  F.Iter.iter i ~f:(fun (k, v) ->
+    (* if mem ~to_id t k then raise_s [%message "key was present twice"]; *)
+    set t ~key:k ~data:v ~to_id);
   t
 ;;
 

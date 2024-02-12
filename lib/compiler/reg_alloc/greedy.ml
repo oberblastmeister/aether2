@@ -65,6 +65,7 @@ module Make (Arg : Arg) = struct
   let color_with ~interference ~ordering =
     let color_of_name = NameMap.create () in
     let max_color = ref Color.lowest in
+    let used_colors = Hash_set.create (module Color) in
     ordering
     |> F.Iter.iter ~f:(fun name ->
       let neighbor_colors =
@@ -90,6 +91,7 @@ module Make (Arg : Arg) = struct
       in
       NameMap.set color_of_name ~key:name ~data:lowest_not_in_neighbors;
       max_color := Color.max !max_color lowest_not_in_neighbors;
+      Hash_set.add used_colors lowest_not_in_neighbors;
       ());
     color_of_name, !max_color
   ;;
@@ -147,6 +149,7 @@ module Make (Arg : Arg) = struct
     in
     let alloc_of_color = ColorMap.create () in
     F.Iter.(
+      (* TODO: fix that colors in between 0 and max_color aren't used *)
       Color.to_int Color.lowest -- Color.to_int max_color
       |> iter ~f:(fun color ->
         let color = Color.of_int color in
