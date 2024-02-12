@@ -29,8 +29,7 @@ module IntHeap = Heap.Make (struct
   end)
 
 (* TODO: do greedy coalescing *)
-module Make (Arg : Arg) = struct
-  open Arg
+module Make (Config : Config) = struct
   open Config
 
   type error = InvalidRegisterConstraint of Register.t * Register.t
@@ -186,7 +185,7 @@ module Make (Arg : Arg) = struct
         name, alloc)
       |> NameMap.of_iter ~size:(Interference.size interference)
     in
-    Ok { Allocation.alloc_of_name; used_registers }
+    Ok { alloc_of_name; used_registers }
   ;;
 end
 
@@ -205,13 +204,13 @@ let%test_module _ =
 
     module RegisterSet = Data.Enum_set.Make (Register)
 
-    module Arg = Make_arg (struct
-        module Register = Register
-        module RegisterSet = RegisterSet
-      end)
+    module Config = struct
+      module Register = Register
+      module RegisterSet = RegisterSet
+    end
 
-    module Reg_alloc = Make (Arg)
-    module Allocation = Arg.Allocation
+    module Reg_alloc = Make (Config)
+    module Allocation = Make_allocation (Config)
 
     let tbl = Hashtbl.create (module String)
 

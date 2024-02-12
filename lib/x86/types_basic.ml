@@ -111,8 +111,10 @@ end
 
 module Stack_off = struct
   type t =
+    (* to access arguments for this function *)
     | Start of int32
     (* use ReserveStackEnd *)
+    (* used to put arguments on the stack to call a function *)
     | End of int32
     | Local of Name.t
   [@@deriving sexp_of]

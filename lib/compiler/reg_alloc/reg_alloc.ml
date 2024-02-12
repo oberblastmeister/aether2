@@ -1,13 +1,21 @@
+open O
+open Utils.Instr_types
 include Types
 module Interference = Interference
-module Spill_all = Spill_all
 
-module Make (Config : Config) = struct
-  module Arg = Make_arg (Config)
+module Make (Config : Config) : sig
+  module Allocation : Allocation with module Config := Config
 
-  module type S = S with module Arg := Arg
+  module type S = Make_S(Config)(Allocation).S
 
-  module Allocation = Arg.Allocation
-  module Greedy = Greedy.Make (Arg)
-  module Spill_all = Spill_all.Make (Arg)
+  module Greedy : S
+  module Spill_all : S
+end = struct
+  open Config
+  module Allocation = Make_allocation (Config)
+
+  module type S = Make_S(Config)(Allocation).S
+
+  module Greedy = Greedy.Make (Config)
+  module Spill_all = Spill_all.Make (Config)
 end
