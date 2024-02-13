@@ -40,8 +40,6 @@ module type Intf = sig
     -> Label.t Data.Graph.double
 
   val find_exn : Label.t -> 'b t -> 'b
-  val entry : 'b t -> Label.t
-  val exit : 'b t -> Label.t
   val set : Label.t -> 'b -> 'b t -> 'b t
   val set_blocks_alist : (Label.t * 'b) list -> _ t -> 'b t
   val foldi : 'b t -> init:'a -> f:('a -> Label.t * 'b -> 'a) -> 'a
@@ -56,6 +54,7 @@ module type Intf = sig
     :  jumps:('b -> Label.t F.Iter.t)
     -> 'b t
     -> Label.t list Label.Map.t
+
   val map : 'a t -> f:('a -> 'b) -> 'b t
   val mapi : 'a t -> f:(Label.t * 'a -> 'b) -> 'b t
   val map_simple_order : 'b t -> f:(Label.t * 'b -> 'b) -> 'b t

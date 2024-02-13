@@ -1,5 +1,4 @@
-open O
-open Utils.Instr_types
+open! O
 
 module Move : sig
   type 'a t =
@@ -12,7 +11,7 @@ module Move : sig
 end
 
 val convert
-  : eq:('a -> 'a -> bool)
+  :  eq:('a -> 'a -> bool)
   -> scratch:('a -> 'a)
   -> 'a Move.t list
   -> 'a Move.t list * bool

@@ -4,8 +4,6 @@ module F = Folds
 
 type 'a t = Bitvec.t
 
-(* module type S = S with type 'a t := 'a t *)
-
 let create (type a) ~enum:(module Enum : Enum.S with type t = a) =
   Bitvec.create ~size:(Enum.max + 1) false
 ;;
@@ -25,8 +23,6 @@ let mem (type a) ~enum:(module Enum : Enum.S with type t = a) t x =
 let iter (type a) ~enum:(module Enum : Enum.S with type t = a) t ~f =
   Bitvec.iteri t ~f:(fun i b -> if b then f (Enum.of_enum i |> Option.value_exn))
 ;;
-
-(* Enum.iter (fun x -> if mem ~enum t x then f x) Enum.all *)
 
 module Make (T : Enum.S) = struct
   type nonrec t = T.t t

@@ -2,10 +2,7 @@ open O
 open Utils.Instr_types
 open Types
 
-
 module Make (Config : Config) = struct
-  open Config
-
   let run ~precolored:_ ~interference =
     let alloc_of_name =
       Interference.nodes interference

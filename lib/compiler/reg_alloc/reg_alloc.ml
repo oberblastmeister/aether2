@@ -11,7 +11,6 @@ module Make (Config : Config) : sig
   module Greedy : Algorithm
   module Spill_all : Algorithm
 end = struct
-  open Config
   module Allocation = Make_allocation (Config)
 
   module type Algorithm = Algorithm(Config)(Allocation).S

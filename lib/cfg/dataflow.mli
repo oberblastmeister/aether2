@@ -21,13 +21,13 @@ module Instr_transfer : sig
   type ('i, 'd) t
 
   val create
-    :  transfer:('i -> 'd -> 'd)
+    :  ?sexp_of_instr:('i -> Sexp.t)
+    -> ?sexp_of_domain:('d -> Sexp.t)
+    -> transfer:('i -> 'd -> 'd)
     -> changed:(current_fact:'d -> new_fact:'d -> bool)
     -> empty:'d
     -> combine:('d list -> 'd)
     -> direction:direction
-    -> ?sexp_of_instr:('i -> Sexp.t)
-    -> ?sexp_of_domain:('d -> Sexp.t)
     -> ('i, 'd) t
 
   val transfer : ('i, 'd) t -> 'i -> 'd -> 'd
@@ -37,12 +37,12 @@ module Block_transfer : sig
   type ('b, 'd) t
 
   val create
-    :  transfer:(Label.t -> 'b -> other_facts:'d -> current_fact:'d -> 'd option)
+    :  ?sexp_of_domain:('d -> Sexp.t)
+    -> ?sexp_of_block:('b -> Sexp.t)
+    -> transfer:(Label.t -> 'b -> other_facts:'d -> current_fact:'d -> 'd option)
     -> combine:('d list -> 'd)
     -> empty:'d
     -> direction:direction
-    -> ?sexp_of_domain:('d -> Sexp.t)
-    -> ?sexp_of_block:('b -> Sexp.t)
     -> ('b, 'd) t
 end
 

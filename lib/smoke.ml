@@ -1,4 +1,4 @@
-module X : sig
+(* module X : sig
   type t
 
   val mk : t
@@ -31,7 +31,7 @@ let f x =
     (match n with
      | 0 -> 0
      | n -> 1)
-;;
+;; *)
 
 (* type 'a expr =
    | Var of 'a

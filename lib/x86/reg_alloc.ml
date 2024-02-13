@@ -1,4 +1,4 @@
-open O
+open! O
 open Types
 open Utils.Instr_types
 module Interference = Compiler.Reg_alloc.Interference

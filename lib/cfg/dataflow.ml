@@ -2,7 +2,6 @@ open! O
 open Utils.Instr_types
 module LabelQueue = Hash_queue.Make (Label)
 
-
 type direction =
   | Forward
   | Backward
@@ -42,13 +41,13 @@ module Instr_transfer = struct
     }
 
   let create
+    ?(sexp_of_instr = sexp_of_opaque)
+    ?(sexp_of_domain = sexp_of_opaque)
     ~transfer
     ~changed
     ~empty
     ~combine
     ~direction
-    ?(sexp_of_instr = sexp_of_opaque)
-    ?(sexp_of_domain = sexp_of_opaque)
     =
     { transfer; changed; empty; combine; direction; sexp_of_instr; sexp_of_domain }
   ;;
@@ -67,12 +66,12 @@ module Block_transfer = struct
     }
 
   let create
+    ?(sexp_of_domain = sexp_of_opaque)
+    ?(sexp_of_block = sexp_of_opaque)
     ~transfer
     ~combine
     ~empty
     ~direction
-    ?(sexp_of_domain = sexp_of_opaque)
-    ?(sexp_of_block = sexp_of_opaque)
     =
     { transfer; combine; empty; direction; sexp_of_domain; sexp_of_block }
   ;;

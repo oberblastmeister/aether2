@@ -1,4 +1,4 @@
-open O
+open! O
 module Lir = Types
 module Tir = Tir
 

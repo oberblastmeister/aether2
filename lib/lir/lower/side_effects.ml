@@ -1,4 +1,4 @@
-open O
+open! O
 open Types
 
 (* a color is an instruction index modulo pure operations *)

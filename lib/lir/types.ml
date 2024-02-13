@@ -14,18 +14,8 @@ module Value = struct
   include T.Value
   module Hashtbl = Hashtbl.Make (T.Value)
   module Hash_set = Hash_set.Make (T.Value)
-  module C = Base.Comparable.Make (T.Value)
+  module C = Comparable.Make_plain (T.Value)
   include C
-
-  module Map = Map.Make_using_comparator (struct
-      include T.Value
-      include C
-    end)
-
-  module Set = Set.Make_using_comparator (struct
-      include T.Value
-      include C
-    end)
 
   let to_int v = Name.to_int v.name
 end

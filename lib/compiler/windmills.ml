@@ -1,5 +1,4 @@
 open O
-open Utils.Instr_types
 
 module Move = struct
   type 'a t =
@@ -92,8 +91,7 @@ let%test_module _ =
       [%test_result: bool] did_use_scratch ~expect:false;
       print_s [%sexp (res : string Move.t list)];
       ();
-      [%expect
-        {|
+      [%expect {|
         (((dst c) (src b)) ((dst b) (src a)) ((dst d) (src a))) |}]
     ;;
 

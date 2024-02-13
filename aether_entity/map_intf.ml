@@ -49,6 +49,8 @@ module type Intf = sig
   val iteri : ('k, 'v) t -> f:('k * 'v -> unit) -> unit
   val to_iteri : ('k, 'v) t -> ('k * 'v) F.Iter.t
 
+  module type S = S
+
   module Make_gen (Arg : Gen_arg) :
     Gen_S
     with type ('a, 'b, 'c) k := ('a, 'b, 'c) Arg.t

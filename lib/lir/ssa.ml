@@ -7,8 +7,6 @@ module ValueWithId = struct
     ; id : Value.t Union_find.t [@equal.ignore]
     }
   [@@deriving equal]
-
-  let sexp_of_t v = [%sexp (v.value : Value.t)]
 end
 
 module PhiValue = struct

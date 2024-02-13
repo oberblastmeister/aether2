@@ -13,13 +13,7 @@ module Value : sig
   include module type of T.Value
   module Hashtbl : Hashtbl.S with type key := t
   module Hash_set : Hash_set.S with type elt := t
-  include Base.Comparable.S with type t := t
-
-  module Map :
-    Map.S with type Key.t := t and type Key.comparator_witness = comparator_witness
-
-  module Set :
-    Set.S with type Elt.t := t and type Elt.comparator_witness = comparator_witness
+  include Comparable.S_plain with type t := t
 
   val to_int : t -> int
 end

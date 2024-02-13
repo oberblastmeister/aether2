@@ -1,19 +1,5 @@
 open! O
-(* module Lir = Lir_imports *)
-
 module Lir = Types
-
-module type Sig = sig
-  type t
-
-  val id : t -> t
-end
-
-module Testing : Sig = struct
-  type t = int
-
-  let id = Fn.id
-end
 
 let make_lir s =
   lazy (s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn)
@@ -273,7 +259,8 @@ let%test_module _ =
         |> X86.Reg_alloc.run
       in
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Types.Program.t] program;
-      [%expect {|
+      [%expect
+        {|
         ((functions
           (((graph
              ((entry start.0)
@@ -395,17 +382,4 @@ let%test_module _ =
             (ret r.12))) |}]
     ;;
   end)
-;;
-
-let%expect_test _ =
-  let module T = struct
-    type t =
-      | First
-      | Second
-      | Third
-    [@@deriving sexp_of, enum]
-  end
-  in
-  print_s [%sexp (T.max : int)];
-  [%expect {| 2 |}]
 ;;
