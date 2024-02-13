@@ -1,6 +1,5 @@
 open O
 open Utils.Instr_types
-module NameMap = Entity.Map.Make (Name)
 open Types
 
 module Color = struct
@@ -32,13 +31,11 @@ module IntHeap = Heap.Make (struct
 module Make (Config : Config) = struct
   open Config
 
-  type error = InvalidRegisterConstraint of Register.t * Register.t
-
   let simplicial_elimination_ordering ~interference ~precolored =
     let heap = IntHeap.create ~size:(Interference.size interference) () in
     interference
     |> Interference.nodes
-    |> F.Iter.filter ~f:(fun node -> not @@ NameMap.mem precolored node)
+    |> F.Iter.filter ~f:(fun node -> not @@ Name.Table.mem precolored node)
     |> F.Iter.iter ~f:(fun name ->
       IntHeap.set heap ~key:(Name.Id.to_int @@ Name.to_id name) ~data:(name, 0));
     let increase_neighbor_weights node =
@@ -62,7 +59,7 @@ module Make (Config : Config) = struct
   ;;
 
   let color_with ~interference ~ordering =
-    let color_of_name = NameMap.create () in
+    let color_of_name = Name.Table.create () in
     let max_color = ref Color.lowest in
     let used_colors = Hash_set.create (module Color) in
     ordering
@@ -71,7 +68,7 @@ module Make (Config : Config) = struct
         Interference.neighbors interference name
         |> F.Iter.map ~f:(fun neighbor ->
           (* might not be in the map if precolored *)
-          NameMap.find color_of_name neighbor |> FC.Option.fold)
+          Name.Table.find color_of_name neighbor |> FC.Option.fold)
         |> F.Iter.concat
         |> F.Iter.to_array
       in
@@ -88,7 +85,7 @@ module Make (Config : Config) = struct
             else Continue_or_stop.Stop current_color)
           ~finish:Fn.id
       in
-      NameMap.set color_of_name ~key:name ~data:lowest_not_in_neighbors;
+      Name.Table.set color_of_name ~key:name ~data:lowest_not_in_neighbors;
       max_color := Color.max !max_color lowest_not_in_neighbors;
       Hash_set.add used_colors lowest_not_in_neighbors;
       ());
@@ -106,13 +103,15 @@ module Make (Config : Config) = struct
       match
         Interference.nodes interference (fun node ->
           Interference.neighbors interference node (fun neighbor ->
-            (match NameMap.find precolored node, NameMap.find precolored neighbor with
+            (match
+               Name.Table.find precolored node, Name.Table.find precolored neighbor
+             with
              | Some reg, Some reg' ->
                if Register.(equal reg reg')
                then raise (E.InvalidRegisterConstraint (reg, reg'))
                else ()
              | None, Some reg ->
-               let node_color = NameMap.find_exn color_of_name node in
+               let node_color = Name.Table.find_exn color_of_name node in
                (match ColorMap.find register_constraints_of_color node_color with
                 | None ->
                   ColorMap.set
@@ -183,7 +182,7 @@ module Make (Config : Config) = struct
       |> F.Iter.map ~f:(fun (name, color) ->
         let alloc = ColorMap.find_exn alloc_of_color color in
         name, alloc)
-      |> NameMap.of_iter ~size:(Interference.size interference)
+      |> Name.Table.of_iter ~size:(Interference.size interference)
     in
     Ok { alloc_of_name; used_registers }
   ;;

@@ -13,9 +13,15 @@ module Value : sig
   include module type of T.Value
   module Hashtbl : Hashtbl.S with type key := t
   module Hash_set : Hash_set.S with type elt := t
-  include Comparable.S with type t := t
+  include Base.Comparable.S with type t := t
 
-  val to_raw : t -> Entity.Raw_id.t
+  module Map :
+    Map.S with type Key.t := t and type Key.comparator_witness = comparator_witness
+
+  module Set :
+    Set.S with type Elt.t := t and type Elt.comparator_witness = comparator_witness
+
+  val to_int : t -> int
 end
 
 module ValueMap : sig
@@ -164,6 +170,7 @@ module Function : sig
   include module type of T.Function
 
   val map_graph : 'v t -> f:('v Graph.t -> 'u Graph.t) -> 'u t
+
   (* val map_blocks : 'v t -> f:('v Block.t Label.Map.t -> 'u Block.t Label.Map.t) -> 'u t *)
   val instrs_forward_fold : ('v Some_instr.t, 'v t) F.Fold.t
   val thaw : 'v t -> 'v Mut_function.t

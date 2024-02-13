@@ -7,7 +7,7 @@ type 'k t =
 [@@deriving equal, compare, hash, sexp]
 
 let to_dotted_string (name_id : _ t) =
-  name_id.name ^ "." ^ string_of_int (Raw_id.to_int @@ Id.to_raw name_id.id)
+  name_id.name ^ "." ^ string_of_int (Id.to_int name_id.id)
 ;;
 
 (* TODO: fix t_of_sexp *)
@@ -22,9 +22,9 @@ module type S = sig
   val create : string -> Id.t -> t
   val of_string_global_unique : string -> t
   val to_id : t -> Id.t
-  val to_raw : t -> Raw_id.t
+  val to_int : t -> int
 
-  include Comparable.S with type t := t
+  include Base.Comparable.S with type t := t
   include To_id.S with type t := t and type key := key
 end
 

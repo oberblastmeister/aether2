@@ -2,12 +2,15 @@ open! Core
 include Id_intf
 
 module T = struct
-  include Raw_id
+  type 'k t = int [@@deriving equal, compare, sexp, hash]
 
-  type 'k t = Raw_id.t [@@deriving equal, compare, sexp, hash]
+  let to_int id = id
+  let global_unique = Atomic.make 0
+  let of_int id = id
+  let next id = id + 1
 
-  let of_raw raw = raw
-  let to_raw t = t
+  (* useful for tests *)
+  let of_global_unique () = of_int (Atomic.fetch_and_add global_unique 1)
 end
 
 include T
@@ -15,7 +18,7 @@ include T
 module type S = S' with type 'k t' := 'k t
 
 module Make () = struct
-  include Raw_id
+  include T
 
   type key [@@deriving equal, compare, hash, sexp]
 
@@ -24,9 +27,5 @@ module Make () = struct
   end
 
   include T
-
-  let of_raw raw = raw
-  let to_raw t = t
-
   include Base.Comparable.Make (T)
 end

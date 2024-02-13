@@ -1,7 +1,7 @@
 open! O
 open Utils.Instr_types
 module LabelQueue = Hash_queue.Make (Label)
-module LabelMap = Entity.Map.Make (Label)
+
 
 type direction =
   | Forward
@@ -81,7 +81,7 @@ end
 module Fact_base = struct
   type 'd t = (Label.t, 'd) Entity.Map.t [@@deriving sexp_of]
 
-  let find_exn = LabelMap.find_exn
+  let find_exn = Label.Table.find_exn
 end
 
 let instr_to_block_transfer
@@ -113,8 +113,8 @@ let instr_to_block_transfer
 ;;
 
 let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
-  let fact_base = LabelMap.create () in
-  let other_facts_base = LabelMap.create () in
+  let fact_base = Label.Table.create () in
+  let other_facts_base = Label.Table.create () in
   let queue = LabelQueue.create () in
   let _ =
     LabelQueue.enqueue_exn
@@ -133,7 +133,7 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
       (* we should have initialized all facts *)
       (* let current_fact = Map.find fact_base label |> Option.value_exn in *)
       let current_fact =
-        LabelMap.find fact_base label |> Option.value ~default:transfer.empty
+        Label.Table.find fact_base label |> Option.value ~default:transfer.empty
       in
       let other_labels =
         (match transfer.direction with
@@ -146,11 +146,11 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
       (* we should have initialized all facts *)
       let other_facts =
         F.Iter.map other_labels ~f:(fun node ->
-          LabelMap.find fact_base node |> Option.value ~default:transfer.empty)
+          Label.Table.find fact_base node |> Option.value ~default:transfer.empty)
         |> F.Iter.to_list
         |> transfer.combine
       in
-      LabelMap.set other_facts_base ~key:label ~data:other_facts;
+      Label.Table.set other_facts_base ~key:label ~data:other_facts;
       let maybe_new_facts =
         transfer.transfer label current_block ~other_facts ~current_fact
       in
@@ -164,7 +164,7 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
          in
          F.Iter.iter labels_todo ~f:(fun label ->
            ignore (LabelQueue.enqueue queue `back label ()));
-         LabelMap.set fact_base ~key:label ~data:new_fact;
+         Label.Table.set fact_base ~key:label ~data:new_fact;
          go ()
        | None -> go ())
   in

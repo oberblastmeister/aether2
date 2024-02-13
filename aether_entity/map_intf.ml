@@ -4,13 +4,13 @@ module F = Folds
 module type Gen_arg = sig
   type ('a, 'b, 'c) t
 
-  val to_raw : ('a, 'b, 'c) t -> Raw_id.t
+  val to_int : ('a, 'b, 'c) t -> int
 end
 
 module type Arg = sig
   type t [@@deriving sexp_of]
 
-  val to_raw : t -> Raw_id.t
+  val to_int : t -> int
 end
 
 module type Gen_S = sig
@@ -42,9 +42,9 @@ module type Intf = sig
 
   val create : ?sexp_of_key:('k -> Sexp.t) -> ?size:int -> unit -> ('k, 'v) t
   val size : ('k, 'v) t -> int
-  val find : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v option
-  val find_exn : ('k, 'v) t -> 'k -> to_id:('k -> Raw_id.t) -> 'v
-  val set : ('k, 'v) t -> key:'k -> data:'v -> to_id:('k -> Raw_id.t) -> unit
+  val find : ('k, 'v) t -> 'k -> to_int:('k -> int) -> 'v option
+  val find_exn : ('k, 'v) t -> 'k -> to_int:('k -> int) -> 'v
+  val set : ('k, 'v) t -> key:'k -> data:'v -> to_int:('k -> int) -> unit
   val to_list : ('k, 'v) t -> ('k * 'v) list
   val iteri : ('k, 'v) t -> f:('k * 'v -> unit) -> unit
   val to_iteri : ('k, 'v) t -> ('k * 'v) F.Iter.t

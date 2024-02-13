@@ -18,20 +18,20 @@ let resize_for_index t index =
   if index >= size t then t.a <- Aether_data.Utils.Option_array.resize_for_index t.a index
 ;;
 
-let find t k ~to_id =
-  let i = Raw_id.to_int @@ to_id k in
+let find t k ~to_int =
+  let i = to_int k in
   if i >= size t then None else Option.map ~f:snd @@ OA.get t.a @@ i
 ;;
 
-let mem t k ~to_id =
-  let i = Raw_id.to_int @@ to_id k in
+let mem t k ~to_int =
+  let i = to_int k in
   i < size t && OA.is_some t.a i
 ;;
 
 let key_not_found t k = raise_s [%message "key not found" ~key:(t.sexp_of_key k : Sexp.t)]
 
-let find_exn t k ~to_id =
-  let i = Raw_id.to_int @@ to_id k in
+let find_exn t k ~to_int =
+  let i = to_int k in
   if i >= size t
   then key_not_found t k
   else if OA.is_none t.a i
@@ -39,8 +39,8 @@ let find_exn t k ~to_id =
   else snd @@ OA.get_some_exn t.a i
 ;;
 
-let set t ~key:k ~data:v ~to_id =
-  let index = Raw_id.to_int @@ to_id k in
+let set t ~key:k ~data:v ~to_int =
+  let index = to_int k in
   resize_for_index t index;
   OA.set_some t.a index (k, v)
 ;;
@@ -58,49 +58,51 @@ let fold t ~init ~f =
 
 let to_list t = Container.to_list ~fold:foldi t
 
-let of_list l ~to_id =
+let of_list l ~to_int =
   let t = create () in
-  List.iter l ~f:(fun (k, v) -> set t ~key:k ~data:v ~to_id);
+  List.iter l ~f:(fun (k, v) -> set t ~key:k ~data:v ~to_int);
   t
 ;;
 
-let of_iter ?sexp_of_key ?size i ~to_id =
+let of_iter ?sexp_of_key ?size i ~to_int =
   let t = create ?sexp_of_key ?size () in
   F.Iter.iter i ~f:(fun (k, v) ->
-    (* if mem ~to_id t k then raise_s [%message "key was present twice"]; *)
-    set t ~key:k ~data:v ~to_id);
+    (* if mem ~to_int t k then raise_s [%message "key was present twice"]; *)
+    set t ~key:k ~data:v ~to_int);
   t
 ;;
 
 let sexp_of_t f g t = to_list t |> List.sexp_of_t (Tuple2.sexp_of_t f g)
-let update t k ~to_id ~f = set t ~key:k ~data:(f (find t k ~to_id)) ~to_id
+let update t k ~to_int ~f = set t ~key:k ~data:(f (find t k ~to_int)) ~to_int
 
 module Make_gen (Arg : Gen_arg) = struct
   open struct
-    let to_id = Arg.to_raw
+    let to_int = Arg.to_int
   end
 
   let create ?size () = create ?size ()
-  let find = find ~to_id
-  let find_exn = find_exn ~to_id
-  let set = set ~to_id
-  let mem = mem ~to_id
-  let update = update ~to_id
-  let of_list = of_list ~to_id
-  let of_iter ?size i = of_iter ~sexp_of_key:sexp_of_opaque ?size ~to_id i
+  let find = find ~to_int
+  let find_exn = find_exn ~to_int
+  let set = set ~to_int
+  let mem = mem ~to_int
+  let update = update ~to_int
+  let of_list = of_list ~to_int
+  let of_iter ?size i = of_iter ~sexp_of_key:sexp_of_opaque ?size ~to_int i
   let ( .![] ) = find_exn
   let ( .?[] ) = find
   let ( .![]<- ) t key data = set t ~key ~data
 end
 
 module Make (Arg : Arg) = struct
+  type nonrec 'v t = (Arg.t, 'v) t
+
   let create_real ?size () = create ~sexp_of_key:Arg.sexp_of_t ?size ()
-  let of_iter_real ?size = of_iter ~sexp_of_key:Arg.sexp_of_t ?size ~to_id:Arg.to_raw
+  let of_iter_real ?size = of_iter ~sexp_of_key:Arg.sexp_of_t ?size ~to_int:Arg.to_int
 
   include Make_gen (struct
       type ('a, 'b, 'c) t = Arg.t
 
-      let to_raw = Arg.to_raw
+      let to_int = Arg.to_int
     end)
 
   let create = create_real

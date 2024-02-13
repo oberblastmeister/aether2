@@ -39,8 +39,6 @@ module Ra = Reg_alloc.Make (struct
     end
   end)
 
-module NameMap = Entity.Map.Make (Name)
-
 let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.transfer
 
 let add_block_edges interference block live_out =
@@ -82,7 +80,7 @@ let collect_precolored fn =
     @> FC.Option.fold)
     fn
   |> F.Iter.map ~f:(fun (`name name, `reg reg) -> name, reg)
-  |> NameMap.of_iter
+  |> Name.Table.of_iter
 ;;
 
 let construct_fn fn =
@@ -105,7 +103,7 @@ let alloc_fn fn =
 let collect_all_vregs fn =
   (Function.instrs_forward_fold @> Instr.regs_fold) fn
   |> F.Iter.map ~f:(fun (reg : VReg.t) -> reg.name, reg)
-  |> NameMap.of_iter
+  |> Name.Table.of_iter
 ;;
 
 type context =
@@ -312,8 +310,6 @@ let apply_allocation_function ~allocation (fn : VReg.t Function.t) =
   Function.map_blocks fn ~f:(apply_allocation_block ~allocation)
 ;;
 
-module LabelMap = Entity.Map.Make (Label)
-
 let remove_ssa (fn : _ Function.t) =
   let graph = fn.graph in
   (* we need this because we are removing the block parameters as we go, so first save them here *)
@@ -322,7 +318,7 @@ let remove_ssa (fn : _ Function.t) =
     |> F.Iter.map ~f:(fun (label, block) ->
       let params = Block.block_args_exn block in
       label, params)
-    |> LabelMap.of_iter
+    |> Label.Table.of_iter
   in
   let graph =
     Cfg.Graph.foldi graph ~init:graph ~f:(fun graph (label, block) ->
@@ -334,7 +330,7 @@ let remove_ssa (fn : _ Function.t) =
       let get_data (j : _ Block_call.t) =
         let args = j.args in
         let to_block = Cfg.Graph.find_exn j.label graph in
-        let params = LabelMap.find_exn params_of_label j.label in
+        let params = Label.Table.find_exn params_of_label j.label in
         let par_mov = List.zip_exn params args |> VInstr.Par_mov in
         to_block, par_mov
       in

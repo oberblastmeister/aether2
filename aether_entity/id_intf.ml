@@ -11,8 +11,6 @@ module type S' = sig
 
   val of_int : int -> t
   val to_int : t -> int
-  val of_raw : Raw_id.t -> t
-  val to_raw : t -> Raw_id.t
   val next : t -> t
   val of_global_unique : unit -> t
 
@@ -20,12 +18,10 @@ module type S' = sig
 end
 
 module type Intf = sig
-  type 'k t = private Raw_id.t [@@deriving equal, compare, hash, sexp]
+  type 'k t = private int [@@deriving equal, compare, hash, sexp]
 
   val of_int : int -> 'k t
   val to_int : 'k t -> int
-  val of_raw : Raw_id.t -> 'k t
-  val to_raw : 'k t -> Raw_id.t
   val next : 'k t -> 'k t
   val of_global_unique : unit -> 'k t
 

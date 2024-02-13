@@ -92,7 +92,7 @@ module VReg = struct
   end
 
   include T
-  include Comparable.Make (T)
+  include Base.Comparable.Make (T)
 end
 
 module AReg = struct
