@@ -115,16 +115,10 @@ let frontier_of_idoms idoms (graph : Label.t Data.Graph.double) =
 
 let%test_module _ =
   (module struct
-    let tbl = Hashtbl.create (module String)
+    module Intern_table = Entity.Intern_table
 
-    let lab s =
-      match Hashtbl.find tbl s with
-      | None ->
-        let label = Label.of_string_global_unique s in
-        Hashtbl.set tbl ~key:s ~data:label;
-        label
-      | Some l -> l
-    ;;
+    let tbl = Intern_table.create (module Label)
+    let lab = Intern_table.name_of_string tbl
 
     let graph xs =
       xs

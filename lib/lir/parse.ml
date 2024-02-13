@@ -1,19 +1,16 @@
 open! O
 open Types
 module Parser = Sexp_lang.Parser
+module Intern_table = Entity.Intern_table
 
 type state =
-  { label_gen : Label.key Entity.Gen.t
-  ; id_of_label : (string, Label.Id.t) Hashtbl.t
-  ; name_gen : Name.key Entity.Gen.t
-  ; id_of_name : (string, Name.Id.t) Hashtbl.t
+  { label_intern : Label.key Intern_table.t
+  ; name_intern : Name.key Intern_table.t
   }
 
 let create_state () =
-  { label_gen = Entity.Gen.create (module Label)
-  ; id_of_label = Hashtbl.create (module String)
-  ; id_of_name = Hashtbl.create (module String)
-  ; name_gen = Entity.Gen.create (module Name)
+  { label_intern = Intern_table.create (module Label)
+  ; name_intern = Intern_table.create (module Name)
   }
 ;;
 
@@ -24,15 +21,7 @@ let parse_ty =
     | _ -> Parser.parse_error [%message "unknown type"])
 ;;
 
-let parse_var st =
-  Parser.atom (fun s ->
-    match Hashtbl.find st.id_of_name s with
-    | Some id -> Name.create s id
-    | None ->
-      let id = Entity.Gen.next st.name_gen in
-      Hashtbl.add_exn st.id_of_name ~key:s ~data:id;
-      Name.create s id)
-;;
+let parse_var st = Parser.atom (fun s -> Intern_table.name_of_string st.name_intern s)
 
 let parse_value st =
   Parser.list_ref (fun xs ->
@@ -80,15 +69,7 @@ let parse_expr st =
     | _ -> Parser.parse_error [%message "unknown op" ~name])
 ;;
 
-let parse_label st =
-  Parser.atom (fun s ->
-    match Hashtbl.find st.id_of_label s with
-    | Some id -> Label.create s id
-    | None ->
-      let id = Entity.Gen.next st.label_gen in
-      Hashtbl.add_exn st.id_of_label ~key:s ~data:id;
-      Label.create s id)
-;;
+let parse_label st = Parser.atom (fun s -> Intern_table.name_of_string st.label_intern s)
 
 let parse_lit s =
   Parser.atom (fun s' ->
@@ -197,8 +178,8 @@ let parse_function =
      ; params
      ; return_ty
      ; graph
-     ; unique_label = Entity.Gen.to_id st.label_gen
-     ; unique_name = Entity.Gen.to_id st.name_gen
+     ; unique_label = Intern_table.get_next_id st.label_intern
+     ; unique_name = Intern_table.get_next_id st.name_intern
      }
      : _ Function.t))
 ;;

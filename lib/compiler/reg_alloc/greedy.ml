@@ -210,18 +210,10 @@ let%test_module _ =
 
     module Reg_alloc = Make (Config)
     module Allocation = Make_allocation (Config)
+    module Intern_table = Entity.Intern_table
 
-    let tbl = Hashtbl.create (module String)
-
-    let name s =
-      match Hashtbl.find tbl s with
-      | None ->
-        let label = Name.of_string_global_unique s in
-        Hashtbl.set tbl ~key:s ~data:label;
-        label
-      | Some l -> l
-    ;;
-
+    let tbl = Intern_table.create (module Name)
+    let name = Intern_table.name_of_string tbl
     let b = name "b"
     let d = name "d"
     let a = name "a"

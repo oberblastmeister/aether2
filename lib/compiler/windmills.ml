@@ -66,33 +66,22 @@ let convert ~eq ~scratch (par_move : _ Move.t list) =
 
 let%test_module _ =
   (module struct
-    let tbl = Hashtbl.create (module String)
-
-    let lab s =
-      match Hashtbl.find tbl s with
-      | None ->
-        let label = Name.of_string_global_unique s in
-        Hashtbl.set tbl ~key:s ~data:label;
-        label
-      | Some l -> l
-    ;;
-
-    let rsi = lab "rsi"
-    let rdi = lab "rdi"
-    let rdx = lab "rdx"
-    let rcx = lab "rcx"
-    let rax = lab "rax"
-    let rbx = lab "rbx"
-    let r8 = lab "r8"
-    let r9 = lab "r9"
-    let r10 = lab "r10"
-    let r11 = lab "r11"
-    let a = lab "a"
-    let b = lab "b"
-    let c = lab "c"
-    let d = lab "d"
-    let scratch = lab "scratch"
-    let convert par_move = convert ~eq:Name.equal ~scratch:(Fn.const scratch) par_move
+    let rsi = "rsi"
+    let rdi = "rdi"
+    let rdx = "rdx"
+    let rcx = "rcx"
+    let rax = "rax"
+    let rbx = "rbx"
+    let r8 = "r8"
+    let r9 = "r9"
+    let r10 = "r10"
+    let r11 = "r11"
+    let a = "a"
+    let b = "b"
+    let c = "c"
+    let d = "d"
+    let scratch = "scratch"
+    let convert par_move = convert ~eq:String.equal ~scratch:(Fn.const scratch) par_move
 
     let pmov dsts srcs =
       List.zip_exn dsts srcs |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src)
@@ -101,23 +90,22 @@ let%test_module _ =
     let%expect_test "simple no scratch" =
       let res, did_use_scratch = convert (pmov [ b; d; c ] [ a; a; b ]) in
       [%test_result: bool] did_use_scratch ~expect:false;
-      print_s [%sexp (res : Name.t Move.t list)];
+      print_s [%sexp (res : string Move.t list)];
       ();
       [%expect
         {|
-        (((dst c.12) (src b.11)) ((dst b.11) (src a.10)) ((dst d.13) (src a.10))) |}]
+        (((dst c) (src b)) ((dst b) (src a)) ((dst d) (src a))) |}]
     ;;
 
     let%expect_test "simple scratch" =
       let res, did_use_scratch = convert (pmov [ b; d; c; a ] [ a; a; b; c ]) in
       [%test_result: bool] did_use_scratch ~expect:true;
-      print_s [%sexp (res : Name.t Move.t list)];
+      print_s [%sexp (res : string Move.t list)];
       ();
       [%expect
         {|
-        (((dst scratch.14) (src a.10)) ((dst d.13) (src a.10))
-         ((dst a.10) (src c.12)) ((dst c.12) (src b.11))
-         ((dst b.11) (src scratch.14))) |}]
+        (((dst scratch) (src a)) ((dst d) (src a)) ((dst a) (src c))
+         ((dst c) (src b)) ((dst b) (src scratch))) |}]
     ;;
 
     let%expect_test "multiple components" =
@@ -125,14 +113,13 @@ let%test_module _ =
         convert (pmov [ rdi; rsi; rdx; rcx; r8; r9 ] [ rsi; rdi; rsi; rsi; r9; r8 ])
       in
       [%test_result: bool] did_use_scratch ~expect:true;
-      print_s [%sexp (res : Name.t Move.t list)];
+      print_s [%sexp (res : string Move.t list)];
       ();
       [%expect
         {|
-        (((dst scratch.14) (src rsi.0)) ((dst rdx.2) (src rsi.0))
-         ((dst rcx.3) (src rsi.0)) ((dst rsi.0) (src rdi.1))
-         ((dst rdi.1) (src scratch.14)) ((dst scratch.14) (src r9.7))
-         ((dst r9.7) (src r8.6)) ((dst r8.6) (src scratch.14))) |}]
+        (((dst scratch) (src rsi)) ((dst rdx) (src rsi)) ((dst rcx) (src rsi))
+         ((dst rsi) (src rdi)) ((dst rdi) (src scratch)) ((dst scratch) (src r9))
+         ((dst r9) (src r8)) ((dst r8) (src scratch))) |}]
     ;;
   end)
 ;;

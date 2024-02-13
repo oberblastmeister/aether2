@@ -31,6 +31,10 @@ end
 module type Intf = sig
   type nonrec 'k t = 'k t [@@deriving equal, compare, hash, sexp]
 
+  val create : string -> 'k Id.t -> 'k t
+  val to_id : 'k t -> 'k Id.t
+  val to_int : 'k t -> int
+
   module type S = S
 
   module Make : () -> S

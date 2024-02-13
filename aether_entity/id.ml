@@ -4,6 +4,7 @@ include Id_intf
 module T = struct
   type 'k t = int [@@deriving equal, compare, sexp, hash]
 
+  let initial = 0
   let to_int id = id
   let global_unique = Atomic.make 0
   let of_int id = id
