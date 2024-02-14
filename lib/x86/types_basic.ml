@@ -76,7 +76,13 @@ module MReg = struct
     ; name : string option
     ; reg : Mach_reg.t
     }
-  [@@deriving equal, compare, sexp, hash]
+  [@@deriving equal, compare, hash]
+
+  let sexp_of_t { s; name; reg } =
+    match name with
+    | None -> [%sexp (reg : Mach_reg.t)]
+    | Some name -> [%sexp (name : string), (reg : Mach_reg.t)]
+  ;;
 
   let create ?name s reg = { s; name; reg }
 end
@@ -308,7 +314,13 @@ module Instr = struct
     | Virt of 'r VInstr.t
     | Real of 'r MInstr.t
     | Jump of 'r Jump.t
-  [@@deriving sexp_of, map, variants]
+  [@@deriving map, variants]
+
+  let sexp_of_t f = function
+    | Virt v -> VInstr.sexp_of_t f v
+    | Real v -> MInstr.sexp_of_t f v
+    | Jump v -> Jump.sexp_of_t f v
+  ;;
 
   let get_virt = function
     | Virt v -> Some v

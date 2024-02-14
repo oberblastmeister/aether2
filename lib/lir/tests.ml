@@ -190,62 +190,48 @@ let%test_module _ =
               (blocks
                ((body.3
                  ((instrs
-                   ((Virt (Block_args ()))
-                    (Real
-                     (MovAbs (dst (Reg ((s Q) (name one.7) (precolored ()))))
-                      (imm 1)))
-                    (Real
-                     (Add (s Q) (dst (Reg ((s Q) (name e.8) (precolored ()))))
-                      (src1 (Reg ((s Q) (name e.10) (precolored ()))))
-                      (src2 (Reg ((s Q) (name one.7) (precolored ()))))))
-                    (Real
-                     (Add (s Q) (dst (Reg ((s Q) (name r.6) (precolored ()))))
-                      (src1 (Reg ((s Q) (name r.11) (precolored ()))))
-                      (src2 (Reg ((s Q) (name b.0) (precolored ()))))))
+                   ((Block_args ())
+                    (MovAbs (dst (Reg ((s Q) (name one.7) (precolored ())))) (imm 1))
+                    (Add (s Q) (dst (Reg ((s Q) (name e.8) (precolored ()))))
+                     (src1 (Reg ((s Q) (name e.10) (precolored ()))))
+                     (src2 (Reg ((s Q) (name one.7) (precolored ())))))
+                    (Add (s Q) (dst (Reg ((s Q) (name r.6) (precolored ()))))
+                     (src1 (Reg ((s Q) (name r.11) (precolored ()))))
+                     (src2 (Reg ((s Q) (name b.0) (precolored ())))))
                     (Jump
-                     (Jump
-                      ((label loop.1)
-                       (args
-                        (((s Q) (name e.8) (precolored ()))
-                         ((s Q) (name r.6) (precolored ())))))))))))
+                     ((label loop.1)
+                      (args
+                       (((s Q) (name e.8) (precolored ()))
+                        ((s Q) (name r.6) (precolored ()))))))))))
                 (done.2
                  ((instrs
-                   ((Virt (Block_args ()))
-                    (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name r.15) (precolored (RAX)))))
-                      (src (Reg ((s Q) (name r.11) (precolored ()))))))
-                    (Jump Ret)))))
+                   ((Block_args ())
+                    (Mov (s Q) (dst (Reg ((s Q) (name r.15) (precolored (RAX)))))
+                     (src (Reg ((s Q) (name r.11) (precolored ())))))
+                    Ret))))
                 (loop.1
                  ((instrs
-                   ((Virt
-                     (Block_args
-                      (((s Q) (name e.10) (precolored ()))
-                       ((s Q) (name r.11) (precolored ())))))
-                    (Real
-                     (MovAbs (dst (Reg ((s Q) (name z.12) (precolored ())))) (imm 0)))
-                    (Real
-                     (Cmp (s Q) (src1 (Reg ((s Q) (name e.10) (precolored ()))))
-                      (src2 (Reg ((s Q) (name z.12) (precolored ()))))))
-                    (Real
-                     (Set (s Q) (cond A)
-                      (dst (Reg ((s Q) (name f.13) (precolored ()))))))
-                    (Real
-                     (Test (s Q) (src1 (Reg ((s Q) (name f.13) (precolored ()))))
-                      (src2 (Reg ((s Q) (name f.13) (precolored ()))))))
-                    (Jump
-                     (CondJump (cond NE) (j1 ((label done.2) (args ())))
-                      (j2 ((label body.3) (args ())))))))))
+                   ((Block_args
+                     (((s Q) (name e.10) (precolored ()))
+                      ((s Q) (name r.11) (precolored ()))))
+                    (MovAbs (dst (Reg ((s Q) (name z.12) (precolored ())))) (imm 0))
+                    (Cmp (s Q) (src1 (Reg ((s Q) (name e.10) (precolored ()))))
+                     (src2 (Reg ((s Q) (name z.12) (precolored ())))))
+                    (Set (s Q) (cond A)
+                     (dst (Reg ((s Q) (name f.13) (precolored ())))))
+                    (Test (s Q) (src1 (Reg ((s Q) (name f.13) (precolored ()))))
+                     (src2 (Reg ((s Q) (name f.13) (precolored ())))))
+                    (CondJump (cond NE) (j1 ((label done.2) (args ())))
+                     (j2 ((label body.3) (args ()))))))))
                 (start.0
                  ((instrs
-                   ((Virt (Block_args ()))
-                    (Real
-                     (MovAbs (dst (Reg ((s Q) (name r.2) (precolored ())))) (imm 1)))
+                   ((Block_args ())
+                    (MovAbs (dst (Reg ((s Q) (name r.2) (precolored ())))) (imm 1))
                     (Jump
-                     (Jump
-                      ((label loop.1)
-                       (args
-                        (((s Q) (name e.1) (precolored ()))
-                         ((s Q) (name r.2) (precolored ())))))))))))))
+                     ((label loop.1)
+                      (args
+                       (((s Q) (name e.1) (precolored ()))
+                        ((s Q) (name r.2) (precolored ()))))))))))))
               (exit done.2)))
             (unique_name 16))))) |}]
     ;;
@@ -267,56 +253,31 @@ let%test_module _ =
               (blocks
                ((body.3
                  ((instrs
-                   ((Real
-                     (MovAbs (dst (Reg ((s Q) (name (one)) (reg R10)))) (imm 1)))
-                    (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg RSI))))
-                      (src (Reg ((s Q) (name (e)) (reg R9))))))
-                    (Real
-                     (Add (s Q) (dst (Reg ((s Q) (name (e)) (reg RSI))))
-                      (src1 (Reg ((s Q) (name (e)) (reg RSI))))
-                      (src2 (Reg ((s Q) (name (one)) (reg R10))))))
-                    (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RDX))))
-                      (src (Reg ((s Q) (name (r)) (reg RDI))))))
-                    (Real
-                     (Add (s Q) (dst (Reg ((s Q) (name (r)) (reg RDX))))
-                      (src1 (Reg ((s Q) (name (r)) (reg RDX))))
-                      (src2 (Reg ((s Q) (name (b)) (reg RAX))))))
-                    (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg R9))))
-                      (src (Reg ((s Q) (name (e)) (reg RSI))))))
-                    (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RDI))))
-                      (src (Reg ((s Q) (name (r)) (reg RDX))))))
-                    (Jump (Jump ((label loop.1) (args ()))))))))
+                   ((MovAbs (dst (Reg (one R10))) (imm 1))
+                    (Mov (s Q) (dst (Reg (e RSI))) (src (Reg (e R9))))
+                    (Add (s Q) (dst (Reg (e RSI))) (src1 (Reg (e RSI)))
+                     (src2 (Reg (one R10))))
+                    (Mov (s Q) (dst (Reg (r RDX))) (src (Reg (r RDI))))
+                    (Add (s Q) (dst (Reg (r RDX))) (src1 (Reg (r RDX)))
+                     (src2 (Reg (b RAX))))
+                    (Mov (s Q) (dst (Reg (e R9))) (src (Reg (e RSI))))
+                    (Mov (s Q) (dst (Reg (r RDI))) (src (Reg (r RDX))))
+                    (Jump ((label loop.1) (args ())))))))
                 (done.2
-                 ((instrs
-                   ((Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RAX))))
-                      (src (Reg ((s Q) (name (r)) (reg RDI))))))
-                    (Jump Ret)))))
+                 ((instrs ((Mov (s Q) (dst (Reg (r RAX))) (src (Reg (r RDI)))) Ret))))
                 (loop.1
                  ((instrs
-                   ((Real (MovAbs (dst (Reg ((s Q) (name (z)) (reg R8)))) (imm 0)))
-                    (Real
-                     (Cmp (s Q) (src1 (Reg ((s Q) (name (e)) (reg R9))))
-                      (src2 (Reg ((s Q) (name (z)) (reg R8))))))
-                    (Real
-                     (Set (s Q) (cond A) (dst (Reg ((s Q) (name (f)) (reg RCX))))))
-                    (Real
-                     (Test (s Q) (src1 (Reg ((s Q) (name (f)) (reg RCX))))
-                      (src2 (Reg ((s Q) (name (f)) (reg RCX))))))
-                    (Jump
-                     (CondJump (cond NE) (j1 ((label done.2) (args ())))
-                      (j2 ((label body.3) (args ())))))))))
+                   ((MovAbs (dst (Reg (z R8))) (imm 0))
+                    (Cmp (s Q) (src1 (Reg (e R9))) (src2 (Reg (z R8))))
+                    (Set (s Q) (cond A) (dst (Reg (f RCX))))
+                    (Test (s Q) (src1 (Reg (f RCX))) (src2 (Reg (f RCX))))
+                    (CondJump (cond NE) (j1 ((label done.2) (args ())))
+                     (j2 ((label body.3) (args ()))))))))
                 (start.0
                  ((instrs
-                   ((Real (MovAbs (dst (Reg ((s Q) (name (r)) (reg RDI)))) (imm 1)))
-                    (Real
-                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg R9))))
-                      (src (Reg ((s Q) (name (e)) (reg RAX))))))
-                    (Jump (Jump ((label loop.1) (args ()))))))))))
+                   ((MovAbs (dst (Reg (r RDI))) (imm 1))
+                    (Mov (s Q) (dst (Reg (e R9))) (src (Reg (e RAX))))
+                    (Jump ((label loop.1) (args ())))))))))
               (exit done.2)))
             (unique_name 16))))) |}]
     ;;
