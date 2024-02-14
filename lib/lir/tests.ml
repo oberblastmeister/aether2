@@ -270,12 +270,18 @@ let%test_module _ =
                    ((Real
                      (MovAbs (dst (Reg ((s Q) (name (one)) (reg R10)))) (imm 1)))
                     (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg RSI))))
+                      (src (Reg ((s Q) (name (e)) (reg R9))))))
+                    (Real
                      (Add (s Q) (dst (Reg ((s Q) (name (e)) (reg RSI))))
-                      (src1 (Reg ((s Q) (name (e)) (reg R9))))
+                      (src1 (Reg ((s Q) (name (e)) (reg RSI))))
                       (src2 (Reg ((s Q) (name (one)) (reg R10))))))
                     (Real
+                     (Mov (s Q) (dst (Reg ((s Q) (name (r)) (reg RDX))))
+                      (src (Reg ((s Q) (name (r)) (reg RDI))))))
+                    (Real
                      (Add (s Q) (dst (Reg ((s Q) (name (r)) (reg RDX))))
-                      (src1 (Reg ((s Q) (name (r)) (reg RDI))))
+                      (src1 (Reg ((s Q) (name (r)) (reg RDX))))
                       (src2 (Reg ((s Q) (name (b)) (reg RAX))))))
                     (Real
                      (Mov (s Q) (dst (Reg ((s Q) (name (e)) (reg R9))))

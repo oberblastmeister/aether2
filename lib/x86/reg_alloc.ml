@@ -154,223 +154,328 @@ module Cx = struct
   ;;
 end
 
-let lower_minstr cx minstr =
-  let module Set = Mach_reg_set in
-  let module Enum_set = Data.Enum_set in
-  let unused_registers =
-    let set = Set.create () in
-    MInstr.regs_fold minstr
-    |> F.Iter.filter_map ~f:AReg.reg_val
-    |> F.Iter.iter ~f:(fun reg -> Set.add set reg);
-    Enum_set.negate set;
-    Set.remove set R11;
-    (fun f -> Set.iter set ~f) |> Iter.to_list
-  in
-  let spilled =
-    MInstr.regs_fold minstr
-    |> F.Iter.filter_map ~f:(fun areg ->
-      match areg with
-      | AReg.Spilled { name; _ } -> Some name
-      | _ -> None)
-    |> F.Iter.to_list
-  in
-  assert (List.length spilled <= 9);
-  let name_and_victim, unzipped = List.zip_with_remainder spilled unused_registers in
-  (match unzipped with
-   | Some (Second _) -> ()
-   | Some (First _) | None ->
-     raise_s
-       [%message
-         "impossible, list of registers must be greater than number of spilled because \
-          we have only 9 maximum spills"]);
-  let victims = List.map name_and_victim ~f:snd in
-  (* spill victims *)
-  List.iter victims ~f:(Cx.spill_reg cx);
-  let victim_of_spilled =
-    F.Iter.of_list name_and_victim |> FC.Hashtbl.of_iter (module Name)
-  in
-  (* move spilled uses to the victims *)
-  MInstr.uses_fold minstr
-  |> F.Iter.filter_map ~f:AReg.spilled_val
-  |> F.Iter.iter ~f:(fun (`s s, `name spilled) ->
-    let reg = Hashtbl.find_exn victim_of_spilled spilled in
-    Cx.add cx @@ Instr.mov_to_reg_from_stack s reg spilled;
-    ());
-  (* use the victims instead of the stack slots *)
-  let minstr_with_victims =
-    MInstr.map_regs minstr ~f:(fun areg ->
-      match areg with
+module Lower : sig
+  val lower_function : AReg.t Function.t -> MReg.t Function.t
+end = struct
+  let lower_minstr cx minstr =
+    let module Set = Mach_reg_set in
+    let module Enum_set = Data.Enum_set in
+    let unused_registers =
+      let set = Set.create () in
+      MInstr.regs_fold minstr
+      |> F.Iter.filter_map ~f:AReg.reg_val
+      |> F.Iter.iter ~f:(fun reg -> Set.add set reg);
+      Enum_set.negate set;
+      Set.remove set R11;
+      (fun f -> Set.iter set ~f) |> Iter.to_list
+    in
+    let spilled =
+      MInstr.regs_fold minstr
+      |> F.Iter.filter_map ~f:(fun areg ->
+        match areg with
+        | AReg.Spilled { name; _ } -> Some name
+        | _ -> None)
+      |> F.Iter.to_list
+    in
+    assert (List.length spilled <= 9);
+    let name_and_victim, unzipped = List.zip_with_remainder spilled unused_registers in
+    (match unzipped with
+     | Some (Second _) -> ()
+     | Some (First _) | None ->
+       raise_s
+         [%message
+           "impossible, list of registers must be greater than number of spilled because \
+            we have only 9 maximum spills"]);
+    let victims = List.map name_and_victim ~f:snd in
+    (* spill victims *)
+    List.iter victims ~f:(Cx.spill_reg cx);
+    let victim_of_spilled =
+      F.Iter.of_list name_and_victim |> FC.Hashtbl.of_iter (module Name)
+    in
+    (* move spilled uses to the victims *)
+    MInstr.uses_fold minstr
+    |> F.Iter.filter_map ~f:AReg.spilled_val
+    |> F.Iter.iter ~f:(fun (`s s, `name spilled) ->
+      let reg = Hashtbl.find_exn victim_of_spilled spilled in
+      Cx.add cx @@ Instr.mov_to_reg_from_stack s reg spilled;
+      ());
+    (* use the victims instead of the stack slots *)
+    let minstr_with_victims =
+      MInstr.map_regs minstr ~f:(fun areg ->
+        match areg with
+        | Spilled { s; name } ->
+          MReg.create ~name:name.name s (Hashtbl.find_exn victim_of_spilled name)
+        | InReg { s; name; reg } -> MReg.create ~name s reg)
+    in
+    Cx.add_minstr cx minstr_with_victims;
+    (* move defined victim registers to the stack slot *)
+    MInstr.defs_fold minstr (fun def ->
+      match def with
       | Spilled { s; name } ->
-        MReg.create ~name:name.name s (Hashtbl.find_exn victim_of_spilled name)
-      | InReg { s; name; reg } -> MReg.create ~name s reg)
-  in
-  Cx.add_minstr cx minstr_with_victims;
-  (* move defined victim registers to the stack slot *)
-  MInstr.defs_fold minstr (fun def ->
-    match def with
-    | Spilled { s; name } ->
-      let victim = Hashtbl.find_exn victim_of_spilled name in
-      Cx.add cx @@ Instr.mov_to_stack_from_reg s name victim;
+        let victim = Hashtbl.find_exn victim_of_spilled name in
+        Cx.add cx @@ Instr.mov_to_stack_from_reg s name victim;
+        ()
+      | _ -> ());
+    (* reload victims *)
+    List.iter victims ~f:(Cx.reload_reg cx)
+  ;;
+
+  let lower_vinstr cx (instr : AReg.t VInstr.t) =
+    match instr with
+    | Par_mov movs ->
+      let module W = Compiler.Windmills in
+      let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src) in
+      let movs, _did_use_scratch =
+        W.convert
+          ~eq:AReg.equal
+          ~scratch:(fun reg ->
+            AReg.InReg { s = AReg.size reg; name = "par_mov_scratch"; reg = R11 })
+          movs
+      in
+      let movs =
+        List.map movs ~f:(fun { dst; src } ->
+          MInstr.Mov { s = AReg.size dst; dst = Reg dst; src = Reg src })
+      in
+      List.iter movs ~f:(lower_minstr cx);
       ()
-    | _ -> ());
-  (* reload victims *)
-  List.iter victims ~f:(Cx.reload_reg cx)
-;;
+    (* keep these to calculate the stack layout *)
+    | ReserveStackLocal { name; size } ->
+      Cx.add_vinstr cx @@ ReserveStackLocal { name; size }
+    | ReserveStackEnd { size } -> Cx.add_vinstr cx @@ ReserveStackEnd { size }
+    (* don't need these anymore *)
+    (* Block_args should be turned into Par_mov by remove_ssa *)
+    | Def _ | Block_args _ -> ()
+  ;;
 
-let lower_vinstr cx (instr : AReg.t VInstr.t) =
-  match instr with
-  | Par_mov movs ->
-    let module W = Compiler.Windmills in
-    let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src) in
-    let movs, _did_use_scratch =
-      W.convert
-        ~eq:AReg.equal
-        ~scratch:(fun reg ->
-          AReg.InReg { s = AReg.size reg; name = "par_mov_scratch"; reg = R11 })
-        movs
+  let lower_block_call { Block_call.label; _ } = { Block_call.label; args = [] }
+
+  let lower_jump = function
+    | Jump.Jump j -> Jump.Jump (lower_block_call j)
+    | Jump.CondJump { cond; j1; j2 } ->
+      Jump.CondJump { cond; j1 = lower_block_call j1; j2 = lower_block_call j2 }
+    | Jump.Ret -> Jump.Ret
+  ;;
+
+  let lower_instr cx instr =
+    match instr with
+    | Instr.Virt vinstr -> lower_vinstr cx vinstr
+    | Instr.Real minstr -> lower_minstr cx minstr
+    | Instr.Jump jump -> Cx.add cx @@ Instr.Jump (lower_jump jump)
+  ;;
+
+  let lower_block cx (block : _ Block.t) =
+    (Block.instrs_forward_fold block) (lower_instr cx);
+    let instrs = Vec.copy_exact cx.instrs in
+    Vec.clear cx.instrs;
+    { Block.instrs }
+  ;;
+
+  let lower_function fn =
+    let cx = Cx.create fn in
+    let fn = Function.map_blocks fn ~f:(lower_block cx) in
+    { fn with unique_name = cx.unique_name }
+  ;;
+end
+
+module Apply : sig
+  val apply_allocation_function
+    :  allocation:Ra.Allocation.t
+    -> VReg.t Function.t
+    -> AReg.t Function.t
+end = struct
+  let apply_allocation_instr ~allocation (instr : VReg.t Instr.t) =
+    let spilled = Vec.create () in
+    ( spilled |> Vec.freeze
+    , Instr.map_regs instr ~f:(fun vreg : AReg.t ->
+        match vreg.precolored with
+        | None ->
+          (match Ra.Allocation.find_exn allocation vreg.name with
+           | Spilled ->
+             Vec.push spilled (vreg.s, vreg.name);
+             Spilled { s = vreg.s; name = vreg.name }
+           | InReg reg -> InReg { s = vreg.s; name = vreg.name.name; reg })
+        | Some reg -> InReg { s = vreg.s; name = vreg.name.name; reg }) )
+  ;;
+
+  let apply_allocation_block ~allocation (block : VReg.t Block.t) =
+    let instrs = Vec.create ~size:(Vec.length block.instrs) () in
+    Vec.iter block.instrs ~f:(fun instr ->
+      let spilled, instr = apply_allocation_instr ~allocation instr in
+      Vec.iter spilled ~f:(fun (s, name) ->
+        Vec.push instrs
+        @@ Instr.Virt
+             (ReserveStackLocal { name; size = Size.to_byte_size s |> Int32.of_int_exn }));
+      Vec.push instrs instr);
+    { Block.instrs = Vec.freeze instrs }
+  ;;
+
+  (* TODO: handle using callee saved registers *)
+  let apply_allocation_function ~allocation (fn : VReg.t Function.t) =
+    Function.map_blocks fn ~f:(apply_allocation_block ~allocation)
+  ;;
+end
+
+module Remove_ssa : sig
+  val remove_ssa : 'a Function.t -> 'a Function.t
+end = struct
+  let map_last vec ~f =
+    let vec = Vec.copy_exact ~size:(Vec.length vec + 1) vec in
+    Vec.set vec (Vec.length vec - 1) (f (Vec.get vec (Vec.length vec - 1)));
+    Vec.freeze vec
+  ;;
+
+  let remove_ssa (fn : _ Function.t) =
+    let graph = fn.graph in
+    (* we need this because we are removing the block parameters as we go, so first save them here *)
+    let params_of_label =
+      Cfg.Graph.to_iteri graph
+      |> F.Iter.map ~f:(fun (label, block) ->
+        let params = Block.block_args_exn block in
+        label, params)
+      |> Label.Table.of_iter
     in
-    let movs =
-      List.map movs ~f:(fun { dst; src } ->
-        MInstr.Mov { s = AReg.size dst; dst = Reg dst; src = Reg src })
-    in
-    List.iter movs ~f:(lower_minstr cx);
-    ()
-  (* keep these to calculate the stack layout *)
-  | ReserveStackLocal { name; size } ->
-    Cx.add_vinstr cx @@ ReserveStackLocal { name; size }
-  | ReserveStackEnd { size } -> Cx.add_vinstr cx @@ ReserveStackEnd { size }
-  (* don't need these anymore *)
-  (* Block_args should be turned into Par_mov by remove_ssa *)
-  | Def _ | Block_args _ -> ()
-;;
-
-let lower_block_call { Block_call.label; _ } = { Block_call.label; args = [] }
-
-let lower_jump = function
-  | Jump.Jump j -> Jump.Jump (lower_block_call j)
-  | Jump.CondJump { cond; j1; j2 } ->
-    Jump.CondJump { cond; j1 = lower_block_call j1; j2 = lower_block_call j2 }
-  | Jump.Ret -> Jump.Ret
-;;
-
-let lower_instr cx instr =
-  match instr with
-  | Instr.Virt vinstr -> lower_vinstr cx vinstr
-  | Instr.Real minstr -> lower_minstr cx minstr
-  | Instr.Jump jump -> Cx.add cx @@ Instr.Jump (lower_jump jump)
-;;
-
-let lower_block cx (block : _ Block.t) =
-  (Block.instrs_forward_fold block) (lower_instr cx);
-  let instrs = Vec.copy_exact cx.instrs in
-  Vec.clear cx.instrs;
-  { Block.instrs }
-;;
-
-let lower_function fn =
-  let cx = Cx.create fn in
-  let fn = Function.map_blocks fn ~f:(lower_block cx) in
-  { fn with unique_name = cx.unique_name }
-;;
-
-let map_last vec ~f =
-  let vec = Vec.copy_exact ~size:(Vec.length vec + 1) vec in
-  Vec.set vec (Vec.length vec - 1) (f (Vec.get vec (Vec.length vec - 1)));
-  Vec.freeze vec
-;;
-
-let apply_allocation_instr ~allocation (instr : VReg.t Instr.t) =
-  let spilled = Vec.create () in
-  ( spilled |> Vec.freeze
-  , Instr.map_regs instr ~f:(fun vreg : AReg.t ->
-      match vreg.precolored with
-      | None ->
-        (match Ra.Allocation.find_exn allocation vreg.name with
-         | Spilled ->
-           Vec.push spilled (vreg.s, vreg.name);
-           Spilled { s = vreg.s; name = vreg.name }
-         | InReg reg -> InReg { s = vreg.s; name = vreg.name.name; reg })
-      | Some reg -> InReg { s = vreg.s; name = vreg.name.name; reg }) )
-;;
-
-let apply_allocation_block ~allocation (block : VReg.t Block.t) =
-  let instrs = Vec.create ~size:(Vec.length block.instrs) () in
-  Vec.iter block.instrs ~f:(fun instr ->
-    let spilled, instr = apply_allocation_instr ~allocation instr in
-    Vec.iter spilled ~f:(fun (s, name) ->
-      Vec.push instrs
-      @@ Instr.Virt
-           (ReserveStackLocal { name; size = Size.to_byte_size s |> Int32.of_int_exn }));
-    Vec.push instrs instr);
-  { Block.instrs = Vec.freeze instrs }
-;;
-
-(* TODO: handle using callee saved registers *)
-let apply_allocation_function ~allocation (fn : VReg.t Function.t) =
-  Function.map_blocks fn ~f:(apply_allocation_block ~allocation)
-;;
-
-let remove_ssa (fn : _ Function.t) =
-  let graph = fn.graph in
-  (* we need this because we are removing the block parameters as we go, so first save them here *)
-  let params_of_label =
-    Cfg.Graph.to_iteri graph
-    |> F.Iter.map ~f:(fun (label, block) ->
-      let params = Block.block_args_exn block in
-      label, params)
-    |> Label.Table.of_iter
-  in
-  let graph =
-    Cfg.Graph.foldi graph ~init:graph ~f:(fun graph (label, block) ->
-      let jump = Block.jump_exn block in
-      let jump_with_no_args =
-        Jump.map_block_calls jump ~f:(fun j -> { j with args = [] })
-      in
-      let block_calls = Jump.block_calls_fold jump |> F.Iter.to_list in
-      let get_data (j : _ Block_call.t) =
-        let args = j.args in
-        let to_block = Cfg.Graph.find_exn j.label graph in
-        let params = Label.Table.find_exn params_of_label j.label in
-        let par_mov = List.zip_exn params args |> VInstr.Par_mov in
-        to_block, par_mov
-      in
-      match block_calls with
-      | [ j ] ->
-        let _to_block, par_mov = get_data j in
-        let instrs =
-          block.instrs |> fun vec -> Vec.copy_exact ~size:(Vec.length vec + 1) vec
+    let graph =
+      Cfg.Graph.foldi graph ~init:graph ~f:(fun graph (label, block) ->
+        let jump = Block.jump_exn block in
+        let jump_with_no_args =
+          Jump.map_block_calls jump ~f:(fun j -> { j with args = [] })
         in
-        let _ = Vec.pop_exn instrs in
-        Vec.push instrs @@ Instr.Virt par_mov;
-        Vec.push instrs @@ Jump jump_with_no_args;
-        let instrs = Vec.freeze instrs in
-        graph |> Cfg.Graph.set label { Block.instrs }
-      | js ->
-        List.fold js ~init:graph ~f:(fun graph j ->
-          let to_block, par_mov = get_data j in
-          let block =
-            { Block.instrs = block.instrs |> map_last ~f:(fun _ -> Jump jump_with_no_args)
-            }
+        let block_calls = Jump.block_calls_fold jump |> F.Iter.to_list in
+        let get_data (j : _ Block_call.t) =
+          let args = j.args in
+          let to_block = Cfg.Graph.find_exn j.label graph in
+          let params = Label.Table.find_exn params_of_label j.label in
+          let par_mov = List.zip_exn params args |> VInstr.Par_mov in
+          to_block, par_mov
+        in
+        match block_calls with
+        | [ j ] ->
+          let _to_block, par_mov = get_data j in
+          let instrs =
+            block.instrs |> fun vec -> Vec.copy_exact ~size:(Vec.length vec + 1) vec
           in
-          graph
-          |> Cfg.Graph.set label block
-          |> Cfg.Graph.set j.label (Block.cons (Virt par_mov) to_block)))
-  in
-  { fn with graph }
-;;
+          let _ = Vec.pop_exn instrs in
+          Vec.push instrs @@ Instr.Virt par_mov;
+          Vec.push instrs @@ Jump jump_with_no_args;
+          let instrs = Vec.freeze instrs in
+          graph |> Cfg.Graph.set label { Block.instrs }
+        | js ->
+          List.fold js ~init:graph ~f:(fun graph j ->
+            let to_block, par_mov = get_data j in
+            let block =
+              { Block.instrs =
+                  block.instrs |> map_last ~f:(fun _ -> Jump jump_with_no_args)
+              }
+            in
+            graph
+            |> Cfg.Graph.set label block
+            |> Cfg.Graph.set j.label (Block.cons (Virt par_mov) to_block)))
+    in
+    { fn with graph }
+  ;;
+end
 
-let legalize_instr instr = Legalize.legalize_instr @@ todo ()
+module Legalize : sig
+  val legalize_function : MReg.t Function.t -> MReg.t Function.t
+end = struct
+  let legalize_minstr instrs instr =
+    let force_register ~size o =
+      let reg = MReg.create ~name:"scratch" size Mach_reg.R11 in
+      Vec.push instrs @@ Instr.Real (Mov { s = size; dst = Reg reg; src = o });
+      reg
+    in
+    let force_same ~size ~dst ~src =
+      match dst, src with
+      | Operand.Mem _, Operand.Mem _ ->
+        let reg = force_register ~size src in
+        Vec.push instrs @@ Instr.Real (Mov { s = size; dst; src = Reg reg });
+        Operand.Reg reg
+      | _ ->
+        Vec.push instrs @@ Instr.Real (Mov { s = size; dst; src });
+        dst
+    in
+    let instr = Legalize.legalize_minstr instr ~force_register ~force_same in
+    Vec.push instrs (Real instr);
+    ()
+  ;;
+
+  let legalize_instr instrs instr =
+    match instr with
+    | Instr.Real instr -> legalize_minstr instrs instr
+    | Virt _ -> ()
+    | Jump _ -> Vec.push instrs instr
+  ;;
+
+  let legalize_block (block : _ Block.t) =
+    let instrs = Vec.create ~size:(Vec.length block.instrs) () in
+    Block.instrs_forward_fold block |> F.Iter.iter ~f:(legalize_instr instrs);
+    { block with instrs = Vec.freeze instrs }
+  ;;
+
+  let legalize_function fn = Function.map_blocks fn ~f:legalize_block
+end
+
+module Resolve_stack : sig
+  val resolve_function : MReg.t Function.t -> MReg.t Function.t
+end = struct
+  let resolve_imm stack imm =
+    match imm with
+    | Imm.Int i -> Imm.Int i
+    | Stack (End i) -> Int (Stack_layout.end_offset stack i)
+    | Stack (Local name) -> Int (Stack_layout.local_offset stack name)
+    | Stack (Start _) -> todo ()
+  ;;
+
+  let resolve_address stack address =
+    match address with
+    | Address.Imm { offset; scale } ->
+      Address.Imm { offset = resolve_imm stack offset; scale }
+    | Complex { base; index; offset } ->
+      Complex { base; index; offset = resolve_imm stack offset }
+  ;;
+
+  let resolve_minstr stack minstr =
+    MInstr.map_operands
+      minstr
+      ~f:
+        { f =
+            (fun (type op) (operand : (_, op) GOperand.t) : (_, op) GOperand.t ->
+              match operand with
+              | Imm imm -> Imm (resolve_imm stack imm)
+              | Reg reg -> Reg reg
+              | Mem address -> Mem (resolve_address stack address))
+        }
+  ;;
+
+  let resolve_function fn =
+    let stack_layout = Stack_layout.create fn in
+    let res =
+      (Function.map_blocks
+       & Block.map_instrs
+       & fun i ~f ->
+       Instr.real_val i |> Option.value_map ~default:i ~f:(Fn.compose Instr.real f))
+        fn
+        ~f:(resolve_minstr stack_layout)
+    in
+    res
+  ;;
+end
 
 let run_function fn =
   (* print_s [%message (fn : VReg.t Function.t)]; *)
   let allocation = alloc_fn fn |> Or_error.ok_exn in
   (* print_s [%message (allocation : Ra.Allocation.t)]; *)
-  let fn = apply_allocation_function ~allocation fn in
+  let fn = Apply.apply_allocation_function ~allocation fn in
   (* print_s [%message "apply_allocation" (fn : AReg.t Function.t)]; *)
   (* something is wrong with the remove_ssa function, we need to add entry and exit to block *)
-  let fn = remove_ssa fn in
+  let fn = Remove_ssa.remove_ssa fn in
   (* print_s [%message "remove_ssa" (fn : AReg.t Function.t)]; *)
-  let fn = lower_function fn in
+  let fn = Lower.lower_function fn in
+  (* print_s [%message "lowered" (fn : MReg.t Function.t)]; *)
+  let fn = Legalize.legalize_function fn in
+  (* print_s [%message "legalized" (fn : MReg.t Function.t)]; *)
+  let fn = Resolve_stack.resolve_function fn in
+  (* print_s [%message "resolved" (fn : MReg.t Function.t)]; *)
   fn
 ;;
 

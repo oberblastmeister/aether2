@@ -217,7 +217,9 @@ module Raw = struct
   ;;
 
   let map_copy t ~f =
-    let t' = create_exact ~size:t.size in
+    let t' =
+      { size = t.size; data = Option_array.create ~len:(capacity t); frozen = false }
+    in
     let rec go i =
       if i < t.size
       then (

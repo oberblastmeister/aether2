@@ -216,6 +216,8 @@ module VInstr = struct
   ;;
 end
 
+module GOperand = T.GOperand
+
 module MInstr = struct
   include T.MInstr
 
@@ -242,6 +244,32 @@ module MInstr = struct
     | Set { dst; _ } -> on_def dst
     | Push { src; _ } -> on_use @@ O.Reg src
     | Pop { dst; _ } -> on_def @@ O.Reg dst
+  ;;
+
+  type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t }
+
+  let map_operands i ~f:{ f = gmap } =
+    let map_op (o : 'a Operand.t) =
+      match o with
+      | Operand.Reg r -> GOperand.to_operand (gmap (Reg r))
+      | Mem m -> GOperand.to_operand (gmap (Mem m))
+      | Imm i -> GOperand.to_operand (gmap (Imm i))
+    in
+    let map_address a = gmap (Mem a) |> GOperand.mem_val in
+    let map_imm i = gmap (Imm i) |> GOperand.imm_val in
+    let map_reg r = gmap (Reg r) |> GOperand.reg_val in
+    match i with
+    | NoOp -> NoOp
+    | Mov { s; dst; src } -> Mov { s; dst = map_op dst; src = map_op src }
+    | Lea { dst; src; s } -> Lea { dst = map_reg dst; src = map_address src; s }
+    | Add { dst; src1; src2; s } ->
+      Add { dst = map_op dst; src1 = map_op src1; src2 = map_op src2; s }
+    | Push { src; s } -> Push { src = map_reg src; s }
+    | Pop { dst; s } -> Pop { dst = map_reg dst; s }
+    | MovAbs { dst; imm } -> MovAbs { dst = map_op dst; imm }
+    | Cmp { s; src1; src2 } -> Cmp { s; src1 = map_op src1; src2 = map_op src2 }
+    | Test { s; src1; src2; _ } -> Test { s; src1 = map_op src1; src2 = map_op src2 }
+    | Set { s; dst; cond } -> Set { s; dst = map_op dst; cond }
   ;;
 
   let operands_fold i k = operands_fold_with i ~on_def:k ~on_use:k

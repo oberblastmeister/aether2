@@ -1,33 +1,34 @@
 open O
 open Types
 
-let legalize_instr instr ~force_same ~force_register =
+let legalize_minstr instr ~force_same ~force_register =
   let open Types_basic.MInstr in
-  let force_register_op o = Operand.reg @@ force_register o in
-  let not_both_mem o1 o2 =
+  let force_register_op size o = Operand.reg @@ force_register ~size o in
+  (* s is the size of o2 *)
+  let legal_mem s o1 o2 =
     match o1, o2 with
-    | Operand.Mem _, Operand.Mem _ ->
-      let o2 = force_register_op o2 in
-      o1, o2
-    | _ -> o1, o2
+    | Operand.Mem _, Operand.Mem _ -> force_register_op s o2
+    | _ -> o2
   in
-  let legal ~dst ~src =
-    let `dst dst, `src src = force_same ~dst ~src in
-    let dst, src = not_both_mem dst src in
-    `dst dst, `src src
+  (* precondition: instruction must work on the same size for all three operands *)
+  let legal3 size dst src1 src2 =
+    let dst = force_same ~size ~dst ~src:src1 in
+    let src2 = legal_mem size dst src2 in
+    dst, dst, src2
   in
   match instr with
-  | Add ({ dst; src1; _ } as p) ->
-    let `dst dst, `src src1 = legal ~dst ~src:src1 in
-    Add { p with dst; src1 }
-  | Mov ({ dst; src; _ } as p) ->
-    let dst, src = not_both_mem dst src in
-    Mov { p with dst; src }
-  | Cmp ({ src1; src2; _ } as p) ->
-    let src1, src2 = not_both_mem src1 src2 in
+  | Add ({ s; dst; src1; src2; _ } as p) ->
+    let dst, src1, src2 = legal3 s dst src1 src2 in
+    Add { p with dst; src1; src2 }
+  | Mov ({ s; dst; src } as p) ->
+    let src = legal_mem s dst src in
+    Mov { p with src }
+  | Cmp ({ s; src1; src2; _ } as p) ->
+    let src2 = legal_mem s src1 src2 in
     Cmp { p with src1; src2 }
-  | Test ({ src1; src2; _ } as p) ->
-    let src1, src2 = not_both_mem src1 src2 in
+  | Test ({ s; src1; src2; _ } as p) ->
+    let src2 = legal_mem s src1 src2 in
     Test { p with src1; src2 }
-  | _ -> todo ()
+  | MovAbs _ | Set _ -> instr
+  | instr -> raise_s [%message "can't legalize instr" (instr : _ MInstr.t)]
 ;;

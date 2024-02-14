@@ -1,4 +1,4 @@
-(* TODO: remove generic types and stuff *)
+(* all register types must have sizes because they may be used inside addresses *)
 open! O
 open Utils.Instr_types
 
@@ -127,6 +127,7 @@ module Imm = struct
   [@@deriving sexp_of, map, fold]
 end
 
+(* used sized registers here and remove sizes on all registers *)
 module Address = struct
   module Base = struct
     type 'r t =
@@ -176,6 +177,36 @@ module Operand = struct
   [@@deriving sexp_of, variants, map, fold]
 end
 
+module GOperand = struct
+  type imm = Imm_
+  type reg = Reg_
+  type mem = Mem_
+
+  type ('r, 'op) t =
+    | Imm : Imm.t -> ('r, imm) t
+    | Reg : 'r -> ('r, reg) t
+    | Mem : 'r Address.t -> ('r, mem) t
+
+  let to_operand (type op) (t : (_, op) t) =
+    match t with
+    | Imm imm -> Operand.Imm imm
+    | Reg reg -> Reg reg
+    | Mem addr -> Mem addr
+  ;;
+
+  let mem_val = function
+    | Mem addr -> addr
+  ;;
+
+  let imm_val = function
+    | Imm imm -> imm
+  ;;
+
+  let reg_val = function
+    | Reg reg -> reg
+  ;;
+end
+
 module Cmp_op = struct
   type t = Gt [@@deriving equal, compare, sexp]
 end
@@ -199,8 +230,14 @@ module MInstr = struct
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
-    | Push of { src : 'r }
-    | Pop of { dst : 'r }
+    | Push of
+        { s : Size.t
+        ; src : 'r
+        }
+    | Pop of
+        { s : Size.t
+        ; dst : 'r
+        }
     | MovAbs of
         { dst : 'r Operand.t
         ; imm : int64
@@ -238,19 +275,6 @@ module VInstr = struct
   [@@deriving sexp_of, variants, map, fold]
 end
 
-(* module Maybe_block_call = struct
-   type 'r t =
-   | Block_call : VReg.t list -> VReg.t t
-   | No_block_call : Mach_reg.t t
-   [@@deriving sexp_of]
-
-   let get_args b =
-   match b with
-   | Block_call args -> args
-   | _ -> .
-   ;;
-   end *)
-
 module Block_call = struct
   type 'r t =
     { label : Label.t
@@ -281,9 +305,9 @@ end
 
 module Instr = struct
   type 'r t =
-    | Virt : 'r VInstr.t -> 'r t
-    | Real : 'r MInstr.t -> 'r t
-    | Jump : 'r Jump.t -> 'r t
+    | Virt of 'r VInstr.t
+    | Real of 'r MInstr.t
+    | Jump of 'r Jump.t
   [@@deriving sexp_of, map, variants]
 
   let get_virt = function
@@ -302,6 +326,7 @@ module Block = struct
   type 'r t = { instrs : ('r Instr.t, read) Vec.t } [@@deriving sexp_of, fields]
 
   let map_regs b ~f = { b with instrs = (Vec.map_copy & Instr.map_regs) b.instrs ~f }
+  let map_instrs b ~f = { b with instrs = Vec.map_copy b.instrs ~f }
 end
 
 module Graph = struct
