@@ -58,9 +58,9 @@ let rec lower_value cx = function
 
 and lower_value_op cx v = X86.Operand.Reg (lower_value cx v)
 
-and lower_assign cx dst expr =
+and lower_assign cx dst (expr : _ Expr.t) =
   match expr with
-  | Expr.Bin { ty; op; v1; v2 } ->
+  | Bin { ty; op; v1; v2 } ->
     (match op with
      | Bin_op.Add ->
        let src1 = lower_value_op cx v1 in
@@ -69,11 +69,11 @@ and lower_assign cx dst expr =
        Cx.add cx (MInstr.Add { s = ty_to_size ty; dst = X86.Operand.Reg dst; src1; src2 });
        dst
      | _ -> failwith "can't handle op yet")
-  | Expr.Const { ty = Ty.U64; const } ->
+  | Const { ty = Ty.U64; const } ->
     let dst = vreg dst in
     Cx.add cx (MInstr.MovAbs { dst = X86.Operand.Reg dst; imm = const });
     dst
-  | Expr.Const { ty; const } ->
+  | Const { ty; const } ->
     let dst = vreg dst in
     Cx.add
       cx
@@ -83,7 +83,7 @@ and lower_assign cx dst expr =
          ; src = X86.Operand.imm (Int64.to_int32_exn const)
          });
     dst
-  | Expr.Cmp { ty; op; v1; v2 } ->
+  | Cmp { ty; op; v1; v2 } ->
     let src1 = lower_value_op cx v1 in
     let src2 = lower_value_op cx v2 in
     Cx.add cx (MInstr.Cmp { s = ty_to_size ty; src1; src2 });
@@ -93,13 +93,15 @@ and lower_assign cx dst expr =
       (MInstr.Set
          { s = ty_to_size ty; cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst });
     dst
-  | Expr.Val { ty; v } ->
+  | Val { ty; v } ->
     let dst = vreg dst in
     let src = lower_value_op cx v in
     Cx.add cx (MInstr.Mov { s = ty_to_size ty; dst = X86.Operand.Reg dst; src });
     dst
-  | Expr.Alloca _ -> todo ()
-  | Expr.Load _ -> todo ()
+  | Call { ty; name; args } -> 
+    todo ()
+  | Alloca _ -> todo ()
+  | Load _ -> todo ()
 
 and lower_instr cx instr =
   match instr with
@@ -148,11 +150,12 @@ let lower_block cx (block : Tir.Block.t) =
 ;;
 
 let lower_graph cx graph = Cfg.Graph.map graph ~f:(fun block -> lower_block cx block)
+let caller_saved = X86.Mach_reg.[ RBX; RSP; RBP; R12; R13; R14; R15 ]
 
 let lower_function (fn : Tir.Function.t) =
   let cx = Context.create fn in
   let graph = lower_graph cx fn.graph in
-  { X86.Function.graph; unique_name = cx.unique_name }
+  { X86.Function.graph; caller_saved; unique_name = cx.unique_name }
 ;;
 
 let lower (prog : Tir.Program.t) =

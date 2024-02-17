@@ -1,20 +1,14 @@
 open! O
-open Utils.Instr_types
-module T = Types_basic
-
-module Ty = struct
-  include T.Ty
-end
-
-module Name = Name
-module Label = Label
-module Control = Control
+include Types_basic
+module Name = Utils.Instr_types.Name
+module Label = Utils.Instr_types.Label
+module Control = Utils.Instr_types.Control
 
 module Value = struct
-  include T.Value
-  module Hashtbl = Hashtbl.Make (T.Value)
-  module Hash_set = Hash_set.Make (T.Value)
-  module C = Comparable.Make_plain (T.Value)
+  include Value
+  module Hashtbl = Hashtbl.Make (Value)
+  module Hash_set = Hash_set.Make (Value)
+  module C = Comparable.Make_plain (Value)
   include C
 
   let to_int v = Name.to_int v.name
@@ -22,19 +16,12 @@ end
 
 module ValueMap = Entity.Map.Make (Value)
 
-module Cmp_op = struct
-  include T.Cmp_op
-end
-
-module Bin_op = struct
-  include T.Bin_op
-end
-
 module Expr = struct
-  include T.Expr
+  include Expr
 
   let get_ty = function
-    | Bin { ty; _ } | Const { ty; _ } | Val { ty; _ } | Load { ty; _ } -> ty
+    | Call { ty; _ } | Bin { ty; _ } | Const { ty; _ } | Val { ty; _ } | Load { ty; _ } ->
+      ty
     | Cmp _ -> U1
     | Alloca _ -> todo ()
   ;;
@@ -43,10 +30,10 @@ module Expr = struct
 end
 
 module Instr = struct
-  include T.Instr
+  include Instr
 
   let has_side_effect = function
-    | Store _ | Assign { expr = Alloca _ | Load _; _ } -> true
+    | Store _ | Assign { expr = Call _ | Alloca _ | Load _; _ } -> true
     | Assign { expr = Bin _ | Const _ | Cmp _ | Val _; _ } -> false
   ;;
 
@@ -65,17 +52,17 @@ module Instr = struct
   ;;
 
   let uses_fold i k = iter k i
-  let to_some i = T.Some_instr.T (Instr i)
+  let to_some i = Some_instr.T (Instr i)
 end
 
 module Block_call = struct
-  include T.Block_call
+  include Block_call
 
   let map_uses i ~f = map f i
 end
 
 module Control_instr = struct
-  include T.Control_instr
+  include Control_instr
 
   let map_uses i ~f = map f i
 
@@ -97,18 +84,18 @@ module Control_instr = struct
     | Ret v -> Ret v
   ;;
 
-  let to_some i = T.Some_instr.T (Control i)
+  let to_some i = Some_instr.T (Control i)
   let uses_fold i k = fold (fun () use -> k use) () i
 end
 
 module Block_args = struct
-  include T.Block_args
+  include Block_args
 
-  let to_some args = T.Some_instr.T (Block_args args)
+  let to_some args = Some_instr.T (Block_args args)
 end
 
 module Generic_instr = struct
-  include T.Generic_instr
+  include Generic_instr
 
   let get_control : type v. (v, Control.c) t -> v Control_instr.t = function
     | Control c -> c
@@ -140,7 +127,7 @@ module Generic_instr = struct
     | Control c -> Control (Control_instr.map f c)
   ;;
 
-  let to_some i = T.Some_instr.T i
+  let to_some i = Some_instr.T i
   let uses_fold i k = fold i ~init:() ~f:(fun () u -> k u)
   let uses i = fold ~init:[] ~f:(Fn.flip List.cons) i
   let map_uses = map
@@ -172,7 +159,7 @@ module Generic_instr = struct
 end
 
 module Some_instr = struct
-  include T.Some_instr
+  include Some_instr
 
   let map_uses i ~f = map f i
   let uses_fold (T i) = Generic_instr.uses_fold i
@@ -187,7 +174,7 @@ module Some_instr = struct
 end
 
 module Block = struct
-  include T.Block
+  include Block
 
   let map_exit t ~f = { t with exit = f t.exit }
 
@@ -236,7 +223,7 @@ module Block = struct
 end
 
 module Graph = struct
-  include T.Graph
+  include Graph
 
   include Cfg.Graph.Make_gen (struct
       type 'a t = 'a Block.t [@@deriving sexp_of]
@@ -258,7 +245,7 @@ module Graph = struct
 end
 
 module Dataflow = struct
-  let instr_to_block_transfer (type a) (module Value : T.Value with type t = a) =
+  let instr_to_block_transfer (type a) (module Value : Value with type t = a) =
     Cfg.Dataflow.instr_to_block_transfer
       ~sexp_of_block:[%sexp_of: Value.t Block.t]
       ~instrs_forward_fold:Block.instrs_forward_fold
@@ -272,7 +259,7 @@ module Dataflow = struct
 end
 
 module Mut_function = struct
-  include T.Mut_function
+  include Mut_function
 
   let fresh_name fn s =
     let unique = fn.unique_name in
@@ -291,7 +278,7 @@ module Mut_function = struct
 end
 
 module Function = struct
-  include T.Function
+  include Function
 
   let map_graph fn ~f = { fn with graph = f fn.graph }
   (* let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn *)
@@ -328,7 +315,7 @@ module Function = struct
 end
 
 module Program = struct
-  include T.Program
+  include Program
 
   let map_functions p ~f = { functions = f p.functions }
 end

@@ -351,6 +351,7 @@ module Function = struct
   type 'r t =
     { graph : 'r Graph.t
     ; unique_name : Name.Id.t
+    ; caller_saved : Mach_reg.t list
     }
   [@@deriving sexp_of, fields]
 

@@ -1,16 +1,15 @@
 open! O
-open Utils.Instr_types
-module T = Types_basic
-module Name = Name
-module Label = Label
-module Control = Control
+include module type of Types_basic
+module Name = Utils.Instr_types.Name
+module Label = Utils.Instr_types.Label
+module Control = Utils.Instr_types.Control
 
 module Ty : sig
-  include module type of T.Ty
+  include module type of Ty
 end
 
 module Value : sig
-  include module type of T.Value
+  include module type of Value
   module Hashtbl : Hashtbl.S with type key := t
   module Hash_set : Hash_set.S with type elt := t
   include Comparable.S_plain with type t := t
@@ -23,22 +22,22 @@ module ValueMap : sig
 end
 
 module Cmp_op : sig
-  include module type of T.Cmp_op
+  include module type of Cmp_op
 end
 
 module Bin_op : sig
-  include module type of T.Bin_op
+  include module type of Bin_op
 end
 
 module Expr : sig
-  include module type of T.Expr
+  include module type of Expr
 
   val get_ty : 'v t -> Ty.t
   val uses_fold : ('v, 'v t) F.Fold.t
 end
 
 module Some_instr : sig
-  include module type of T.Some_instr
+  include module type of Some_instr
 
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
   val uses_fold : ('v, 'v t) F.Fold.t
@@ -49,7 +48,7 @@ module Some_instr : sig
 end
 
 module Instr : sig
-  include module type of T.Instr
+  include module type of Instr
 
   val has_side_effect : 'v t -> bool
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
@@ -60,13 +59,13 @@ module Instr : sig
 end
 
 module Block_call : sig
-  include module type of T.Block_call
+  include module type of Block_call
 
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
 end
 
 module Control_instr : sig
-  include module type of T.Control_instr
+  include module type of Control_instr
 
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
   val block_calls_fold : ('v Block_call.t, 'v t) F.Fold.t
@@ -77,13 +76,13 @@ module Control_instr : sig
 end
 
 module Block_args : sig
-  include module type of T.Block_args
+  include module type of Block_args
 
   val to_some : t -> 'v Some_instr.t
 end
 
 module Generic_instr : sig
-  include module type of T.Generic_instr
+  include module type of Generic_instr
 
   val fold : ('v, 'c) t -> init:'a -> f:('a -> 'v -> 'a) -> 'a
   val map : ('v, 'c) t -> f:('v -> 'u) -> ('u, 'c) t
@@ -116,7 +115,7 @@ module Generic_instr : sig
 end
 
 module Block : sig
-  include module type of T.Block
+  include module type of Block
 
   val map_exit : 'v t -> f:('v Control_instr.t -> 'v Control_instr.t) -> 'v t
 
@@ -132,7 +131,7 @@ module Block : sig
 end
 
 module Graph : sig
-  include module type of T.Graph
+  include module type of Graph
   include Cfg.Graph.Gen_S with type 'v block := 'v Block.t
 
   val validate : 'v t -> unit
@@ -141,7 +140,7 @@ end
 
 module Dataflow : sig
   val instr_to_block_transfer
-    :  (module T.Value with type t = 'v)
+    :  (module Value with type t = 'v)
     -> ('v Some_instr.t, 'd) Cfg.Dataflow.Instr_transfer.t
     -> ('v Block.t, 'd) Cfg.Dataflow.Block_transfer.t
 
@@ -152,7 +151,7 @@ module Dataflow : sig
 end
 
 module Mut_function : sig
-  include module type of T.Mut_function
+  include module type of Mut_function
 
   val fresh_name : 'v t -> string -> Name.t
   val fresh_label : 'v t -> string -> Label.t
@@ -161,7 +160,7 @@ module Mut_function : sig
 end
 
 module Function : sig
-  include module type of T.Function
+  include module type of Function
 
   val map_graph : 'v t -> f:('v Graph.t -> 'u Graph.t) -> 'u t
 
@@ -173,7 +172,7 @@ module Function : sig
 end
 
 module Program : sig
-  include module type of T.Program
+  include module type of Program
 
   val map_functions : 'v t -> f:('v Function.t list -> 'u Function.t list) -> 'u t
 end

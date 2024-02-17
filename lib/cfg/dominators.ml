@@ -1,6 +1,6 @@
 open! O
 open Utils.Instr_types
-module Table = Entity.Map.Make (Label)
+module Table = Label.Table
 
 module Idoms = struct
   type t = (Label.t, Label.t) Entity.Map.t [@@deriving sexp_of]
@@ -15,7 +15,6 @@ module Frontier = struct
 end
 
 let get_idoms ?node_length ~start (graph : Label.t Data.Graph.double) =
-  let module Table = Entity.Map.Make (Label) in
   let idoms = Table.create ?size:node_length () in
   (* special case for start node *)
   Table.set idoms ~key:start ~data:start;
@@ -89,18 +88,17 @@ let frontier_of_idoms idoms (graph : Label.t Data.Graph.double) =
     if not @@ [%equal: Label.t] runner node_idom
     then (
       (* add node to runner's frontier set because runner doesn't dominate node *)
-      match Table.find frontier_of_node runner with
-      | None ->
-        Table.set
-          frontier_of_node
-          ~key:runner
-          ~data:
-            (let set = Hash_set.create (module Label) in
-             Hash_set.add set node;
-             set)
-      | Some fs ->
-        Hash_set.add fs node;
-        add_until node node_idom (Table.find_exn idoms runner))
+      (match Table.find frontier_of_node runner with
+       | None ->
+         Table.set
+           frontier_of_node
+           ~key:runner
+           ~data:
+             (let set = Hash_set.create (module Label) in
+              Hash_set.add set node;
+              set)
+       | Some fs -> Hash_set.add fs node);
+      add_until node node_idom (Table.find_exn idoms runner))
   in
   graph.all_nodes
   |> F.Iter.iter ~f:(fun node ->
@@ -145,7 +143,10 @@ let%test_module _ =
       print_s [%sexp (idoms : Idoms.t)];
       [%expect
         {|
-        ((start.0 start.0) (4.1 start.0) (3.2 start.0) (1.3 start.0) (2.4 start.0)) |}]
+        ((start.0 start.0) (4.1 start.0) (3.2 start.0) (1.3 start.0) (2.4 start.0)) |}];
+      let frontier = frontier_of_idoms idoms g in
+      print_s [%sexp (frontier : Frontier.t)];
+      [%expect {| ((4.1 (1.3)) (3.2 (2.4)) (1.3 (2.4)) (2.4 (1.3))) |}]
     ;;
 
     (* Figure 4 *)
@@ -165,7 +166,11 @@ let%test_module _ =
       [%expect
         {|
         ((start.0 start.0) (4.1 start.0) (3.2 start.0) (1.3 start.0) (2.4 start.0)
-         (5.5 start.0)) |}]
+         (5.5 start.0)) |}];
+      let frontier = frontier_of_idoms idoms g in
+      print_s [%sexp (frontier : Frontier.t)];
+      [%expect
+        {| ((4.1 (2.4 3.2)) (3.2 (2.4)) (1.3 (2.4)) (2.4 (1.3 3.2)) (5.5 (1.3))) |}]
     ;;
   end)
 ;;

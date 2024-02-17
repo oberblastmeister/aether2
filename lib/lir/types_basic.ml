@@ -60,6 +60,11 @@ module Expr = struct
         { ty : Ty.t
         ; v : 'v
         }
+    | Call of
+        { ty : Ty.t
+        ; name : string
+        ; args : 'v list
+        }
   [@@deriving sexp, fold, map, iter]
 end
 

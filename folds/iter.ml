@@ -7,3 +7,5 @@ let enumerate it k =
     incr ix);
   ()
 ;;
+
+let of_lab it k = it ~f:k

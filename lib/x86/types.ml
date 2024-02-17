@@ -1,26 +1,12 @@
 open! O
-open Utils.Instr_types
-module T = Types_basic
-module Name = Name
-module Label = Label
-module Control = Control
-
-module Cond = struct
-  include T.Cond
-end
-
-module Mach_reg = struct
-  include T.Mach_reg
-end
-
+include Types_basic
+module Name = Utils.Instr_types.Name
+module Label = Utils.Instr_types.Label
+module Control = Utils.Instr_types.Control
 module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
 
-module MReg = struct
-  include T.MReg
-end
-
 module AReg = struct
-  include T.AReg
+  include AReg
 
   let reg_val = function
     | InReg { reg; _ } -> Some reg
@@ -42,7 +28,7 @@ module AReg = struct
 end
 
 module VReg = struct
-  include T.VReg
+  include VReg
 
   let to_name r = r.name
   let create s name = { s; name; precolored = None }
@@ -50,7 +36,7 @@ module VReg = struct
 end
 
 module Size = struct
-  include T.Size
+  include Size
 
   let to_byte_size = function
     | Q -> 8
@@ -61,11 +47,11 @@ module Size = struct
 end
 
 module Stack_off = struct
-  include T.Stack_off
+  include Stack_off
 end
 
 module Address = struct
-  include T.Address
+  include Address
 
   module Base = struct
     include Base
@@ -104,12 +90,8 @@ module Address = struct
   ;;
 end
 
-module Imm = struct
-  include T.Imm
-end
-
 module Operand = struct
-  include T.Operand
+  include Operand
 
   let imm i = Imm (Imm.Int i)
   let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
@@ -134,7 +116,7 @@ module Operand = struct
 end
 
 module Block_call = struct
-  include T.Block_call
+  include Block_call
 
   let uses_fold (type r) (instr : r t) (k : r -> unit) = instr.args |> List.iter ~f:k
   let regs_fold block_call k = uses_fold block_call k
@@ -142,7 +124,7 @@ module Block_call = struct
 end
 
 module Jump = struct
-  include T.Jump
+  include Jump
 
   let map_regs i ~f = map f i
 
@@ -184,7 +166,7 @@ module Jump = struct
 end
 
 module VInstr = struct
-  include T.VInstr
+  include VInstr
 
   let map_regs i ~f = map f i
 
@@ -216,10 +198,8 @@ module VInstr = struct
   ;;
 end
 
-module GOperand = T.GOperand
-
 module MInstr = struct
-  include T.MInstr
+  include MInstr
 
   let operands_fold_with i ~on_def ~on_use =
     let module O = Operand in
@@ -289,11 +269,11 @@ module MInstr = struct
 end
 
 module Instr_variant = struct
-  include T.Instr_variant
+  include Instr_variant
 end
 
 module Instr = struct
-  include T.Instr
+  include Instr
 
   let to_variant (type r) (i : r t) =
     match i with
@@ -356,7 +336,7 @@ module Instr = struct
 end
 
 module Block = struct
-  include T.Block
+  include Block
 
   let first_instr b = Vec.first b.instrs
 
@@ -404,7 +384,7 @@ module Block = struct
 end
 
 module Graph = struct
-  include T.Graph
+  include Graph
 
   include Cfg.Graph.Make_gen (struct
       type 'r t = 'r Block.t
@@ -416,14 +396,14 @@ module Graph = struct
 end
 
 module Function = struct
-  include T.Function
+  include Function
 
   let instrs_forward_fold fn = (Cfg.Graph.to_iter @> Block.instrs_forward_fold) fn.graph
   let map_blocks fn ~f = { fn with graph = Graph.map_blocks fn.graph ~f }
 end
 
 module Program = struct
-  include T.Program
+  include Program
 
   let map_functions program ~f = { functions = List.map program.functions ~f }
 end
