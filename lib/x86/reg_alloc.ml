@@ -8,25 +8,7 @@ module Ra = Reg_alloc.Make (struct
     module Register = struct
       include Mach_reg
 
-      let order =
-        [ (* callee saved *)
-          RAX
-        ; RDI
-        ; RSI
-        ; RDX
-        ; RCX
-        ; R8
-        ; R9
-        ; R10
-        ; (* 11 used for scratch register *)
-          (* caller saved *)
-          RBX
-        ; R12
-        ; R13
-        ; R14
-        ; R15
-        ]
-      ;;
+      let order = caller_saved_without_r11 @ callee_saved_without_stack
     end
 
     module RegisterSet = struct
@@ -41,6 +23,7 @@ module Ra = Reg_alloc.Make (struct
 
 let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.transfer
 
+(* TODO: multiple defs in the same instruction interfere with each other *)
 let add_block_edges interference block live_out =
   let live_out = ref live_out in
   Block.instrs_backward_fold block (fun instr ->
@@ -57,6 +40,7 @@ let add_block_edges interference block live_out =
       && not (List.mem without live ~equal:[%equal: VReg.t])
     in
     (* make sure we at least add every use in, because the register allocator uses the domain of interference as all nodes *)
+    (* TODO: don't add precolored registers in *)
     Instr.regs_fold instr
     |> F.Iter.iter ~f:(fun def -> Interference.add_node interference def.VReg.name);
     (* add interference edges *)
@@ -178,8 +162,8 @@ end = struct
       |> F.Iter.to_list
     in
     assert (List.length spilled <= 9);
-    let name_and_victim, unzipped = List.zip_with_remainder spilled unused_registers in
-    (match unzipped with
+    let name_and_victim, remaining = List.zip_with_remainder spilled unused_registers in
+    (match remaining with
      | Some (Second _) -> ()
      | Some (First _) | None ->
        raise_s
@@ -205,7 +189,7 @@ end = struct
         match areg with
         | Spilled { s; name } ->
           MReg.create ~name:name.name s (Hashtbl.find_exn victim_of_spilled name)
-        | InReg { s; name; reg } -> MReg.create ~name s reg)
+        | InReg { s; name; reg } -> MReg.create ?name s reg)
     in
     Cx.add_minstr cx minstr_with_victims;
     (* move defined victim registers to the stack slot *)
@@ -227,9 +211,9 @@ end = struct
       let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src) in
       let movs, _did_use_scratch =
         W.convert
-          ~eq:AReg.equal
+          ~eq:[%equal: AReg.t]
           ~scratch:(fun reg ->
-            AReg.InReg { s = AReg.size reg; name = "par_mov_scratch"; reg = R11 })
+            AReg.InReg { s = AReg.size reg; name = Some "par_mov_scratch"; reg = R11 })
           movs
       in
       let movs =
@@ -244,7 +228,7 @@ end = struct
     | ReserveStackEnd { size } -> Cx.add_vinstr cx @@ ReserveStackEnd { size }
     (* don't need these anymore *)
     (* Block_args should be turned into Par_mov by remove_ssa *)
-    | Def _ | Block_args _ -> ()
+    | Block_args _ -> ()
   ;;
 
   let lower_block_call { Block_call.label; _ } = { Block_call.label; args = [] }
@@ -293,8 +277,8 @@ end = struct
            | Spilled ->
              Vec.push spilled (vreg.s, vreg.name);
              Spilled { s = vreg.s; name = vreg.name }
-           | InReg reg -> InReg { s = vreg.s; name = vreg.name.name; reg })
-        | Some reg -> InReg { s = vreg.s; name = vreg.name.name; reg }) )
+           | InReg reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg })
+        | Some reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg }) )
   ;;
 
   let apply_allocation_block ~allocation (block : VReg.t Block.t) =

@@ -32,6 +32,8 @@ let ty_to_size = function
   | Ty.U64 -> X86.Size.Q
 ;;
 
+let value_size v = ty_to_size v.Value.ty
+
 let precolored (v : Value.t) reg =
   X86.(Operand.Reg (VReg.precolored (ty_to_size v.ty) v.name reg))
 ;;
@@ -45,20 +47,38 @@ let cmp_op_to_cond ty op =
 
 let vreg (v : Value.t) = X86.VReg.create (ty_to_size v.ty) v.name
 
-let fresh_value (cx : Context.t) (v : Value.t) : Value.t =
+let freshen_name (cx : Context.t) (name : Name.t) : Name.t =
   let id = cx.unique_name in
   cx.unique_name <- Name.Id.next cx.unique_name;
-  let name = Name.create v.name.name id in
+  Name.create name.name id
+;;
+
+let fresh_value (cx : Context.t) (v : Value.t) : Value.t =
+  let name = freshen_name cx v.name in
   { v with name }
 ;;
 
+let categorize_args args =
+  let registers = X86.Mach_reg.args in
+  let args_with_reg, remaining = List.zip_with_remainder args registers in
+  let stack_args =
+    match remaining with
+    | Some (First args) -> args
+    | None | Some (Second _) -> []
+  in
+  args_with_reg, stack_args
+;;
+
 let rec lower_value cx = function
-  | Tir.Value.I { dst; expr } -> lower_assign cx dst expr
-  | Tir.Value.V v -> vreg v
+  | Tir.Value.I { dst; expr } ->
+    lower_assign cx dst expr;
+    dst
+  | Tir.Value.V v -> v
 
-and lower_value_op cx v = X86.Operand.Reg (lower_value cx v)
+and lower_value_reg cx v = vreg (lower_value cx v)
+and lower_value_op cx v = X86.Operand.Reg (vreg (lower_value cx v))
 
-and lower_assign cx dst (expr : _ Expr.t) =
+and lower_assign cx dst (expr : _ Expr.t) : unit =
   match expr with
   | Bin { ty; op; v1; v2 } ->
     (match op with
@@ -66,13 +86,11 @@ and lower_assign cx dst (expr : _ Expr.t) =
        let src1 = lower_value_op cx v1 in
        let src2 = lower_value_op cx v2 in
        let dst = vreg dst in
-       Cx.add cx (MInstr.Add { s = ty_to_size ty; dst = X86.Operand.Reg dst; src1; src2 });
-       dst
+       Cx.add cx (MInstr.Add { s = ty_to_size ty; dst = X86.Operand.Reg dst; src1; src2 })
      | _ -> failwith "can't handle op yet")
   | Const { ty = Ty.U64; const } ->
     let dst = vreg dst in
-    Cx.add cx (MInstr.MovAbs { dst = X86.Operand.Reg dst; imm = const });
-    dst
+    Cx.add cx (MInstr.MovAbs { dst = X86.Operand.Reg dst; imm = const })
   | Const { ty; const } ->
     let dst = vreg dst in
     Cx.add
@@ -81,8 +99,7 @@ and lower_assign cx dst (expr : _ Expr.t) =
          { s = ty_to_size ty
          ; dst = X86.Operand.Reg dst
          ; src = X86.Operand.imm (Int64.to_int32_exn const)
-         });
-    dst
+         })
   | Cmp { ty; op; v1; v2 } ->
     let src1 = lower_value_op cx v1 in
     let src2 = lower_value_op cx v2 in
@@ -91,14 +108,29 @@ and lower_assign cx dst (expr : _ Expr.t) =
     Cx.add
       cx
       (MInstr.Set
-         { s = ty_to_size ty; cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst });
-    dst
+         { s = ty_to_size ty; cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst })
   | Val { ty; v } ->
     let dst = vreg dst in
     let src = lower_value_op cx v in
-    Cx.add cx (MInstr.Mov { s = ty_to_size ty; dst = X86.Operand.Reg dst; src });
-    dst
-  | Call { ty; name; args } -> 
+    Cx.add cx (MInstr.Mov { s = ty_to_size ty; dst = X86.Operand.Reg dst; src })
+  | Call { ty; name; args } ->
+    let args = List.map ~f:(lower_value cx) args in
+    let args_with_reg, stack_args = categorize_args args in
+    List.iter args_with_reg ~f:(fun (arg, reg) ->
+      let dst = precolored (fresh_value cx arg) reg in
+      Cx.add cx (MInstr.Mov { s = ty_to_size arg.ty; dst; src = Reg (vreg arg) });
+      ());
+    F.Iter.of_list stack_args
+    |> F.Iter.enumerate
+    |> F.Iter.iter ~f:(fun (i, arg) ->
+      Cx.add cx
+      @@ Mov
+           { s = value_size arg
+           ; dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
+           ; src = Reg (vreg arg)
+           };
+      ());
+    Cx.add cx (Call { name; defines = todo () });
     todo ()
   | Alloca _ -> todo ()
   | Load _ -> todo ()
@@ -110,7 +142,7 @@ and lower_instr cx instr =
 
 and lower_block_call cx block_call =
   { X86.Block_call.label = block_call.Block_call.label
-  ; args = List.map ~f:(lower_value cx) block_call.args
+  ; args = List.map ~f:(lower_value_reg cx) block_call.args
   }
 
 and lower_block_args cx (block_args : Block_args.t) =
@@ -150,12 +182,14 @@ let lower_block cx (block : Tir.Block.t) =
 ;;
 
 let lower_graph cx graph = Cfg.Graph.map graph ~f:(fun block -> lower_block cx block)
-let caller_saved = X86.Mach_reg.[ RBX; RSP; RBP; R12; R13; R14; R15 ]
 
 let lower_function (fn : Tir.Function.t) =
   let cx = Context.create fn in
   let graph = lower_graph cx fn.graph in
-  { X86.Function.graph; caller_saved; unique_name = cx.unique_name }
+  { X86.Function.graph
+  ; caller_saved = X86.Mach_reg.caller_saved
+  ; unique_name = cx.unique_name
+  }
 ;;
 
 let lower (prog : Tir.Program.t) =

@@ -5,6 +5,16 @@ module Label = Utils.Instr_types.Label
 module Control = Utils.Instr_types.Control
 module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
 
+module Mach_reg = struct
+  include Mach_reg
+
+  let caller_saved_without_r11 = [ RAX; RDI; RSI; RDX; RCX; R8; R9; R10 ]
+  let caller_saved = caller_saved_without_r11 @ [ R11 ]
+  let callee_saved_without_stack = [ RBX; R12; R13; R14; R15 ]
+  let callee_saved = [ RSP; RBP ] @ callee_saved_without_stack
+  let args = [ RDI; RSI; RDX; RCX; R8; R9 ]
+end
+
 module AReg = struct
   include AReg
 
@@ -30,8 +40,8 @@ end
 module VReg = struct
   include VReg
 
-  let to_name r = r.name
-  let create s name = { s; name; precolored = None }
+  (* let to_name r = r.name *)
+  let create ?precolored s name = { s; name; precolored }
   let precolored s name precolored = { s; name; precolored = Some precolored }
 end
 
@@ -110,7 +120,7 @@ module Operand = struct
   ;;
 
   let of_areg = function
-    | AReg.InReg { name; reg; s } -> Reg (MReg.create ~name s reg)
+    | AReg.InReg { name; reg; s } -> Reg (MReg.create ?name s reg)
     | AReg.Spilled { name; _ } -> stack_local name
   ;;
 end
@@ -175,7 +185,6 @@ module VInstr = struct
     let module A = Address in
     match i with
     | Par_mov movs -> (FC.List.fold @> FC.Tuple2.fold_both) movs k
-    | Def { dst; _ } -> k dst
     | Block_args regs -> FC.List.fold regs k
     | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
@@ -183,7 +192,6 @@ module VInstr = struct
   let defs_fold i k =
     let module O = Operand in
     match i with
-    | Def { dst; _ } -> k dst
     | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn fst) movs k
     | Block_args args -> FC.List.fold args k
     | ReserveStackEnd _ | ReserveStackLocal _ -> ()
@@ -194,13 +202,15 @@ module VInstr = struct
     match i with
     | Par_mov movs -> (FC.List.fold @> F.Fold.of_fn snd) movs k
     | Block_args _ -> ()
-    | Def _ | ReserveStackEnd _ | ReserveStackLocal _ -> ()
+    | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 end
 
 module MInstr = struct
   include MInstr
 
+  (* add a on_mach_reg parameter *)
+  (* then add a specialized fold_mach_regs *)
   let operands_fold_with i ~on_def ~on_use =
     let module O = Operand in
     let module A = Address in
@@ -224,6 +234,7 @@ module MInstr = struct
     | Set { dst; _ } -> on_def dst
     | Push { src; _ } -> on_use @@ O.Reg src
     | Pop { dst; _ } -> on_def @@ O.Reg dst
+    | Call { defines; _ } -> List.iter defines ~f:(fun r -> on_def @@ Reg r)
   ;;
 
   type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t }
@@ -250,6 +261,7 @@ module MInstr = struct
     | Cmp { s; src1; src2 } -> Cmp { s; src1 = map_op src1; src2 = map_op src2 }
     | Test { s; src1; src2; _ } -> Test { s; src1 = map_op src1; src2 = map_op src2 }
     | Set { s; dst; cond } -> Set { s; dst = map_op dst; cond }
+    | Call { name; defines } -> Call { name; defines }
   ;;
 
   let operands_fold i k = operands_fold_with i ~on_def:k ~on_use:k

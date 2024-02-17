@@ -88,13 +88,14 @@ module MReg = struct
 end
 
 module VReg = struct
+  (* make this a variant so we can have unnamed virtual registers *)
   module T = struct
     type t =
       { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
       ; name : Name.t
       ; precolored : Mach_reg.t option [@equal.ignore] [@compare.ignore] [@hash.ignore]
       }
-    [@@deriving equal, compare, sexp, hash]
+    [@@deriving equal, compare, sexp, hash, fields]
   end
 
   include T
@@ -109,7 +110,7 @@ module AReg = struct
         }
     | InReg of
         { s : Size.t [@equal.ignore]
-        ; name : string [@equal.ignore]
+        ; name : string option [@equal.ignore]
         ; reg : Mach_reg.t
         }
   [@@deriving equal, sexp_of, variants]
@@ -263,13 +264,26 @@ module MInstr = struct
         ; cond : Cond.t
         ; dst : 'r Operand.t
         }
+    | Call of
+        { name : string
+        ; defines : 'r list
+        }
   [@@deriving sexp_of, map, fold]
+end
+
+module Precolored = struct
+  type 'r t =
+    | Precolored of
+        { s : Size.t
+        ; reg : Mach_reg.t
+        }
+    | Reg of 'r
+  [@@deriving sexp_of, equal, compare, map]
 end
 
 module VInstr = struct
   type 'r t =
     (* for calling conventions*)
-    | Def of { dst : 'r }
     | ReserveStackEnd of { size : int32 }
     | ReserveStackLocal of
         { name : Name.t
@@ -277,8 +291,9 @@ module VInstr = struct
         }
     (* for ssa *)
     | Block_args of 'r list
+    (* | Par_mov of ('r Precolored.t * 'r Precolored.t) list *)
     | Par_mov of ('r * 'r) list
-  [@@deriving sexp_of, variants, map, fold]
+  [@@deriving sexp_of, variants, map]
 end
 
 module Block_call = struct

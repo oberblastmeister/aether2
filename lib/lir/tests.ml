@@ -233,7 +233,7 @@ let%test_module _ =
                        (((s Q) (name e.1) (precolored ()))
                         ((s Q) (name r.2) (precolored ()))))))))))))
               (exit done.2)))
-            (unique_name 16))))) |}]
+            (unique_name 16) (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)))))) |}]
     ;;
 
     let%expect_test "regalloc" =
@@ -279,7 +279,7 @@ let%test_module _ =
                     (Mov (s Q) (dst (Reg (e R9))) (src (Reg (e RAX))))
                     (Jump ((label loop.1) (args ())))))))))
               (exit done.2)))
-            (unique_name 16))))) |}]
+            (unique_name 16) (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)))))) |}]
     ;;
   end)
 ;;

@@ -36,6 +36,20 @@ module Hashtbl = struct
   ;;
 end
 
+module Either = struct
+  let iter_first e k =
+    match e with
+    | First x -> k x
+    | _ -> ()
+  ;;
+
+  let iter_second e k =
+    match e with
+    | Second x -> k x
+    | _ -> ()
+  ;;
+end
+
 module Tuple2 = struct
   let fold_both (x, y) k =
     k x;
