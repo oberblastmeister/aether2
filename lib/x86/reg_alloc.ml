@@ -7,18 +7,13 @@ module Reg_alloc = Compiler.Reg_alloc
 module Ra = Reg_alloc.Make (struct
     module Register = struct
       include Mach_reg
-
-      let order = caller_saved_without_r11 @ callee_saved_without_stack
     end
 
-    module RegisterSet = struct
-      type t = Register.t Hash_set.t [@@deriving sexp_of]
-      type elt = Register.t
-
-      let create () = Hash_set.create (module Register)
-      let mem = Hash_set.mem
-      let add = Hash_set.add
-    end
+    let config =
+      { Reg_alloc.Types.register_order =
+          Mach_reg.caller_saved_without_r11 @ Mach_reg.callee_saved_without_stack
+      }
+    ;;
   end)
 
 let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.transfer
@@ -80,7 +75,9 @@ let alloc_fn fn =
   let open Result.Let_syntax in
   let interference = construct_fn fn in
   let precolored = collect_precolored fn in
-  let%bind allocation = Ra.Greedy.run ~precolored ~interference in
+  let%bind allocation =
+    Ra.Greedy.run ~precolored ~interference ~constraints:(Ra.Constraints.create ())
+  in
   Ok allocation
 ;;
 

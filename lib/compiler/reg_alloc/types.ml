@@ -9,65 +9,67 @@ module Alloc_reg = struct
 end
 
 module type Register = sig
-  type t [@@deriving equal, compare, hash, sexp_of]
-
-  val order : t list
+  type t [@@deriving equal, compare, hash, sexp_of, enum]
 end
 
-module type VReg = sig
-  type t [@@deriving sexp_of]
+type 'r config = { register_order : 'r list }
 
-  val to_int : t -> int
-end
+type 'r register =
+  { sexp_of : 'r -> Sexp.t
+  ; enum : 'r Data.Enum_set.enum
+  ; equal : 'r -> 'r -> bool
+  }
+
+type 'r dict =
+  { config : 'r config
+  ; register : 'r register
+  }
 
 (* information about registers *)
 module type Config = sig
   module Register : Register
-  module RegisterSet : Sig.Set with type elt = Register.t
+
+  val config : Register.t config
 end
 
-module Allocation (Config : Config) = struct
-  module type S = sig
-    open Config
-
-    type t [@@deriving sexp_of]
-
-    val to_iter : t -> (Name.t * Register.t Alloc_reg.t) F.Iter.t
-    val to_spilled_iter : t -> Name.t F.Iter.t
-    val find_exn : t -> Name.t -> Register.t Alloc_reg.t
-    val did_use_reg : t -> Register.t -> bool
-  end
-end
-
-type ('r, 'rs) allocation =
+type 'r allocation =
   { alloc_of_name : (Name.t, 'r Alloc_reg.t) Entity.Map.t
-  ; used_registers : 'rs
+  ; used_registers : 'r Data.Enum_set.t
   }
-[@@deriving sexp_of]
 
-module Make_allocation (Config : Config) = struct
-  open Config
+let sexp_of_alloation_with ~enum f t =
+  [%sexp
+    ( "alloc_of_name"
+    , (Entity.Map.sexp_of_t Name.sexp_of_t (Alloc_reg.sexp_of_t f) t.alloc_of_name
+       : Sexp.t) )
+    , ("used_registers", (Data.Enum_set.sexp_of_t_with ~enum t.used_registers : Sexp.t))]
+;;
 
-  type t = (Register.t, RegisterSet.t) allocation [@@deriving sexp_of]
+module Constraints = struct
+  type 'r t = 'r Data.Enum_set.t Name.Table.t
 
-  let find_exn t name = Name.Table.find_exn t.alloc_of_name name
-  let did_use_reg t reg = RegisterSet.mem t.used_registers reg
-  let to_iter _ = todo ()
-  let to_spilled_iter _ = todo ()
+  let sexp_of_t_with ~enum = Name.Table.sexp_of_t (Data.Enum_set.sexp_of_t_with ~enum)
+  let create () = Name.Table.create ()
+
+  let add ~enum t name reg =
+    match Name.Table.find t name with
+    | None ->
+      Name.Table.set
+        t
+        ~key:name
+        ~data:
+          (let set = Data.Enum_set.create ~enum () in
+           Data.Enum_set.add ~enum set reg;
+           set)
+    | Some set -> Data.Enum_set.add ~enum set reg
+  ;;
 end
 
-(* allocation is a parameter because we want it abstract in the make interface *)
-module Algorithm (Config : Config) (Allocation : Sig.T) = struct
-  module type S = sig
-    open Config
-
-    val run
-      :  precolored:(Name.t, Register.t) Entity.Map.t
-      -> interference:Interference.t
-      -> Allocation.t Or_error.t
-  end
+module type Algorithm = sig
+  val run
+    :  dict:'r dict
+    -> precolored:(Name.t, 'r) Entity.Map.t
+    -> interference:Interference.t
+    -> constraints:'r Constraints.t
+    -> 'r allocation Or_error.t
 end
-
-(* a register allocation algorithm depending on the architecture *)
-module type Make_S = functor (Config : Config) ->
-  Algorithm(Config)(Make_allocation(Config)).S

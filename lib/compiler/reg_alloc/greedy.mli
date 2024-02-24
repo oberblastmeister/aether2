@@ -1,1 +1,1 @@
-module Make : Types.Make_S
+include Types.Algorithm

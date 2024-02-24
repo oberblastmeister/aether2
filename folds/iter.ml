@@ -8,4 +8,4 @@ let enumerate it k =
   ()
 ;;
 
-let of_lab it k = it ~f:k
+let of_lab (it : f:('a -> unit) -> unit) k = it ~f:k

@@ -94,7 +94,8 @@ module Make_gen (Arg : Gen_arg) = struct
 end
 
 module Make (Arg : Arg) = struct
-  type nonrec 'v t = (Arg.t, 'v) t
+  type k = Arg.t
+  type nonrec 'v t = (k, 'v) t
 
   let create_real ?size () = create ~sexp_of_key:Arg.sexp_of_t ?size ()
   let of_iter_real ?size = of_iter ~sexp_of_key:Arg.sexp_of_t ?size ~to_int:Arg.to_int
@@ -105,6 +106,7 @@ module Make (Arg : Arg) = struct
       let to_int = Arg.to_int
     end)
 
+  let sexp_of_t f = sexp_of_t Arg.sexp_of_t f
   let create = create_real
   let of_iter = of_iter_real
 end

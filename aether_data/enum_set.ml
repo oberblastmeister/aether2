@@ -4,40 +4,41 @@ module F = Folds
 
 type 'a t = Bitvec.t
 
-let create (type a) ~enum:(module Enum : Enum.S with type t = a) =
-  Bitvec.create ~size:(Enum.max + 1) false
+let create ~enum () = Bitvec.create ~size:(enum.max + 1) false
+let add ~enum t x = Bitvec.set t @@ enum.to_enum x
+let remove ~enum t x = Bitvec.unset t @@ enum.to_enum x
+let mem ~enum t x = Bitvec.get t @@ enum.to_enum x
+let iter ~enum t ~f = Bitvec.iteri t ~f:(fun i b -> if b then f (enum.of_enum_exn i))
+
+let sexp_of_t_with ~enum t =
+  F.Iter.of_lab (iter ~enum t)
+  |> F.Iter.map ~f:enum.sexp_of
+  |> F.Iter.to_list
+  |> Sexp.List
 ;;
 
-let add (type a) ~enum:(module Enum : Enum.S with type t = a) t x =
-  Bitvec.set t @@ Enum.to_enum x
-;;
-
-let remove (type a) ~enum:(module Enum : Enum.S with type t = a) t x =
-  Bitvec.unset t @@ Enum.to_enum x
-;;
-
-let mem (type a) ~enum:(module Enum : Enum.S with type t = a) t x =
-  Bitvec.get t @@ Enum.to_enum x
-;;
-
-let iter (type a) ~enum:(module Enum : Enum.S with type t = a) t ~f =
-  Bitvec.iteri t ~f:(fun i b -> if b then f (Enum.of_enum i |> Option.value_exn))
-;;
+module Make_enum (T : Enum.S) = struct
+  let enum =
+    { max = T.max
+    ; sexp_of = T.sexp_of_t
+    ; to_enum = T.to_enum
+    ; of_enum_exn = (fun i -> T.of_enum i |> Option.value_exn)
+    }
+  ;;
+end
 
 module Make (T : Enum.S) = struct
   type nonrec t = T.t t
   type elt = T.t
 
-  let enum = (module T : Enum.S with type t = T.t)
-  let create () = create ~enum
+  include Make_enum (T)
+
+  let create () = create ~enum ()
   let add = add ~enum
   let remove = remove ~enum
   let mem = mem ~enum
   let iter = iter ~enum
-
-  let sexp_of_t t =
-    (fun f -> iter t ~f) |> F.Iter.map ~f:T.sexp_of_t |> F.Iter.to_list |> Sexp.List
-  ;;
+  let sexp_of_t = sexp_of_t_with ~enum
 end
 
 let negate = Bitvec.negate_self

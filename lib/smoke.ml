@@ -1,37 +1,37 @@
 (* module X : sig
-  type t
+   type t
 
-  val mk : t
-  val id : t -> t
-end = struct
-  type t = int
+   val mk : t
+   val id : t -> t
+   end = struct
+   type t = int
 
-  let mk = 0
-  let id x = x
-end
+   let mk = 0
+   let id x = x
+   end
 
-module Y : module type of X = struct
-  type t = bool
+   module Y : module type of X = struct
+   type t = bool
 
-  let mk = true
-  let id x = x
-end
+   let mk = true
+   let id x = x
+   end
 
-module type Stack = sig
-  type 'a t
+   module type Stack = sig
+   type 'a t
 
-  val push : 'a t -> 'a -> unit
-  val pop : 'a t -> 'a option
-end
+   val push : 'a t -> 'a -> unit
+   val pop : 'a t -> 'a option
+   end
 
-let f x =
-  match x with
-  | 0 -> 0
-  | n ->
-    (match n with
-     | 0 -> 0
-     | n -> 1)
-;; *)
+   let f x =
+   match x with
+   | 0 -> 0
+   | n ->
+   (match n with
+   | 0 -> 0
+   | n -> 1)
+   ;; *)
 
 (* type 'a expr =
    | Var of 'a
@@ -141,3 +141,69 @@ let lower_address ~cx ~can_use_scratch address =
   | Operand.Mem address -> todo ()
   | Operand.Reg _ | Operand.Imm _ -> operand
 ;; *)
+
+type thing =
+  { first : int
+  ; second : int
+  }
+
+module Testing (T : sig
+    type t =
+      { first : int
+      ; second : int
+      }
+  end) =
+struct
+  type t = T.t
+
+  let id (x : t) = x
+end
+
+(* let testing () =
+  let x = M1.id { first = 1; second = 2 } in
+  ()
+;;
+
+module M2 = Testing (struct
+    type t =
+      { first : int
+      ; second : int
+      }
+  end) *)
+
+module Empty1 = struct end
+module Empty2 = struct end
+
+module Test1 = struct
+  module Another (M : sig end) () = struct
+    type t =
+      { first : int
+      ; second : int
+      }
+  end
+
+  module M1 = Another (Empty1) ()
+  module M2 = Another (Empty2) ()
+  module M3 = Another (Empty1) ()
+end
+
+(* module Test1 = struct
+  module Existential (M : sig end) : sig
+    type t
+  end = struct
+    type t = int
+  end
+
+  module type Another = sig
+    type t = Existential(Empty1).t
+  end
+  module M1 = Existential (Empty1)
+  module M2 = Existential (Empty2)
+  module M3 = Existential (Empty1)
+
+  (* let f (x : M1.t) =
+    let (y : M1.t) = x in
+    let (z : M3.t) = y in
+    ()
+  ;; *)
+end *)

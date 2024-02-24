@@ -32,7 +32,7 @@ end
 
 module type S = sig
   type k
-  type 'v t
+  type 'v t [@@deriving sexp_of]
 
   include Gen_S with type ('a, 'b, 'c) k := k and type ('a, 'b, 'c, 'v) t := 'v t
 end
@@ -56,5 +56,5 @@ module type Intf = sig
     with type ('a, 'b, 'c) k := ('a, 'b, 'c) Arg.t
      and type ('a, 'b, 'c, 'v) t := (('a, 'b, 'c) Arg.t, 'v) t
 
-  module Make (Arg : Arg) : S with type k := Arg.t and type 'v t := (Arg.t, 'v) t
+  module Make (Arg : Arg) : S with type k = Arg.t and type 'v t = (Arg.t, 'v) t
 end
