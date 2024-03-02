@@ -34,10 +34,6 @@ let ty_to_size = function
 
 let value_size v = ty_to_size v.Value.ty
 
-let precolored (v : Value.t) reg =
-  X86.(Operand.Reg (VReg.precolored (ty_to_size v.ty) v.name reg))
-;;
-
 let cmp_op_to_cond ty op =
   match ty with
   | Ty.U1 | Ty.U64 ->
@@ -116,10 +112,10 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
   | Call { ty; name; args } ->
     let args = List.map ~f:(lower_value cx) args in
     let args_with_reg, stack_args = categorize_args args in
-    List.iter args_with_reg ~f:(fun (arg, reg) ->
+    (* List.iter args_with_reg ~f:(fun (arg, reg) ->
       let dst = precolored (fresh_value cx arg) reg in
       Cx.add cx (MInstr.Mov { s = ty_to_size arg.ty; dst; src = Reg (vreg arg) });
-      ());
+      ()); *)
     F.Iter.of_list stack_args
     |> F.Iter.enumerate
     |> F.Iter.iter ~f:(fun (i, arg) ->
@@ -130,7 +126,15 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
            ; src = Reg (vreg arg)
            };
       ());
-    Cx.add cx (Call { name; defines = todo () });
+    Cx.add
+      cx
+      (Call
+         { name
+         ; reg_args = List.map ~f:(fun (x, y) -> y, vreg x) args_with_reg
+         ; defines = todo ()
+         ; dst_reg = X86.Mach_reg.ret
+         ; dst = vreg dst
+         });
     todo ()
   | Alloca _ -> todo ()
   | Load _ -> todo ()
@@ -161,14 +165,19 @@ and lower_control_instr cx instr =
   | Control_instr.Jump j ->
     let j = lower_block_call cx j in
     Cx.addj cx @@ X86.Jump.Jump j
-  | Ret None -> Cx.addj cx @@ X86.Jump.Ret
+  | Ret v ->
+    let v = Option.map ~f:(lower_value_op cx) v in
+    (* Cx.addj cx @@ X86.Jump.Ret v *)
+    todo ()
+;;
+
+(* | Ret None -> Cx.addj cx @@ X86.Jump.Ret
   | Ret (Some v) ->
-    let op = lower_value_op cx v in
+    (* let op = lower_value_op cx v in
     let v' = fresh_value cx (Tir.Value.to_value v) in
     let dst = precolored v' X86.Mach_reg.RAX in
-    Cx.add cx @@ MInstr.Mov { s = ty_to_size @@ Tir.Value.get_ty v; dst; src = op };
-    Cx.addj cx @@ X86.Jump.Ret
-;;
+    Cx.add cx @@ MInstr.Mov { s = ty_to_size @@ Tir.Value.get_ty v; dst; src = op }; *)
+    Cx.addj cx @@ X86.Jump.Ret (vreg v) *)
 
 let lower_block cx (block : Tir.Block.t) =
   lower_block_args cx block.entry;

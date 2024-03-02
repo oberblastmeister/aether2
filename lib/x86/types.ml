@@ -13,6 +13,7 @@ module Mach_reg = struct
   let callee_saved_without_stack = [ RBX; R12; R13; R14; R15 ]
   let callee_saved = [ RSP; RBP ] @ callee_saved_without_stack
   let args = [ RDI; RSI; RDX; RCX; R8; R9 ]
+  let ret = RAX
 end
 
 module AReg = struct
@@ -41,8 +42,8 @@ module VReg = struct
   include VReg
 
   (* let to_name r = r.name *)
-  let create ?precolored s name = { s; name; precolored }
-  let precolored s name precolored = { s; name; precolored = Some precolored }
+  let create s name = { s; name }
+  let precolored s name = { s; name }
 end
 
 module Size = struct
@@ -107,7 +108,7 @@ module Operand = struct
   let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
   let stack_local name = Mem (Address.stack_local name)
   let vreg s name = Reg (VReg.create s name)
-  let precolored s name precolored = Reg (VReg.precolored s name precolored)
+  let precolored s name = Reg (VReg.precolored s name)
   let reg_val_fold o k = reg_val o |> Option.iter ~f:k
   let mem_val_fold o k = mem_val o |> Option.iter ~f:k
   let mem_regs_fold o k = (mem_val_fold @> Address.regs_fold) o k
@@ -234,7 +235,9 @@ module MInstr = struct
     | Set { dst; _ } -> on_def dst
     | Push { src; _ } -> on_use @@ O.Reg src
     | Pop { dst; _ } -> on_def @@ O.Reg dst
-    | Call { defines; _ } -> List.iter defines ~f:(fun r -> on_def @@ Reg r)
+    | Call { reg_args; dst; _ } ->
+      List.iter reg_args ~f:(fun (_, arg) -> on_use (Reg arg));
+      on_def (Reg dst)
   ;;
 
   type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t }
@@ -261,7 +264,7 @@ module MInstr = struct
     | Cmp { s; src1; src2 } -> Cmp { s; src1 = map_op src1; src2 = map_op src2 }
     | Test { s; src1; src2; _ } -> Test { s; src1 = map_op src1; src2 = map_op src2 }
     | Set { s; dst; cond } -> Set { s; dst = map_op dst; cond }
-    | Call { name; defines } -> Call { name; defines }
+    | Call p -> Call p
   ;;
 
   let operands_fold i k = operands_fold_with i ~on_def:k ~on_use:k
@@ -388,7 +391,7 @@ module Block = struct
     | CondJump { j1; j2; _ } ->
       k j1.label;
       k j2.label
-    | Ret -> ()
+    | Ret _ -> ()
   ;;
 
   let instrs_forward_fold b = Vec.to_iter b.instrs

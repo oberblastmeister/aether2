@@ -34,7 +34,7 @@ let convert ~eq ~scratch (par_move : _ Move.t list) =
       status.(i) <- Being_moved;
       (* visit children *)
       for j = 0 to n - 1 do
-        (* found an child; move whose source will be overwritten by the current move's destination *)
+        (* found a child; move whose source will be overwritten by the current move's destination *)
         if eq par_move.(j).src par_move.(i).dst
         then (
           match status.(j) with

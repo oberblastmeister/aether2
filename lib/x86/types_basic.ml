@@ -93,7 +93,6 @@ module VReg = struct
     type t =
       { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
       ; name : Name.t
-      ; precolored : Mach_reg.t option [@equal.ignore] [@compare.ignore] [@hash.ignore]
       }
     [@@deriving equal, compare, sexp, hash, fields]
   end
@@ -266,7 +265,10 @@ module MInstr = struct
         }
     | Call of
         { name : string
-        ; defines : 'r list
+        ; reg_args : (Mach_reg.t * 'r) list
+        ; defines : Mach_reg.t list
+        ; dst_reg : Mach_reg.t
+        ; dst : 'r
         }
   [@@deriving sexp_of, map, fold]
 end

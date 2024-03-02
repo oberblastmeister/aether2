@@ -50,7 +50,7 @@ let add_block_edges interference block live_out =
   ()
 ;;
 
-let collect_precolored fn =
+(* let collect_precolored fn =
   F.Fold.(
     Function.instrs_forward_fold
     @> Instr.regs_fold
@@ -60,7 +60,7 @@ let collect_precolored fn =
     fn
   |> F.Iter.map ~f:(fun (`name name, `reg reg) -> name, reg)
   |> Name.Table.of_iter
-;;
+;; *)
 
 let construct_fn fn =
   let _, live_out_facts = Dataflow.Liveness.run fn in
@@ -74,9 +74,12 @@ let construct_fn fn =
 let alloc_fn fn =
   let open Result.Let_syntax in
   let interference = construct_fn fn in
-  let precolored = collect_precolored fn in
+  (* let precolored = collect_precolored fn in *)
   let%bind allocation =
-    Ra.Greedy.run ~precolored ~interference ~constraints:(Ra.Constraints.create ())
+    Ra.Greedy.run
+      ~precolored:(Name.Table.create ())
+      ~interference
+      ~constraints:(Ra.Constraints.create ())
   in
   Ok allocation
 ;;
@@ -204,21 +207,10 @@ end = struct
   let lower_vinstr cx (instr : AReg.t VInstr.t) =
     match instr with
     | Par_mov movs ->
-      let module W = Compiler.Windmills in
-      let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src) in
-      let movs, _did_use_scratch =
-        W.convert
-          ~eq:[%equal: AReg.t]
-          ~scratch:(fun reg ->
-            AReg.InReg { s = AReg.size reg; name = Some "par_mov_scratch"; reg = R11 })
-          movs
-      in
-      let movs =
-        List.map movs ~f:(fun { dst; src } ->
-          MInstr.Mov { s = AReg.size dst; dst = Reg dst; src = Reg src })
-      in
-      List.iter movs ~f:(lower_minstr cx);
-      ()
+      raise_s
+        [%message
+          "there should not be any par movs left at this point"
+            (movs : (AReg.t * AReg.t) list)]
     (* keep these to calculate the stack layout *)
     | ReserveStackLocal { name; size } ->
       Cx.add_vinstr cx @@ ReserveStackLocal { name; size }
@@ -234,7 +226,8 @@ end = struct
     | Jump.Jump j -> Jump.Jump (lower_block_call j)
     | Jump.CondJump { cond; j1; j2 } ->
       Jump.CondJump { cond; j1 = lower_block_call j1; j2 = lower_block_call j2 }
-    | Jump.Ret -> Jump.Ret
+    | Jump.Ret  -> Jump.Ret 
+    (* | Jump.Ret _ -> raise_s [%message "jump must be legalized"] *)
   ;;
 
   let lower_instr cx instr =
@@ -268,14 +261,11 @@ end = struct
     let spilled = Vec.create () in
     ( spilled |> Vec.freeze
     , Instr.map_regs instr ~f:(fun vreg : AReg.t ->
-        match vreg.precolored with
-        | None ->
-          (match Ra.Allocation.find_exn allocation vreg.name with
-           | Spilled ->
-             Vec.push spilled (vreg.s, vreg.name);
-             Spilled { s = vreg.s; name = vreg.name }
-           | InReg reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg })
-        | Some reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg }) )
+        match Ra.Allocation.find_exn allocation vreg.name with
+        | Spilled ->
+          Vec.push spilled (vreg.s, vreg.name);
+          Spilled { s = vreg.s; name = vreg.name }
+        | InReg reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg }) )
   ;;
 
   let apply_allocation_block ~allocation (block : VReg.t Block.t) =
@@ -356,46 +346,6 @@ end = struct
   ;;
 end
 
-module Legalize : sig
-  val legalize_function : MReg.t Function.t -> MReg.t Function.t
-end = struct
-  let legalize_minstr instrs instr =
-    let force_register ~size o =
-      let reg = MReg.create ~name:"scratch" size Mach_reg.R11 in
-      Vec.push instrs @@ Instr.Real (Mov { s = size; dst = Reg reg; src = o });
-      reg
-    in
-    let force_same ~size ~dst ~src =
-      match dst, src with
-      | Operand.Mem _, Operand.Mem _ ->
-        let reg = force_register ~size src in
-        Vec.push instrs @@ Instr.Real (Mov { s = size; dst; src = Reg reg });
-        Operand.Reg reg
-      | _ ->
-        Vec.push instrs @@ Instr.Real (Mov { s = size; dst; src });
-        dst
-    in
-    let instr = Legalize.legalize_minstr instr ~force_register ~force_same in
-    Vec.push instrs (Real instr);
-    ()
-  ;;
-
-  let legalize_instr instrs instr =
-    match instr with
-    | Instr.Real instr -> legalize_minstr instrs instr
-    | Virt _ -> ()
-    | Jump _ -> Vec.push instrs instr
-  ;;
-
-  let legalize_block (block : _ Block.t) =
-    let instrs = Vec.create ~size:(Vec.length block.instrs) () in
-    Block.instrs_forward_fold block |> F.Iter.iter ~f:(legalize_instr instrs);
-    { block with instrs = Vec.freeze instrs }
-  ;;
-
-  let legalize_function fn = Function.map_blocks fn ~f:legalize_block
-end
-
 module Resolve_stack : sig
   val resolve_function : MReg.t Function.t -> MReg.t Function.t
 end = struct
@@ -451,10 +401,10 @@ let run_function fn =
   (* something is wrong with the remove_ssa function, we need to add entry and exit to block *)
   let fn = Remove_ssa.remove_ssa fn in
   (* print_s [%message "remove_ssa" (fn : AReg.t Function.t)]; *)
+  let fn = Legalize.legalize_function fn in
+  (* print_s [%message "legalized" (fn : AReg.t Function.t)]; *)
   let fn = Lower.lower_function fn in
   (* print_s [%message "lowered" (fn : MReg.t Function.t)]; *)
-  let fn = Legalize.legalize_function fn in
-  (* print_s [%message "legalized" (fn : MReg.t Function.t)]; *)
   let fn = Resolve_stack.resolve_function fn in
   (* print_s [%message "resolved" (fn : MReg.t Function.t)]; *)
   fn
