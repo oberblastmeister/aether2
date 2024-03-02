@@ -18,17 +18,6 @@ module Liveness = struct
       ~defs:Lir.Some_instr.defs_fold
   ;;
 
-  let block_transfer =
-    Lir.Dataflow.instr_to_block_transfer (module Lir.Value) instr_transfer
-  ;;
-
-  let run = Lir.Dataflow.run_block_transfer block_transfer
+  let block_transfer = Dataflow.instr_to_block_transfer (module Lir.Value) instr_transfer
+  let run = Dataflow.run_block_transfer block_transfer
 end
-
-(* module DataflowDominators = struct
-   let block_transfer =
-   Cfg.Dataflow.Dominators.make_transfer ~sexp_of_block:[%sexp_of: Block.t]
-   ;;
-
-   let run = Lir.Dataflow.run_block_transfer block_transfer
-   end *)

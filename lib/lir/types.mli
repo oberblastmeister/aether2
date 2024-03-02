@@ -138,18 +138,6 @@ module Graph : sig
   val get_idoms : 'v t -> Cfg.Dominators.Idoms.t
 end
 
-module Dataflow : sig
-  val instr_to_block_transfer
-    :  (module Value with type t = 'v)
-    -> ('v Some_instr.t, 'd) Cfg.Dataflow.Instr_transfer.t
-    -> ('v Block.t, 'd) Cfg.Dataflow.Block_transfer.t
-
-  val run_block_transfer
-    :  ('v Block.t, 'd) Cfg.Dataflow.Block_transfer.t
-    -> 'v Graph.t
-    -> 'd Cfg.Dataflow.Fact_base.t * 'd Cfg.Dataflow.Fact_base.t
-end
-
 module Mut_function : sig
   include module type of Mut_function
 
