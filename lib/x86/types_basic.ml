@@ -11,21 +11,6 @@ module Size = struct
   [@@deriving equal, compare, hash, sexp]
 end
 
-module Cond = struct
-  type t =
-    (* equal*)
-    | E
-    (* not equal*)
-    | NE
-    (* below (unsigned <) *)
-    | B
-    (* below or equal *)
-    | BE
-    (* above (unsigned >) *)
-    | A
-  [@@deriving equal, compare, hash, sexp, variants]
-end
-
 module Ty = struct
   type t =
     | U1
@@ -47,27 +32,6 @@ module Scale = struct
     | Scale4 -> 4
     | Scale8 -> 8
   ;;
-end
-
-module Mach_reg = struct
-  type t =
-    | RAX
-    | RCX
-    | RDX
-    | RBX
-    | RSP
-    | RBP
-    | RSI
-    | RDI
-    | R8
-    | R9
-    | R10
-    | R11
-    | R12
-    | R13
-    | R14
-    | R15
-  [@@deriving enum, equal, compare, sexp, hash, variants]
 end
 
 module MReg = struct
@@ -217,7 +181,42 @@ module Cmp_op = struct
   type t = Gt [@@deriving equal, compare, sexp]
 end
 
-module MInstr = struct
+module VInstr = struct
+  type 'r t =
+    (* for calling conventions*)
+    | ReserveStackEnd of { size : int32 }
+    | ReserveStackLocal of
+        { name : Name.t
+        ; size : int32
+        }
+    (* for ssa *)
+    | Block_args of 'r list
+    (* | Par_mov of ('r Precolored.t * 'r Precolored.t) list *)
+    | Par_mov of ('r * 'r) list
+  [@@deriving sexp_of, variants, map]
+end
+
+module Block_call = struct
+  type 'r t =
+    { label : Label.t
+    ; args : 'r list
+    }
+  [@@deriving sexp_of, fold, map, iter]
+end
+
+module Jump = struct
+  type 'r t =
+    | Jump of 'r Block_call.t
+    | CondJump of
+        { cond : Cond.t
+        ; j1 : 'r Block_call.t
+        ; j2 : 'r Block_call.t
+        }
+    | Ret
+  [@@deriving sexp_of, fold, map, iter]
+end
+
+module Instr = struct
   type 'r t =
     | NoOp
     | Mov of
@@ -270,7 +269,27 @@ module MInstr = struct
         ; dst_reg : Mach_reg.t
         ; dst : 'r
         }
-  [@@deriving sexp_of, map, fold]
+    | Jump of 'r Jump.t
+    | Virt of 'r VInstr.t
+  [@@deriving sexp_of, map]
+
+  let sexp_of_t f = function
+    | Virt v -> VInstr.sexp_of_t f v
+    | Jump v -> Jump.sexp_of_t f v
+    | instr -> sexp_of_t f instr
+  ;;
+
+  let jump_val = function
+    | Jump j -> Some j
+    | _ -> None
+  ;;
+
+  let virt_val = function
+    | Virt v -> Some v
+    | _ -> None
+  ;;
+
+  let map_regs t ~f = map f t
 end
 
 module Precolored = struct
@@ -281,70 +300,6 @@ module Precolored = struct
         }
     | Reg of 'r
   [@@deriving sexp_of, equal, compare, map]
-end
-
-module VInstr = struct
-  type 'r t =
-    (* for calling conventions*)
-    | ReserveStackEnd of { size : int32 }
-    | ReserveStackLocal of
-        { name : Name.t
-        ; size : int32
-        }
-    (* for ssa *)
-    | Block_args of 'r list
-    (* | Par_mov of ('r Precolored.t * 'r Precolored.t) list *)
-    | Par_mov of ('r * 'r) list
-  [@@deriving sexp_of, variants, map]
-end
-
-module Block_call = struct
-  type 'r t =
-    { label : Label.t
-    ; args : 'r list
-    }
-  [@@deriving sexp_of, fold, map, iter]
-end
-
-module Jump = struct
-  type 'r t =
-    | Jump of 'r Block_call.t
-    | CondJump of
-        { cond : Cond.t
-        ; j1 : 'r Block_call.t
-        ; j2 : 'r Block_call.t
-        }
-    | Ret
-  [@@deriving sexp_of, fold, map, iter]
-end
-
-module Instr_variant = struct
-  type 'r t =
-    | Virt of 'r VInstr.t
-    | Real of 'r MInstr.t
-    | Jump of 'r Jump.t
-  [@@deriving sexp_of, variants]
-end
-
-module Instr = struct
-  type 'r t =
-    | Virt of 'r VInstr.t
-    | Real of 'r MInstr.t
-    | Jump of 'r Jump.t
-  [@@deriving map, variants]
-
-  let sexp_of_t f = function
-    | Virt v -> VInstr.sexp_of_t f v
-    | Real v -> MInstr.sexp_of_t f v
-    | Jump v -> Jump.sexp_of_t f v
-  ;;
-
-  let get_virt = function
-    | Virt v -> Some v
-    | _ -> None
-  ;;
-
-  let map_regs i ~f = map f i
 end
 
 module Some_instr = struct

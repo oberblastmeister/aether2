@@ -109,7 +109,7 @@ let print_instr cx name s =
   ()
 ;;
 
-let print_minstr cx (instr : MReg.t MInstr.t) =
+let print_minstr cx (instr : MReg.t Instr.t) =
   match instr with
   | NoOp -> ()
   | Add { s; dst; src2; _ } ->
@@ -118,10 +118,8 @@ let print_minstr cx (instr : MReg.t MInstr.t) =
   | Mov { s; dst; src } ->
     print_instr cx "mov" s;
     print_operands cx [ dst; src ]
-  | MovAbs { dst; imm } -> 
-    
-    ()
-  | _ -> raise_s [%message "could print instr" (instr : MReg.t MInstr.t)]
+  | MovAbs { dst; imm } -> ()
+  | _ -> raise_s [%message "could print instr" (instr : MReg.t Instr.t)]
 ;;
 
 (* print_mreg dst;

@@ -7,8 +7,7 @@ module X86 = struct
   include X86.Types
 end
 
-module MInstr = X86.MInstr
-module VInstr = X86.VInstr
+(* module Instr = X86.Instr *)
 
 module Context = struct
   type t =
@@ -20,7 +19,7 @@ module Context = struct
     { instrs = Vec.create (); unique_name = fn.unique_name }
   ;;
 
-  let add cx instr = Vec.push cx.instrs (X86.Instr.Real instr)
+  let add cx instr = Vec.push cx.instrs instr
   let addv cx instr = Vec.push cx.instrs (X86.Instr.Virt instr)
   let addj cx instr = Vec.push cx.instrs (X86.Instr.Jump instr)
 end
@@ -82,16 +81,16 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
        let src1 = lower_value_op cx v1 in
        let src2 = lower_value_op cx v2 in
        let dst = vreg dst in
-       Cx.add cx (MInstr.Add { s = ty_to_size ty; dst = X86.Operand.Reg dst; src1; src2 })
+       Cx.add cx (Add { s = ty_to_size ty; dst = X86.Operand.Reg dst; src1; src2 })
      | _ -> failwith "can't handle op yet")
   | Const { ty = Ty.U64; const } ->
     let dst = vreg dst in
-    Cx.add cx (MInstr.MovAbs { dst = X86.Operand.Reg dst; imm = const })
+    Cx.add cx (MovAbs { dst = X86.Operand.Reg dst; imm = const })
   | Const { ty; const } ->
     let dst = vreg dst in
     Cx.add
       cx
-      (MInstr.Mov
+      (Mov
          { s = ty_to_size ty
          ; dst = X86.Operand.Reg dst
          ; src = X86.Operand.imm (Int64.to_int32_exn const)
@@ -99,16 +98,15 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
   | Cmp { ty; op; v1; v2 } ->
     let src1 = lower_value_op cx v1 in
     let src2 = lower_value_op cx v2 in
-    Cx.add cx (MInstr.Cmp { s = ty_to_size ty; src1; src2 });
+    Cx.add cx (Cmp { s = ty_to_size ty; src1; src2 });
     let dst = vreg dst in
     Cx.add
       cx
-      (MInstr.Set
-         { s = ty_to_size ty; cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst })
+      (Set { s = ty_to_size ty; cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst })
   | Val { ty; v } ->
     let dst = vreg dst in
     let src = lower_value_op cx v in
-    Cx.add cx (MInstr.Mov { s = ty_to_size ty; dst = X86.Operand.Reg dst; src })
+    Cx.add cx (Mov { s = ty_to_size ty; dst = X86.Operand.Reg dst; src })
   | Call { ty; name; args } ->
     let args = List.map ~f:(lower_value cx) args in
     let args_with_reg, stack_args = categorize_args args in
@@ -142,7 +140,7 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
 and lower_instr cx instr =
   match instr with
   | Instr.Assign { dst; expr } -> lower_assign cx dst expr
-  | Instr.Store _ -> todo ()
+  | Store _ -> todo ()
 
 and lower_block_call cx block_call =
   { X86.Block_call.label = block_call.Block_call.label
@@ -151,7 +149,7 @@ and lower_block_call cx block_call =
 
 and lower_block_args cx (block_args : Block_args.t) =
   let block_args = List.map ~f:(fun v -> vreg v) block_args in
-  Cx.addv cx @@ VInstr.Block_args block_args
+  Cx.addv cx @@ Block_args block_args
 
 and lower_control_instr cx instr =
   match instr with
@@ -159,8 +157,7 @@ and lower_control_instr cx instr =
     let op1 = lower_value_op cx v in
     let bc1 = lower_block_call cx bc1 in
     let bc2 = lower_block_call cx bc2 in
-    Cx.add cx
-    @@ MInstr.Test { s = ty_to_size @@ Tir.Value.get_ty v; src1 = op1; src2 = op1 };
+    Cx.add cx @@ Test { s = ty_to_size @@ Tir.Value.get_ty v; src1 = op1; src2 = op1 };
     Cx.addj cx @@ X86.Jump.CondJump { cond = X86.Cond.NE; j1 = bc1; j2 = bc2 }
   | Control_instr.Jump j ->
     let j = lower_block_call cx j in

@@ -23,8 +23,8 @@ let add_block_edges interference block live_out =
   let live_out = ref live_out in
   Block.instrs_backward_fold block (fun instr ->
     let without =
-      match Instr.to_variant instr with
-      | Instr_variant.Real (MInstr.Mov { src = Operand.Reg src; _ }) -> [ src ]
+      match instr with
+      | Instr.Mov { src = Operand.Reg src; _ } -> [ src ]
       | _ -> []
     in
     let is_edge def live =
@@ -125,7 +125,7 @@ module Cx = struct
   ;;
 
   let add cx = Vec.push cx.instrs
-  let add_minstr cx minstr = Vec.push cx.instrs (Instr.Real minstr)
+  let add_minstr cx minstr = Vec.push cx.instrs minstr
 
   let spill_reg cx reg =
     let spill_slot = get_spill_slot cx reg in
@@ -146,7 +146,7 @@ end = struct
     let module Enum_set = Data.Enum_set in
     let unused_registers =
       let set = Set.create () in
-      MInstr.regs_fold minstr
+      Instr.regs_fold minstr
       |> F.Iter.filter_map ~f:AReg.reg_val
       |> F.Iter.iter ~f:(fun reg -> Set.add set reg);
       Enum_set.negate set;
@@ -154,7 +154,7 @@ end = struct
       (fun f -> Set.iter set ~f) |> Iter.to_list
     in
     let spilled =
-      MInstr.regs_fold minstr
+      Instr.regs_fold minstr
       |> F.Iter.filter_map ~f:(fun areg ->
         match areg with
         | AReg.Spilled { name; _ } -> Some name
@@ -177,7 +177,7 @@ end = struct
       F.Iter.of_list name_and_victim |> FC.Hashtbl.of_iter (module Name)
     in
     (* move spilled uses to the victims *)
-    MInstr.uses_fold minstr
+    Instr.uses_fold minstr
     |> F.Iter.filter_map ~f:AReg.spilled_val
     |> F.Iter.iter ~f:(fun (`s s, `name spilled) ->
       let reg = Hashtbl.find_exn victim_of_spilled spilled in
@@ -185,7 +185,7 @@ end = struct
       ());
     (* use the victims instead of the stack slots *)
     let minstr_with_victims =
-      MInstr.map_regs minstr ~f:(fun areg ->
+      Instr.map_regs minstr ~f:(fun areg ->
         match areg with
         | Spilled { s; name } ->
           MReg.create ~name:name.name s (Hashtbl.find_exn victim_of_spilled name)
@@ -193,7 +193,7 @@ end = struct
     in
     Cx.add_minstr cx minstr_with_victims;
     (* move defined victim registers to the stack slot *)
-    MInstr.defs_fold minstr (fun def ->
+    Instr.defs_fold minstr (fun def ->
       match def with
       | Spilled { s; name } ->
         let victim = Hashtbl.find_exn victim_of_spilled name in
@@ -226,15 +226,16 @@ end = struct
     | Jump.Jump j -> Jump.Jump (lower_block_call j)
     | Jump.CondJump { cond; j1; j2 } ->
       Jump.CondJump { cond; j1 = lower_block_call j1; j2 = lower_block_call j2 }
-    | Jump.Ret  -> Jump.Ret 
-    (* | Jump.Ret _ -> raise_s [%message "jump must be legalized"] *)
+    | Jump.Ret -> Jump.Ret
   ;;
+
+  (* | Jump.Ret _ -> raise_s [%message "jump must be legalized"] *)
 
   let lower_instr cx instr =
     match instr with
     | Instr.Virt vinstr -> lower_vinstr cx vinstr
-    | Instr.Real minstr -> lower_minstr cx minstr
     | Instr.Jump jump -> Cx.add cx @@ Instr.Jump (lower_jump jump)
+    | minstr -> lower_minstr cx minstr
   ;;
 
   let lower_block cx (block : _ Block.t) =
@@ -365,8 +366,15 @@ end = struct
       Complex { base; index; offset = resolve_imm stack offset }
   ;;
 
+  let resolve_operand stack operand =
+    match operand with
+    | Operand.Imm imm -> Operand.Imm (resolve_imm stack imm)
+    | Reg reg -> Reg reg
+    | Mem address -> Mem (resolve_address stack address)
+  ;;
+
   let resolve_minstr stack minstr =
-    MInstr.map_operands
+    (* Instr.map_operands
       minstr
       ~f:
         { f =
@@ -375,18 +383,40 @@ end = struct
               | Imm imm -> Imm (resolve_imm stack imm)
               | Reg reg -> Reg reg
               | Mem address -> Mem (resolve_address stack address))
+
+        } *)
+    let resolve_operand = resolve_operand stack in
+    let resolve_address = resolve_address stack in
+    let resolve_reg = Fn.id in
+    match minstr with
+    | Instr.NoOp -> Instr.NoOp
+    | Mov { s; dst; src } ->
+      Mov { s; dst = resolve_operand dst; src = resolve_operand src }
+    | Lea { dst; src; s } -> Lea { dst = resolve_reg dst; src = resolve_address src; s }
+    | Add { dst; src1; src2; s } ->
+      Add
+        { dst = resolve_operand dst
+        ; src1 = resolve_operand src1
+        ; src2 = resolve_operand src2
+        ; s
         }
+    | Push { src; s } -> Push { src = resolve_reg src; s }
+    | Pop { dst; s } -> Pop { dst = resolve_reg dst; s }
+    | MovAbs { dst; imm } -> MovAbs { dst = resolve_operand dst; imm }
+    | Cmp { s; src1; src2 } ->
+      Cmp { s; src1 = resolve_operand src1; src2 = resolve_operand src2 }
+    | Test { s; src1; src2; _ } ->
+      Test { s; src1 = resolve_operand src1; src2 = resolve_operand src2 }
+    | Set { s; dst; cond } -> Set { s; dst = resolve_operand dst; cond }
+    | Call p -> Call p
+    | Jump j -> Jump j
+    | Virt v -> Virt v
   ;;
 
   let resolve_function fn =
     let stack_layout = Stack_layout.create fn in
     let res =
-      (Function.map_blocks
-       & Block.map_instrs
-       & fun i ~f ->
-       Instr.real_val i |> Option.value_map ~default:i ~f:(Fn.compose Instr.real f))
-        fn
-        ~f:(resolve_minstr stack_layout)
+      (Function.map_blocks & Block.map_instrs) fn ~f:(resolve_minstr stack_layout)
     in
     res
   ;;

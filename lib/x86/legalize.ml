@@ -9,7 +9,7 @@ module Cx = struct
   let add cx = Vec.push cx.instrs
   let add_vinstr cx vinstr = Vec.push cx.instrs (Instr.Virt vinstr)
   let add cx = Vec.push cx.instrs
-  let add_minstr cx minstr = Vec.push cx.instrs (Instr.Real minstr)
+  let add_minstr cx minstr = Vec.push cx.instrs minstr
 end
 
 let legalize_par_mov movs =
@@ -24,13 +24,13 @@ let legalize_par_mov movs =
   in
   let movs =
     List.map movs ~f:(fun { dst; src } ->
-      MInstr.Mov { s = AReg.size dst; dst = Reg dst; src = Reg src })
+      Instr.Mov { s = AReg.size dst; dst = Reg dst; src = Reg src })
   in
   movs
 ;;
 
-let legalize_minstr cx (instr : AReg.t MInstr.t) =
-  let open Types_basic.MInstr in
+let legalize_minstr cx (instr : AReg.t Instr.t) =
+  let open Types_basic.Instr in
   let force_register ~size o =
     let reg = AReg.InReg { s = size; name = Some "scratch"; reg = Mach_reg.R11 } in
     Cx.add_minstr cx @@ Mov { s = size; dst = Reg reg; src = o };
@@ -74,7 +74,7 @@ let legalize_minstr cx (instr : AReg.t MInstr.t) =
       let src2 = legal_mem s src1 src2 in
       Test { p with src1; src2 }
     | MovAbs _ | Set _ -> instr
-    | instr -> raise_s [%message "can't legalize instr" (instr : _ MInstr.t)]
+    | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t)]
   in
   Cx.add_minstr cx instr;
   ()
@@ -97,9 +97,9 @@ let legalize_vinstr cx instr =
 
 let legalize_instr cx instr =
   match instr with
-  | Instr.Real instr -> legalize_minstr cx instr
-  | Virt instr -> legalize_vinstr cx instr
+  | Instr.Virt instr -> legalize_vinstr cx instr
   | Jump _ -> Cx.add cx instr
+  | instr -> legalize_minstr cx instr
 ;;
 
 let legalize_block (block : _ Block.t) =

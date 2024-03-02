@@ -207,8 +207,8 @@ module VInstr = struct
   ;;
 end
 
-module MInstr = struct
-  include MInstr
+module Instr = struct
+  include Instr
 
   (* add a on_mach_reg parameter *)
   (* then add a specialized fold_mach_regs *)
@@ -238,11 +238,15 @@ module MInstr = struct
     | Call { reg_args; dst; _ } ->
       List.iter reg_args ~f:(fun (_, arg) -> on_use (Reg arg));
       on_def (Reg dst)
+    | Jump jump -> Jump.regs_fold jump (fun reg -> on_use (Reg reg))
+    | Virt vinstr ->
+      VInstr.uses_fold vinstr (fun reg -> on_use (Reg reg));
+      VInstr.defs_fold vinstr (fun reg -> on_def (Reg reg))
   ;;
 
   type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t }
 
-  let map_operands i ~f:{ f = gmap } =
+  (* let map_operands i ~f:{ f = gmap } =
     let map_op (o : 'a Operand.t) =
       match o with
       | Operand.Reg r -> GOperand.to_operand (gmap (Reg r))
@@ -265,6 +269,8 @@ module MInstr = struct
     | Test { s; src1; src2; _ } -> Test { s; src1 = map_op src1; src2 = map_op src2 }
     | Set { s; dst; cond } -> Set { s; dst = map_op dst; cond }
     | Call p -> Call p
+    | Jump j -> Jump j
+    | Virt v -> Virt v *)
   ;;
 
   let operands_fold i k = operands_fold_with i ~on_def:k ~on_use:k
@@ -281,74 +287,73 @@ module MInstr = struct
       ~on_def:(fun o -> Operand.mem_regs_fold o k)
       ~on_use:(fun o -> Operand.any_regs_fold o k)
   ;;
-end
-
-module Instr_variant = struct
-  include Instr_variant
-end
-
-module Instr = struct
-  include Instr
-
-  let to_variant (type r) (i : r t) =
-    match i with
-    | Virt v -> Instr_variant.Virt v
-    | Real r -> Instr_variant.Real r
-    | Jump j -> Instr_variant.Jump j
-  ;;
-
-  let map_regs i ~f =
-    match i with
-    | Virt i -> Virt (VInstr.map_regs i ~f)
-    | Real i -> Real (MInstr.map_regs i ~f)
-    | Jump i -> Jump (Jump.map_regs i ~f)
-  ;;
-
-  let regs_fold (type r) (i : r t) (k : r -> unit) =
-    let module O = Operand in
-    let module A = Address in
-    match i with
-    | Virt i -> VInstr.regs_fold i k
-    | Real i -> MInstr.regs_fold i k
-    | Jump i -> Jump.regs_fold i k
-  ;;
-
-  let defs_fold i k =
-    let module O = Operand in
-    let open Instr_variant in
-    match to_variant i with
-    | Virt i -> VInstr.defs_fold i k
-    | Real i -> MInstr.defs_fold i k
-    | Jump _ -> ()
-  ;;
-
-  let uses_fold (type r) (i : r t) (k : r -> unit) =
-    let module O = Operand in
-    let open Instr_variant in
-    match i with
-    | Virt i -> VInstr.uses_fold i k
-    | Real i -> MInstr.uses_fold i k
-    | Jump i -> Jump.uses_fold i k
-  ;;
 
   let mov_to_reg_from_stack s reg (stack_name : Name.t) =
-    Real
-      (Mov
-         { s
-         ; dst = Reg (MReg.create ~name:stack_name.name s reg)
-         ; src = Mem (Address.stack_local stack_name)
-         })
+    Mov
+      { s
+      ; dst = Reg (MReg.create ~name:stack_name.name s reg)
+      ; src = Mem (Address.stack_local stack_name)
+      }
   ;;
 
   let mov_to_stack_from_reg s (stack_name : Name.t) reg =
-    Real
-      (Mov
-         { s
-         ; dst = Mem (Address.stack_local stack_name)
-         ; src = Reg (MReg.create ~name:stack_name.name s reg)
-         })
+    Mov
+      { s
+      ; dst = Mem (Address.stack_local stack_name)
+      ; src = Reg (MReg.create ~name:stack_name.name s reg)
+      }
   ;;
 end
+
+(* module Instr_variant = struct
+   include Instr_variant
+   end
+
+   module Instr = struct
+   include Instr
+
+   let to_variant (type r) (i : r t) =
+   match i with
+   | Virt v -> Instr_variant.Virt v
+   | Real r -> Instr_variant.Real r
+   | Jump j -> Instr_variant.Jump j
+   ;;
+
+   let map_regs i ~f =
+   match i with
+   | Virt i -> Virt (VInstr.map_regs i ~f)
+   | Real i -> Real (MInstr.map_regs i ~f)
+   | Jump i -> Jump (Jump.map_regs i ~f)
+   ;;
+
+   let regs_fold (type r) (i : r t) (k : r -> unit) =
+   let module O = Operand in
+   let module A = Address in
+   match i with
+   | Virt i -> VInstr.regs_fold i k
+   | Real i -> MInstr.regs_fold i k
+   | Jump i -> Jump.regs_fold i k
+   ;;
+
+   let defs_fold i k =
+   let module O = Operand in
+   let open Instr_variant in
+   match to_variant i with
+   | Virt i -> VInstr.defs_fold i k
+   | Real i -> MInstr.defs_fold i k
+   | Jump _ -> ()
+   ;;
+
+   let uses_fold (type r) (i : r t) (k : r -> unit) =
+   let module O = Operand in
+   let open Instr_variant in
+   match i with
+   | Virt i -> VInstr.uses_fold i k
+   | Real i -> MInstr.uses_fold i k
+   | Jump i -> Jump.uses_fold i k
+   ;;
+
+   end *)
 
 module Block = struct
   include Block
@@ -359,11 +364,10 @@ module Block = struct
     Vec.last block.instrs
     |> Option.value_or_thunk ~default:(fun () ->
       raise_s [%message "block must have a last instr"])
-    |> Instr.to_variant
     |> fun instr ->
-    Instr_variant.jump_val instr
+    Instr.jump_val instr
     |> Option.value_or_thunk ~default:(fun () ->
-      raise_s [%message "last instr must be a jump" (instr : _ Instr_variant.t)])
+      raise_s [%message "last instr must be a jump" (instr : _ Instr.t)])
   ;;
 
   let block_args_exn block =
@@ -372,15 +376,13 @@ module Block = struct
       raise_s [%message "block must have a first instr"])
     |> fun instr ->
     instr
-    |> Instr.to_variant
     |> fun instr ->
     (let open Option.Let_syntax in
-     let%bind virt = Instr_variant.virt_val instr in
+     let%bind virt = Instr.virt_val instr in
      let%bind block_args = VInstr.block_args_val virt in
      return block_args)
     |> Option.value_or_thunk ~default:(fun () ->
-      raise_s
-        [%message "first instruction must be block arguments" (instr : _ Instr_variant.t)])
+      raise_s [%message "first instruction must be block arguments" (instr : _ Instr.t)])
   ;;
 
   let cons instr b = { instrs = Vec.cons instr b.instrs }

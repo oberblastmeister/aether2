@@ -19,7 +19,7 @@ let create fn =
   let locals_size = ref 0l in
   let offset_of_local = Hashtbl.create (module Name) in
   let end_size = ref 0l in
-  F.Fold.(Function.instrs_forward_fold @> of_fn Instr.get_virt @> FC.Option.fold)
+  F.Fold.(Function.instrs_forward_fold @> of_fn Instr.virt_val @> FC.Option.fold)
     fn
     (fun instr ->
        (match instr with
