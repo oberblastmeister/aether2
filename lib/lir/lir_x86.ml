@@ -13,10 +13,11 @@ module Context = struct
   type t =
     { instrs : (X86.VReg.t X86.Instr.t, Perms.Read_write.t) Vec.t
     ; mutable unique_name : Name.Id.t
+    ; stack_end_size : int32
     }
 
   let create (fn : Tir.Function.t) =
-    { instrs = Vec.create (); unique_name = fn.unique_name }
+    { instrs = Vec.create (); unique_name = fn.unique_name; stack_end_size = 0l }
   ;;
 
   let add cx instr = Vec.push cx.instrs instr
@@ -81,7 +82,7 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
        let src1 = lower_value_op cx v1 in
        let src2 = lower_value_op cx v2 in
        let dst = vreg dst in
-       Cx.add cx (Add { s = ty_to_size ty; dst = X86.Operand.Reg dst; src1; src2 })
+       Cx.add cx (Add { dst = X86.Operand.Reg dst; src1; src2 })
      | _ -> failwith "can't handle op yet")
   | Const { ty = Ty.U64; const } ->
     let dst = vreg dst in
@@ -90,23 +91,17 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
     let dst = vreg dst in
     Cx.add
       cx
-      (Mov
-         { s = ty_to_size ty
-         ; dst = X86.Operand.Reg dst
-         ; src = X86.Operand.imm (Int64.to_int32_exn const)
-         })
+      (Mov { dst = X86.Operand.Reg dst; src = X86.Operand.imm (Int64.to_int32_exn const) })
   | Cmp { ty; op; v1; v2 } ->
     let src1 = lower_value_op cx v1 in
     let src2 = lower_value_op cx v2 in
-    Cx.add cx (Cmp { s = ty_to_size ty; src1; src2 });
+    Cx.add cx (Cmp { src1; src2 });
     let dst = vreg dst in
-    Cx.add
-      cx
-      (Set { s = ty_to_size ty; cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst })
+    Cx.add cx (Set { cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst })
   | Val { ty; v } ->
     let dst = vreg dst in
     let src = lower_value_op cx v in
-    Cx.add cx (Mov { s = ty_to_size ty; dst = X86.Operand.Reg dst; src })
+    Cx.add cx (Mov { dst = X86.Operand.Reg dst; src })
   | Call { ty; name; args } ->
     let args = List.map ~f:(lower_value cx) args in
     let args_with_reg, stack_args = categorize_args args in
@@ -119,8 +114,7 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
     |> F.Iter.iter ~f:(fun (i, arg) ->
       Cx.add cx
       @@ Mov
-           { s = value_size arg
-           ; dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
+           { dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
            ; src = Reg (vreg arg)
            };
       ());
@@ -157,7 +151,7 @@ and lower_control_instr cx instr =
     let op1 = lower_value_op cx v in
     let bc1 = lower_block_call cx bc1 in
     let bc2 = lower_block_call cx bc2 in
-    Cx.add cx @@ Test { s = ty_to_size @@ Tir.Value.get_ty v; src1 = op1; src2 = op1 };
+    Cx.add cx @@ Test { src1 = op1; src2 = op1 };
     Cx.addj cx @@ X86.Jump.CondJump { cond = X86.Cond.NE; j1 = bc1; j2 = bc2 }
   | Control_instr.Jump j ->
     let j = lower_block_call cx j in
@@ -195,6 +189,7 @@ let lower_function (fn : Tir.Function.t) =
   { X86.Function.graph
   ; caller_saved = X86.Mach_reg.caller_saved
   ; unique_name = cx.unique_name
+  ; stack_end_size = cx.stack_end_size
   }
 ;;
 

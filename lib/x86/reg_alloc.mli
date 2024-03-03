@@ -1,3 +1,3 @@
 open Types
 
-val run : VReg.t Program.t -> MReg.t Program.t
+val run : VReg.t Program.t -> MReg.t Flat.Program.t

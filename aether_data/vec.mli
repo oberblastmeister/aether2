@@ -60,3 +60,4 @@ val shrink_to_fit : ('a, [> read_write ]) t -> unit
 val of_raw : 'a Raw.t -> ('a, [< _ perms ]) t
 val to_raw : ('a, [> read_write ]) t -> 'a Raw.t
 val clear : ('a, [> read_write ]) t -> unit
+val append_into : into:('a, [> read_write ]) t -> ('a, [> read ]) t -> unit

@@ -104,7 +104,7 @@ module Address = struct
       | None
       | Reg of 'r
       | Rip
-    [@@deriving sexp_of, variants, map, fold]
+    [@@deriving sexp_of, variants, map, fold, iter]
   end
 
   module Scale = struct
@@ -123,7 +123,7 @@ module Address = struct
           { index : 'r
           ; scale : Scale.t
           }
-    [@@deriving sexp_of, variants, map, fold]
+    [@@deriving sexp_of, variants, map, fold, iter]
   end
 
   type 'r t =
@@ -136,46 +136,59 @@ module Address = struct
         ; index : 'r Index.t
         ; offset : Imm.t
         }
-  [@@deriving sexp_of, map, fold]
+  [@@deriving sexp_of, map, fold, iter]
+end
+
+module Mem = struct
+  type 'r t =
+    { size : Size.t
+    ; addr : 'r Address.t
+    }
+  [@@deriving sexp_of, map, fold, iter]
+
+  let iter_regs i k = iter k i
+  let map_addr t ~f = { t with addr = f t.addr }
 end
 
 module Operand = struct
   type 'r t =
     | Imm of Imm.t
     | Reg of 'r
-    | Mem of 'r Address.t
-  [@@deriving sexp_of, variants, map, fold]
+    | Mem of 'r Mem.t
+  [@@deriving sexp_of, variants, map, fold, iter]
+
+  let mem size addr = Mem { size; addr }
 end
+(*
+   module GOperand = struct
+   type imm = Imm_
+   type reg = Reg_
+   type mem = Mem_
 
-module GOperand = struct
-  type imm = Imm_
-  type reg = Reg_
-  type mem = Mem_
+   type ('r, 'op) t =
+   | Imm : Imm.t -> ('r, imm) t
+   | Reg : 'r -> ('r, reg) t
+   | Mem : 'r Address.t -> ('r, mem) t
 
-  type ('r, 'op) t =
-    | Imm : Imm.t -> ('r, imm) t
-    | Reg : 'r -> ('r, reg) t
-    | Mem : 'r Address.t -> ('r, mem) t
+   let to_operand (type op) (t : (_, op) t) =
+   match t with
+   | Imm imm -> Operand.Imm imm
+   | Reg reg -> Reg reg
+   | Mem addr -> Mem addr
+   ;;
 
-  let to_operand (type op) (t : (_, op) t) =
-    match t with
-    | Imm imm -> Operand.Imm imm
-    | Reg reg -> Reg reg
-    | Mem addr -> Mem addr
-  ;;
+   let mem_val = function
+   | Mem addr -> addr
+   ;;
 
-  let mem_val = function
-    | Mem addr -> addr
-  ;;
+   let imm_val = function
+   | Imm imm -> imm
+   ;;
 
-  let imm_val = function
-    | Imm imm -> imm
-  ;;
-
-  let reg_val = function
-    | Reg reg -> reg
-  ;;
-end
+   let reg_val = function
+   | Reg reg -> reg
+   ;;
+   end *)
 
 module Cmp_op = struct
   type t = Gt [@@deriving equal, compare, sexp]
@@ -220,46 +233,34 @@ module Instr = struct
   type 'r t =
     | NoOp
     | Mov of
-        { s : Size.t
-        ; dst : 'r Operand.t
+        { dst : 'r Operand.t
         ; src : 'r Operand.t
         }
     | Lea of
-        { s : Size.t
-        ; dst : 'r
+        { dst : 'r
         ; src : 'r Address.t
         }
     | Add of
-        { s : Size.t
-        ; dst : 'r Operand.t
+        { dst : 'r Operand.t
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
-    | Push of
-        { s : Size.t
-        ; src : 'r
-        }
-    | Pop of
-        { s : Size.t
-        ; dst : 'r
-        }
+    | Push of { src : 'r }
+    | Pop of { dst : 'r }
     | MovAbs of
         { dst : 'r Operand.t
         ; imm : int64
         }
     | Cmp of
-        { s : Size.t
-        ; src1 : 'r Operand.t
+        { src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Test of
-        { s : Size.t
-        ; src1 : 'r Operand.t
+        { src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Set of
-        { s : Size.t
-        ; cond : Cond.t
+        { cond : Cond.t
         ; dst : 'r Operand.t
         }
     | Call of
@@ -324,6 +325,7 @@ module Function = struct
     { graph : 'r Graph.t
     ; unique_name : Name.Id.t
     ; caller_saved : Mach_reg.t list
+    ; stack_end_size : int32
     }
   [@@deriving sexp_of, fields]
 

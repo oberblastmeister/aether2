@@ -244,7 +244,7 @@ let%test_module _ =
         |> Lir_x86.lower
         |> X86.Reg_alloc.run
       in
-      print_s @@ [%sexp_of: X86.Types.MReg.t X86.Types.Program.t] program;
+      print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
       [%expect
         {|
         ((functions

@@ -101,28 +101,34 @@ module Address = struct
   ;;
 end
 
+module Mem = struct
+  include Mem
+
+  let regs_fold a = Address.regs_fold a.addr
+end
+
 module Operand = struct
   include Operand
 
   let imm i = Imm (Imm.Int i)
   let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
-  let stack_local name = Mem (Address.stack_local name)
+  let stack_local s name = Operand.mem s (Address.stack_local name)
   let vreg s name = Reg (VReg.create s name)
   let precolored s name = Reg (VReg.precolored s name)
   let reg_val_fold o k = reg_val o |> Option.iter ~f:k
   let mem_val_fold o k = mem_val o |> Option.iter ~f:k
-  let mem_regs_fold o k = (mem_val_fold @> Address.regs_fold) o k
+  let mem_regs_fold o k = (mem_val_fold @> Mem.regs_fold) o k
 
   let any_regs_fold o k =
     match o with
     | Reg r -> k r
-    | Mem m -> Address.regs_fold m k
+    | Mem m -> Mem.regs_fold m k
     | Imm _ -> ()
   ;;
 
   let of_areg = function
     | AReg.InReg { name; reg; s } -> Reg (MReg.create ?name s reg)
-    | AReg.Spilled { name; _ } -> stack_local name
+    | AReg.Spilled { s; name } -> stack_local s name
   ;;
 end
 
@@ -220,7 +226,7 @@ module Instr = struct
     | Lea { dst; src; _ } ->
       on_def @@ O.Reg dst;
       on_def @@ O.Reg dst;
-      on_use @@ O.Mem src
+      Address.regs_fold src (fun reg -> on_use (O.Reg reg))
     | Add { dst; src1; src2; _ } ->
       on_def dst;
       on_use src1;
@@ -244,7 +250,7 @@ module Instr = struct
       VInstr.defs_fold vinstr (fun reg -> on_def (Reg reg))
   ;;
 
-  type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t }
+  (* type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t } *)
 
   (* let map_operands i ~f:{ f = gmap } =
     let map_op (o : 'a Operand.t) =
@@ -271,7 +277,6 @@ module Instr = struct
     | Call p -> Call p
     | Jump j -> Jump j
     | Virt v -> Virt v *)
-  ;;
 
   let operands_fold i k = operands_fold_with i ~on_def:k ~on_use:k
   let regs_fold i k = operands_fold i (fun o -> Operand.any_regs_fold o k)
@@ -290,16 +295,14 @@ module Instr = struct
 
   let mov_to_reg_from_stack s reg (stack_name : Name.t) =
     Mov
-      { s
-      ; dst = Reg (MReg.create ~name:stack_name.name s reg)
-      ; src = Mem (Address.stack_local stack_name)
+      { dst = Reg (MReg.create ~name:stack_name.name s reg)
+      ; src = Operand.mem s (Address.stack_local stack_name)
       }
   ;;
 
   let mov_to_stack_from_reg s (stack_name : Name.t) reg =
     Mov
-      { s
-      ; dst = Mem (Address.stack_local stack_name)
+      { dst = Operand.mem s (Address.stack_local stack_name)
       ; src = Reg (MReg.create ~name:stack_name.name s reg)
       }
   ;;
@@ -423,6 +426,7 @@ module Program = struct
   include Program
 
   let map_functions program ~f = { functions = List.map program.functions ~f }
+  let iter_functions program ~f = List.iter program.functions ~f
 end
 
 module Dataflow = struct

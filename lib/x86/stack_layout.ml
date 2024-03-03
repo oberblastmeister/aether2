@@ -15,21 +15,13 @@ open Int32
 let end_offset t i = t.end_offset + i
 let local_offset t name = t.locals_offset + Hashtbl.find_exn t.offset_of_local name
 
-let create fn =
+let create ~end_size ~locals =
   let locals_size = ref 0l in
   let offset_of_local = Hashtbl.create (module Name) in
-  let end_size = ref 0l in
-  F.Fold.(Function.instrs_forward_fold @> of_fn Instr.virt_val @> FC.Option.fold)
-    fn
-    (fun instr ->
-       (match instr with
-        | VInstr.ReserveStackEnd { size } -> end_size := max !end_size size
-        | VInstr.ReserveStackLocal { name; size } ->
-          Hashtbl.add_exn offset_of_local ~key:name ~data:!locals_size;
-          locals_size := !locals_size + size;
-          ()
-        | _ -> ());
-       ());
+  let end_size = ref end_size in
+  Vec.iter locals ~f:(fun (name, size) ->
+    Hashtbl.add_exn offset_of_local ~key:name ~data:!locals_size;
+    locals_size := !locals_size + size);
   let align size =
     assert (size % 8l = 0l);
     if size % 16l = 8l then size + 8l else size

@@ -91,16 +91,18 @@ let collect_all_vregs fn =
 ;;
 
 type context =
-  { instrs : (MReg.t Instr.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
+  { instrs : (MReg.t Flat.Line.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
   ; mutable unique_name : Name.Id.t
   ; spill_slots : (Mach_reg.t, Name.t) Hashtbl.t
+  ; stack_locals : (Name.t * int32, read_write) Vec.t
   }
 
 module Cx = struct
-  let create fn =
+  let create unique_name =
     { instrs = Vec.create ()
-    ; unique_name = fn.Function.unique_name
+    ; unique_name
     ; spill_slots = Hashtbl.create (module Mach_reg)
+    ; stack_locals = Vec.create ()
     }
   ;;
 
@@ -112,41 +114,42 @@ module Cx = struct
     name
   ;;
 
-  let add_vinstr cx vinstr = Vec.push cx.instrs (Instr.Virt vinstr)
-
   let get_spill_slot cx reg =
     match Hashtbl.find cx.spill_slots reg with
     | Some name -> name
     | None ->
       let name = fresh_name cx "spill_mach_reg" in
       Hashtbl.add_exn cx.spill_slots ~key:reg ~data:name;
-      add_vinstr cx @@ ReserveStackLocal { name; size = 8l };
+      Vec.push cx.stack_locals (name, 0l);
       name
   ;;
 
   let add cx = Vec.push cx.instrs
-  let add_minstr cx minstr = Vec.push cx.instrs minstr
+  let add_instr cx instr = Vec.push cx.instrs (Instr instr)
 
   let spill_reg cx reg =
     let spill_slot = get_spill_slot cx reg in
-    add cx @@ Instr.mov_to_stack_from_reg Q spill_slot reg
+    add_instr cx @@ Flat.Instr.mov_to_stack_from_reg Q spill_slot reg
   ;;
 
   let reload_reg cx reg =
     let spill_slot = get_spill_slot cx reg in
-    add cx @@ Instr.mov_to_reg_from_stack Q reg spill_slot
+    add_instr cx @@ Flat.Instr.mov_to_reg_from_stack Q reg spill_slot
   ;;
 end
 
 module Lower : sig
-  val lower_function : AReg.t Function.t -> MReg.t Function.t
+  val lower_function
+    :  Name.Id.t
+    -> AReg.t Flat.Program.t
+    -> MReg.t Flat.Program.t * (Name.t * int32, read) Vec.t
 end = struct
   let lower_minstr cx minstr =
     let module Set = Mach_reg_set in
     let module Enum_set = Data.Enum_set in
     let unused_registers =
       let set = Set.create () in
-      Instr.regs_fold minstr
+      Flat.Instr.iter_regs minstr
       |> F.Iter.filter_map ~f:AReg.reg_val
       |> F.Iter.iter ~f:(fun reg -> Set.add set reg);
       Enum_set.negate set;
@@ -154,7 +157,7 @@ end = struct
       (fun f -> Set.iter set ~f) |> Iter.to_list
     in
     let spilled =
-      Instr.regs_fold minstr
+      Flat.Instr.iter_regs minstr
       |> F.Iter.filter_map ~f:(fun areg ->
         match areg with
         | AReg.Spilled { name; _ } -> Some name
@@ -177,47 +180,31 @@ end = struct
       F.Iter.of_list name_and_victim |> FC.Hashtbl.of_iter (module Name)
     in
     (* move spilled uses to the victims *)
-    Instr.uses_fold minstr
+    Flat.Instr.iter_uses minstr
     |> F.Iter.filter_map ~f:AReg.spilled_val
     |> F.Iter.iter ~f:(fun (`s s, `name spilled) ->
       let reg = Hashtbl.find_exn victim_of_spilled spilled in
-      Cx.add cx @@ Instr.mov_to_reg_from_stack s reg spilled;
+      Cx.add_instr cx @@ Flat.Instr.mov_to_reg_from_stack s reg spilled;
       ());
     (* use the victims instead of the stack slots *)
     let minstr_with_victims =
-      Instr.map_regs minstr ~f:(fun areg ->
+      Flat.Instr.map_regs minstr ~f:(fun areg ->
         match areg with
         | Spilled { s; name } ->
           MReg.create ~name:name.name s (Hashtbl.find_exn victim_of_spilled name)
         | InReg { s; name; reg } -> MReg.create ?name s reg)
     in
-    Cx.add_minstr cx minstr_with_victims;
+    Cx.add_instr cx minstr_with_victims;
     (* move defined victim registers to the stack slot *)
-    Instr.defs_fold minstr (fun def ->
+    Flat.Instr.iter_defs minstr (fun def ->
       match def with
       | Spilled { s; name } ->
         let victim = Hashtbl.find_exn victim_of_spilled name in
-        Cx.add cx @@ Instr.mov_to_stack_from_reg s name victim;
+        Cx.add_instr cx @@ Flat.Instr.mov_to_stack_from_reg s name victim;
         ()
       | _ -> ());
     (* reload victims *)
     List.iter victims ~f:(Cx.reload_reg cx)
-  ;;
-
-  let lower_vinstr cx (instr : AReg.t VInstr.t) =
-    match instr with
-    | Par_mov movs ->
-      raise_s
-        [%message
-          "there should not be any par movs left at this point"
-            (movs : (AReg.t * AReg.t) list)]
-    (* keep these to calculate the stack layout *)
-    | ReserveStackLocal { name; size } ->
-      Cx.add_vinstr cx @@ ReserveStackLocal { name; size }
-    | ReserveStackEnd { size } -> Cx.add_vinstr cx @@ ReserveStackEnd { size }
-    (* don't need these anymore *)
-    (* Block_args should be turned into Par_mov by remove_ssa *)
-    | Block_args _ -> ()
   ;;
 
   let lower_block_call { Block_call.label; _ } = { Block_call.label; args = [] }
@@ -231,25 +218,29 @@ end = struct
 
   (* | Jump.Ret _ -> raise_s [%message "jump must be legalized"] *)
 
-  let lower_instr cx instr =
-    match instr with
-    | Instr.Virt vinstr -> lower_vinstr cx vinstr
-    | Instr.Jump jump -> Cx.add cx @@ Instr.Jump (lower_jump jump)
-    | minstr -> lower_minstr cx minstr
-  ;;
+  let lower_instr cx instr = lower_minstr cx instr
 
-  let lower_block cx (block : _ Block.t) =
+  (* let lower_block cx (block : _ Block.t) =
     (Block.instrs_forward_fold block) (lower_instr cx);
     let instrs = Vec.copy_exact cx.instrs in
     Vec.clear cx.instrs;
     { Block.instrs }
-  ;;
+  ;; *)
 
-  let lower_function fn =
-    let cx = Cx.create fn in
-    let fn = Function.map_blocks fn ~f:(lower_block cx) in
-    { fn with unique_name = cx.unique_name }
+  let lower_function unique_name (fn : _ Flat.Program.t) =
+    let cx = Cx.create unique_name in
+    Vec.iter fn ~f:(function
+      | Flat.Line.Instr instr -> lower_instr cx instr
+      | Label l -> Cx.add cx @@ Flat.Line.Label l
+      | Comment s -> Cx.add cx @@ Comment s);
+    Vec.shrink_to_fit cx.instrs;
+    Vec.shrink_to_fit cx.stack_locals;
+    let instrs = Vec.freeze cx.instrs in
+    let stack_locals = Vec.freeze cx.stack_locals in
+    instrs, stack_locals
   ;;
+  (* let fn = Function.map_blocks fn ~f:(lower_block cx) in
+    { fn with unique_name = cx.unique_name } *)
 end
 
 module Apply : sig
@@ -348,7 +339,7 @@ end = struct
 end
 
 module Resolve_stack : sig
-  val resolve_function : MReg.t Function.t -> MReg.t Function.t
+  val resolve_function : Stack_layout.t -> MReg.t Flat.Program.t -> MReg.t Flat.Program.t
 end = struct
   let resolve_imm stack imm =
     match imm with
@@ -370,55 +361,30 @@ end = struct
     match operand with
     | Operand.Imm imm -> Operand.Imm (resolve_imm stack imm)
     | Reg reg -> Reg reg
-    | Mem address -> Mem (resolve_address stack address)
+    | Mem mem -> Mem (Mem.map_addr mem ~f:(resolve_address stack))
   ;;
 
-  let resolve_minstr stack minstr =
-    (* Instr.map_operands
-      minstr
-      ~f:
-        { f =
-            (fun (type op) (operand : (_, op) GOperand.t) : (_, op) GOperand.t ->
-              match operand with
-              | Imm imm -> Imm (resolve_imm stack imm)
-              | Reg reg -> Reg reg
-              | Mem address -> Mem (resolve_address stack address))
-
-        } *)
+  let resolve_minstr stack (minstr : _ Flat.Instr.t) =
     let resolve_operand = resolve_operand stack in
-    let resolve_address = resolve_address stack in
-    let resolve_reg = Fn.id in
     match minstr with
-    | Instr.NoOp -> Instr.NoOp
-    | Mov { s; dst; src } ->
-      Mov { s; dst = resolve_operand dst; src = resolve_operand src }
-    | Lea { dst; src; s } -> Lea { dst = resolve_reg dst; src = resolve_address src; s }
-    | Add { dst; src1; src2; s } ->
-      Add
-        { dst = resolve_operand dst
-        ; src1 = resolve_operand src1
-        ; src2 = resolve_operand src2
-        ; s
-        }
-    | Push { src; s } -> Push { src = resolve_reg src; s }
-    | Pop { dst; s } -> Pop { dst = resolve_reg dst; s }
-    | MovAbs { dst; imm } -> MovAbs { dst = resolve_operand dst; imm }
-    | Cmp { s; src1; src2 } ->
-      Cmp { s; src1 = resolve_operand src1; src2 = resolve_operand src2 }
-    | Test { s; src1; src2; _ } ->
-      Test { s; src1 = resolve_operand src1; src2 = resolve_operand src2 }
-    | Set { s; dst; cond } -> Set { s; dst = resolve_operand dst; cond }
+    | Mov { dst; src } ->
+      Flat.Instr.Mov { dst = resolve_operand dst; src = resolve_operand src }
+    | Lea { dst; src } -> Lea { dst = resolve_operand dst; src = resolve_operand src }
+    | Add { dst; src } -> Add { dst = resolve_operand dst; src = resolve_operand src }
+    | Push { src } -> Push { src = resolve_operand src }
+    | Pop { dst } -> Pop { dst = resolve_operand dst }
+    | Cmp { src1; src2 } ->
+      Cmp { src1 = resolve_operand src1; src2 = resolve_operand src2 }
+    | Test { src1; src2; _ } ->
+      Test { src1 = resolve_operand src1; src2 = resolve_operand src2 }
+    | Set { dst; cond } -> Set { dst = resolve_operand dst; cond }
     | Call p -> Call p
-    | Jump j -> Jump j
-    | Virt v -> Virt v
+    | J { cond; src } -> J { cond; src = resolve_operand src }
+    | Jmp { src } -> Jmp { src = resolve_operand src }
   ;;
 
-  let resolve_function fn =
-    let stack_layout = Stack_layout.create fn in
-    let res =
-      (Function.map_blocks & Block.map_instrs) fn ~f:(resolve_minstr stack_layout)
-    in
-    res
+  let resolve_function stack_layout fn =
+    Flat.Program.map_instrs fn ~f:(resolve_minstr stack_layout)
   ;;
 end
 
@@ -431,13 +397,24 @@ let run_function fn =
   (* something is wrong with the remove_ssa function, we need to add entry and exit to block *)
   let fn = Remove_ssa.remove_ssa fn in
   (* print_s [%message "remove_ssa" (fn : AReg.t Function.t)]; *)
-  let fn = Legalize.legalize_function fn in
+  let flat = Legalize.legalize_function fn in
   (* print_s [%message "legalized" (fn : AReg.t Function.t)]; *)
-  let fn = Lower.lower_function fn in
+  let flat, stack_locals = Lower.lower_function fn.unique_name flat in
+  let stack_layout =
+    Stack_layout.create ~end_size:fn.stack_end_size ~locals:stack_locals
+  in
   (* print_s [%message "lowered" (fn : MReg.t Function.t)]; *)
-  let fn = Resolve_stack.resolve_function fn in
+  let flat = Resolve_stack.resolve_function stack_layout flat in
   (* print_s [%message "resolved" (fn : MReg.t Function.t)]; *)
-  fn
+  flat
 ;;
 
-let run program = Program.map_functions program ~f:run_function
+let run program =
+  let res_program = Vec.create () in
+  Program.iter_functions program ~f:(fun fn ->
+    let flat = run_function fn in
+    Vec.append_into ~into:res_program flat;
+    ());
+  Vec.shrink_to_fit res_program;
+  Vec.freeze res_program
+;;

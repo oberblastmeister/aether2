@@ -1,7 +1,7 @@
 open O
 open Types
 
-type context = { buffer : Buffer.t }
+(* type context = { buffer : Buffer.t }
 
 module Cx = struct
   let add cx s = Buffer.add_string cx.buffer s
@@ -85,9 +85,9 @@ let print_operand cx (operand : _ Operand.t) =
   | Imm (Int i) -> Cx.add cx @@ string_of_int @@ Int.of_int32_exn i
   | Imm _ -> todo ()
   | Reg r -> print_mreg cx r
-  | Mem address ->
+  | Mem mem ->
     Cx.add cx "[";
-    print_address cx address;
+    print_address cx mem.addr;
     Cx.add cx "]"
 ;;
 
@@ -112,7 +112,7 @@ let print_instr cx name s =
 let print_minstr cx (instr : MReg.t Instr.t) =
   match instr with
   | NoOp -> ()
-  | Add { s; dst; src2; _ } ->
+  | Add {  dst; src2; _ } ->
     print_instr cx "add" s;
     print_operands cx [ dst; src2 ]
   | Mov { s; dst; src } ->
@@ -127,4 +127,4 @@ let print_minstr cx (instr : MReg.t Instr.t) =
 
 (* Cx.add cx *)
 
-let print _ = todo ()
+let print _ = todo () *)

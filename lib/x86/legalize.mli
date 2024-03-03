@@ -6,4 +6,4 @@ open Types
    -> force_register:(size:Size.t -> 'r Operand.t -> 'r)
    -> 'r MInstr.t *)
 
-val legalize_function : AReg.t Function.t -> AReg.t Function.t
+val legalize_function : AReg.t Function.t -> AReg.t Flat.Program.t
