@@ -1,3 +1,5 @@
+(* TODO: use precolored registers that have also set machine registers *)
+(* only find registers for non precolored registers *)
 open O
 open Utils.Instr_types
 open Types
@@ -71,6 +73,8 @@ let color_with ~interference ~ordering =
       |> F.Iter.to_array
     in
     Array.sort neighbor_colors ~compare:Color.compare;
+    (* TODO: also try to pick colors that don't have lots of register constraints *)
+    (* TODO: filter out colors that are impossible to register allocate *)
     let lowest_not_in_neighbors =
       Array.fold_until
         neighbor_colors
@@ -162,12 +166,15 @@ let alloc_colors ~dict ~precolored ~interference =
         F.Iter.(
           of_list dict.config.register_order
           |> F.Iter.find_pred ~f:(fun reg ->
-            Option.value_map
-              register_constraints
-              ~default:true
-              ~f:(fun register_constraints ->
-                not (Data.Enum_set.mem ~enum register_constraints reg))
-            && not (Data.Enum_set.mem ~enum used_registers reg)))
+            let not_in_constraints =
+              Option.value_map
+                register_constraints
+                ~default:true
+                ~f:(fun register_constraints ->
+                  not (Data.Enum_set.mem ~enum register_constraints reg))
+            in
+            let not_used = not (Data.Enum_set.mem ~enum used_registers reg) in
+            not_in_constraints && not_used))
       in
       let alloc_reg =
         reg |> Option.value_map ~default:Alloc_reg.Spilled ~f:Alloc_reg.inreg

@@ -63,6 +63,16 @@ module Constraints = struct
            set)
     | Some set -> Data.Enum_set.add ~enum set reg
   ;;
+
+  let find t name = Name.Table.find t name
+
+  let count t name =
+    Name.Table.find t name |> Option.value_map ~default:0 ~f:Data.Enum_set.count
+  ;;
+
+  let iter_counts t =
+    Entity.Map.to_iteri t |> F.Iter.map ~f:(Tuple2.map_snd ~f:Data.Enum_set.count)
+  ;;
 end
 
 module type Algorithm = sig

@@ -9,6 +9,7 @@ let add ~enum t x = Bitvec.set t @@ enum.to_enum x
 let remove ~enum t x = Bitvec.unset t @@ enum.to_enum x
 let mem ~enum t x = Bitvec.get t @@ enum.to_enum x
 let iter ~enum t ~f = Bitvec.iteri t ~f:(fun i b -> if b then f (enum.of_enum_exn i))
+let count = Bitvec.count
 
 let sexp_of_t_with ~enum t =
   F.Iter.of_lab (iter ~enum t)

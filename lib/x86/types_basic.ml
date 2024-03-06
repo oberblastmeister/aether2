@@ -195,6 +195,8 @@ module Cmp_op = struct
 end
 
 module VInstr = struct
+  (* TODO: allow operands in par mov source *)
+  (* TODO: put stack operations in separate type *)
   type 'r t =
     (* for calling conventions*)
     | ReserveStackEnd of { size : int32 }
@@ -225,7 +227,7 @@ module Jump = struct
         ; j1 : 'r Block_call.t
         ; j2 : 'r Block_call.t
         }
-    | Ret
+    | Ret of 'r Operand.t option
   [@@deriving sexp_of, fold, map, iter]
 end
 
@@ -266,7 +268,7 @@ module Instr = struct
     | Call of
         { name : string
         ; reg_args : (Mach_reg.t * 'r) list
-        ; defines : Mach_reg.t list
+        ; defines : Mach_reg.t list (* caller saved registers*)
         ; dst_reg : Mach_reg.t
         ; dst : 'r
         }

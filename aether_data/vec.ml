@@ -292,7 +292,9 @@ module Raw = struct
 
   let append_into ~into t =
     grow into ~desired:(into.size + t.size);
-    Option_array.blit ~src:t.data ~dst:into.data ~src_pos:0 ~dst_pos:into.size ~len:t.size
+    Option_array.blit ~src:t.data ~dst:into.data ~src_pos:0 ~dst_pos:into.size ~len:t.size;
+    into.size <- into.size + t.size;
+    ()
   ;;
 
   let%test_unit _ =

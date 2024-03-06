@@ -19,32 +19,35 @@ module Ra = Reg_alloc.Make (struct
 let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.transfer
 
 (* TODO: multiple defs in the same instruction interfere with each other *)
-let add_block_edges interference block live_out =
+let add_block_edges ~interference ~constraints block live_out =
   let live_out = ref live_out in
   Block.instrs_backward_fold block (fun instr ->
-    let without =
+    let defs = Instr.defs_fold instr |> F.Iter.to_list in
+    let defs =
       match instr with
-      | Instr.Mov { src = Operand.Reg src; _ } -> [ src ]
-      | _ -> []
+      | Instr.Mov { src = Operand.Reg src; _ } -> src :: defs
+      | _ -> defs
     in
-    let is_edge def live =
-      (* don't add an edge to itself *)
-      (not ([%equal: VReg.t] def live))
-      (* don't add an edge to something that is a register mov *)
-      (* we want these to be allocated to the same register, so we can remove the redundant mov *)
-      && not (List.mem without live ~equal:[%equal: VReg.t])
+    let is_edge live =
+      (* don't add an edge to what we are currently defining *)
+      not @@ List.mem ~equal:[%equal: VReg.t] defs live
     in
     (* make sure we at least add every use in, because the register allocator uses the domain of interference as all nodes *)
     (* TODO: don't add precolored registers in *)
     Instr.regs_fold instr
     |> F.Iter.iter ~f:(fun def -> Interference.add_node interference def.VReg.name);
     (* add interference edges *)
-    F.Iter.(
-      product (Instr.defs_fold instr) (FC.Set.iter !live_out)
-      |> filter ~f:(fun (def, live) -> is_edge def live)
-      |> iter ~f:(fun (def, live) ->
-        Interference.add_edge interference def.VReg.name live.VReg.name;
-        ()));
+    FC.Set.iter !live_out
+    |> F.Iter.filter ~f:(fun live -> is_edge live)
+    |> F.Iter.iter ~f:(fun live ->
+      Instr.defs_fold instr
+      |> F.Iter.iter ~f:(fun def ->
+        Interference.add_edge interference def.VReg.name live.VReg.name);
+      Instr.mach_reg_defs instr (fun mach_reg ->
+        Ra.Constraints.add constraints live.name mach_reg;
+        ());
+      ());
+    ();
     live_out := transfer instr !live_out;
     ());
   ()
@@ -63,23 +66,22 @@ let add_block_edges interference block live_out =
 ;; *)
 
 let construct_fn fn =
+  (* let precolored_names =  *)
   let _, live_out_facts = Dataflow.Liveness.run fn in
   let interference = Interference.create () in
+  let constraints = Ra.Constraints.create () in
   (Cfg.Graph.to_iteri fn.graph) (fun (label, block) ->
     let live_out = Cfg.Dataflow.Fact_base.find_exn live_out_facts label in
-    add_block_edges interference block live_out);
-  interference
+    add_block_edges ~interference ~constraints block live_out);
+  interference, constraints
 ;;
 
 let alloc_fn fn =
   let open Result.Let_syntax in
-  let interference = construct_fn fn in
+  let interference, constraints = construct_fn fn in
   (* let precolored = collect_precolored fn in *)
   let%bind allocation =
-    Ra.Greedy.run
-      ~precolored:(Name.Table.create ())
-      ~interference
-      ~constraints:(Ra.Constraints.create ())
+    Ra.Greedy.run ~precolored:(Name.Table.create ()) ~interference ~constraints
   in
   Ok allocation
 ;;
@@ -213,7 +215,7 @@ end = struct
     | Jump.Jump j -> Jump.Jump (lower_block_call j)
     | Jump.CondJump { cond; j1; j2 } ->
       Jump.CondJump { cond; j1 = lower_block_call j1; j2 = lower_block_call j2 }
-    | Jump.Ret -> Jump.Ret
+    | Jump.Ret r -> Jump.Ret r
   ;;
 
   (* | Jump.Ret _ -> raise_s [%message "jump must be legalized"] *)
@@ -369,6 +371,7 @@ end = struct
     match minstr with
     | Mov { dst; src } ->
       Flat.Instr.Mov { dst = resolve_operand dst; src = resolve_operand src }
+    | MovAbs { dst; imm } -> MovAbs { dst = resolve_operand dst; imm }
     | Lea { dst; src } -> Lea { dst = resolve_operand dst; src = resolve_operand src }
     | Add { dst; src } -> Add { dst = resolve_operand dst; src = resolve_operand src }
     | Push { src } -> Push { src = resolve_operand src }
@@ -379,8 +382,8 @@ end = struct
       Test { src1 = resolve_operand src1; src2 = resolve_operand src2 }
     | Set { dst; cond } -> Set { dst = resolve_operand dst; cond }
     | Call p -> Call p
-    | J { cond; src } -> J { cond; src = resolve_operand src }
-    | Jmp { src } -> Jmp { src = resolve_operand src }
+    | J { cond; src } -> J { cond; src }
+    | Jmp { src } -> Jmp { src }
   ;;
 
   let resolve_function stack_layout fn =

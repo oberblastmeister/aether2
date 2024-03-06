@@ -45,7 +45,7 @@ let legalize_vinstr cx instr =
   | _ -> ()
 ;;
 
-let legalize_minstr cx (instr : AReg.t Instr.t) =
+let legalize_instr cx (instr : AReg.t Instr.t) =
   let open Types_basic.Instr in
   let force_register ~size o =
     let reg = AReg.InReg { s = size; name = Some "scratch"; reg = Mach_reg.R11 } in
@@ -83,6 +83,14 @@ let legalize_minstr cx (instr : AReg.t Instr.t) =
   in
   (match instr with
    | Instr.Virt instr -> legalize_vinstr cx instr
+   | Jump (Jump j) -> Cx.add cx @@ Jmp { src = Entity.Name.to_dotted_string j.label }
+   | Jump (CondJump { cond; j1; j2 }) ->
+     Cx.add cx @@ J { cond; src = Entity.Name.to_dotted_string j1.label };
+     Cx.add cx @@ Jmp { src = Entity.Name.to_dotted_string j2.label };
+     ()
+   | Jump (Ret (Some src)) ->
+     Cx.add cx @@ Mov { dst = Reg (AReg.create Q RAX); src = to_op src }
+   | Jump (Ret None) -> ()
    | Add { dst; src1; src2; _ } ->
      let dst, src2 = legal3 dst src1 src2 in
      Cx.add cx @@ Flat.Instr.Add { dst = to_op dst; src = to_op src2 }
@@ -95,24 +103,10 @@ let legalize_minstr cx (instr : AReg.t Instr.t) =
    | Test { src1; src2; _ } ->
      let src2 = legal_mem src1 src2 in
      Cx.add cx @@ Test { src1 = to_op src1; src2 = to_op src2 }
-   | MovAbs _ | Set _ -> todo ()
+   | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst = to_op dst; imm }
+   | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst = to_op dst }
    | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t)]);
   ()
-;;
-
-(* keep these to calculate the stack layout *)
-(* | ReserveStackLocal { name; size } ->
-    Cx.add_vinstr cx @@ ReserveStackLocal { name; size }
-  | ReserveStackEnd { size } -> Cx.add_vinstr cx @@ ReserveStackEnd { size }
-  (* don't need these anymore *)
-  (* Block_args should be turned into Par_mov by remove_ssa *)
-  | Block_args _ -> () *)
-
-let legalize_instr cx instr =
-  match instr with
-  | Instr.Virt instr -> legalize_vinstr cx instr
-  | Jump _ -> todo ()
-  | instr -> legalize_minstr cx instr
 ;;
 
 let legalize_block cx label (block : _ Block.t) =

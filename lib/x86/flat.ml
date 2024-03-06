@@ -10,6 +10,10 @@ module Instr = struct
         { dst : 'r Op.t
         ; src : 'r Op.t
         }
+    | MovAbs of
+        { dst : 'r Op.t
+        ; imm : int64
+        }
     | Lea of
         { dst : 'r Op.t
         ; src : 'r Op.t
@@ -35,9 +39,9 @@ module Instr = struct
     | Call of { src : 'r Op.t }
     | J of
         { cond : Cond.t
-        ; src : 'r Op.t
+        ; src : string
         }
-    | Jmp of { src : 'r Op.t }
+    | Jmp of { src : string }
   [@@deriving sexp_of, map, iter]
 
   let iter_operands ~on_use ~on_def i =
@@ -45,6 +49,7 @@ module Instr = struct
     | Mov { dst; src } ->
       on_use src;
       on_def dst
+    | MovAbs { dst; _ } -> on_def dst
     | Lea { dst; src } ->
       on_use src;
       on_def dst
@@ -62,8 +67,8 @@ module Instr = struct
       on_use src2
     | Set { dst; _ } -> on_def dst
     | Call { src } -> on_use src
-    | J { src; _ } -> on_use src
-    | Jmp { src } -> on_use src
+    | J { src; _ } -> ()
+    | Jmp { src } -> ()
   ;;
 
   let iter_op_uses i k = iter_operands ~on_use:k ~on_def:(Fn.const ()) i

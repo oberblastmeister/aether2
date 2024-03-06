@@ -25,6 +25,7 @@ module AReg = struct
   ;;
 
   let size (Spilled { s; _ } | InReg { s; _ }) = s
+  let create ?name s reg = InReg { s; name; reg }
 
   (* let in_reg s name reg = { s; name; reg = Some reg }
   let spilled s name = { s; name; reg = None }
@@ -136,7 +137,6 @@ module Block_call = struct
   include Block_call
 
   let uses_fold (type r) (instr : r t) (k : r -> unit) = instr.args |> List.iter ~f:k
-  let regs_fold block_call k = uses_fold block_call k
   let map_regs i ~f = map f i
 end
 
@@ -145,22 +145,13 @@ module Jump = struct
 
   let map_regs i ~f = map f i
 
-  let regs_fold i k =
-    match i with
-    | Jump j -> Block_call.regs_fold j k
-    | CondJump { j1; j2; _ } ->
-      Block_call.regs_fold j1 k;
-      Block_call.regs_fold j2 k
-    | Ret -> ()
-  ;;
-
   let uses_fold i k =
     match i with
     | Jump j -> Block_call.uses_fold j k
     | CondJump { j1; j2; _ } ->
       Block_call.uses_fold j1 k;
       Block_call.uses_fold j2 k
-    | Ret -> ()
+    | Ret r -> Option.iter r ~f:(fun o -> Operand.any_regs_fold o k)
   ;;
 
   let block_calls_fold j k =
@@ -169,14 +160,14 @@ module Jump = struct
     | CondJump { j1; j2; _ } ->
       k j1;
       k j2
-    | Ret -> ()
+    | Ret _ -> ()
   ;;
 
   let map_block_calls j ~f =
     match j with
     | Jump j -> Jump (f j)
     | CondJump { j1; j2; cond } -> CondJump { j1 = f j1; j2 = f j2; cond }
-    | Ret -> Ret
+    | Ret r -> Ret r
   ;;
 
   let map_regs i = (map_block_calls & Block_call.map_regs) i
@@ -244,7 +235,7 @@ module Instr = struct
     | Call { reg_args; dst; _ } ->
       List.iter reg_args ~f:(fun (_, arg) -> on_use (Reg arg));
       on_def (Reg dst)
-    | Jump jump -> Jump.regs_fold jump (fun reg -> on_use (Reg reg))
+    | Jump jump -> Jump.uses_fold jump (fun reg -> on_use (Reg reg))
     | Virt vinstr ->
       VInstr.uses_fold vinstr (fun reg -> on_use (Reg reg));
       VInstr.defs_fold vinstr (fun reg -> on_def (Reg reg))
@@ -305,6 +296,23 @@ module Instr = struct
       { dst = Operand.mem s (Address.stack_local stack_name)
       ; src = Reg (MReg.create ~name:stack_name.name s reg)
       }
+  ;;
+
+  let mach_reg_defs i k =
+    match i with
+    | NoOp
+    | Mov _
+    | Lea _
+    | Add _
+    | Push _
+    | Pop _
+    | MovAbs _
+    | Cmp _
+    | Test _
+    | Set _
+    | Jump _
+    | Virt _ -> ()
+    | Call { defines; _ } -> List.iter defines ~f:k
   ;;
 end
 

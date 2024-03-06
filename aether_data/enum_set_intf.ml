@@ -47,6 +47,7 @@ module type Intf = sig
   val iter : enum:'a enum -> 'a t -> f:('a -> unit) -> unit
   val negate : 'a t -> unit
   val sexp_of_t_with : enum:'a enum -> 'a t -> Sexp.t
+  val count : 'a t -> int
 
   module Enum : sig
     module type S = Enum.S

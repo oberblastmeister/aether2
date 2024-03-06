@@ -7,8 +7,6 @@ module X86 = struct
   include X86.Types
 end
 
-(* module Instr = X86.Instr *)
-
 module Context = struct
   type t =
     { instrs : (X86.VReg.t X86.Instr.t, Perms.Read_write.t) Vec.t
@@ -123,11 +121,11 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
       (Call
          { name
          ; reg_args = List.map ~f:(fun (x, y) -> y, vreg x) args_with_reg
-         ; defines = todo ()
+         ; defines = X86.Mach_reg.caller_saved_without_r11
          ; dst_reg = X86.Mach_reg.ret
          ; dst = vreg dst
          });
-    todo ()
+    ()
   | Alloca _ -> todo ()
   | Load _ -> todo ()
 
@@ -158,17 +156,8 @@ and lower_control_instr cx instr =
     Cx.addj cx @@ X86.Jump.Jump j
   | Ret v ->
     let v = Option.map ~f:(lower_value_op cx) v in
-    (* Cx.addj cx @@ X86.Jump.Ret v *)
-    todo ()
+    Cx.addj cx @@ X86.Jump.Ret v
 ;;
-
-(* | Ret None -> Cx.addj cx @@ X86.Jump.Ret
-  | Ret (Some v) ->
-    (* let op = lower_value_op cx v in
-    let v' = fresh_value cx (Tir.Value.to_value v) in
-    let dst = precolored v' X86.Mach_reg.RAX in
-    Cx.add cx @@ MInstr.Mov { s = ty_to_size @@ Tir.Value.get_ty v; dst; src = op }; *)
-    Cx.addj cx @@ X86.Jump.Ret (vreg v) *)
 
 let lower_block cx (block : Tir.Block.t) =
   lower_block_args cx block.entry;

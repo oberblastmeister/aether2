@@ -218,6 +218,15 @@ let iteri bv ~f =
 let iter bv ~f = iteri bv ~f:(fun _ b -> f b)
 let to_iter bv k = iter bv ~f:k
 
+let count bv =
+  if bv.size = 0
+  then 0
+  else (
+    let n = ref 0 in
+    iter_bytes_ bv ~f:(fun _ _ b -> n := !n + Int.popcount b);
+    !n)
+;;
+
 let init size ~f : t =
   let v = create ~size false in
   for i = 0 to size - 1 do

@@ -29,3 +29,4 @@ val to_array : t -> bool array
 val of_list : bool list -> t
 val to_list : t -> bool list
 val fold : t -> init:'a -> f:('a -> bool -> 'a) -> 'a
+val count : t -> int
