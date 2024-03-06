@@ -116,7 +116,10 @@ let legalize_block cx label (block : _ Block.t) =
 
 let legalize_function (fn : _ Function.t) =
   let cx = Cx.create () in
-  Cfg.Graph.to_iteri fn.graph (fun (label, block) -> legalize_block cx label block);
+  Cfg.Graph.fold_labels
+    (Graph.Dfs.reverse_postorder fn.graph)
+    fn.graph
+    (fun (label, block) -> legalize_block cx label block);
   Vec.shrink_to_fit cx.instrs;
   Vec.freeze cx.instrs
 ;;

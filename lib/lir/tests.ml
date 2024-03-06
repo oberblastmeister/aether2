@@ -190,50 +190,36 @@ let%test_module _ =
               (blocks
                ((body.3
                  ((instrs
-                   ((Block_args ())
-                    (MovAbs (dst (Reg ((s Q) (name one.7) (precolored ())))) (imm 1))
-                    (Add (s Q) (dst (Reg ((s Q) (name e.8) (precolored ()))))
-                     (src1 (Reg ((s Q) (name e.10) (precolored ()))))
-                     (src2 (Reg ((s Q) (name one.7) (precolored ())))))
-                    (Add (s Q) (dst (Reg ((s Q) (name r.6) (precolored ()))))
-                     (src1 (Reg ((s Q) (name r.11) (precolored ()))))
-                     (src2 (Reg ((s Q) (name b.0) (precolored ())))))
+                   ((Block_args ()) (MovAbs (dst (Reg ((s Q) (name one.7)))) (imm 1))
+                    (Add (dst (Reg ((s Q) (name e.8))))
+                     (src1 (Reg ((s Q) (name e.10))))
+                     (src2 (Reg ((s Q) (name one.7)))))
+                    (Add (dst (Reg ((s Q) (name r.6))))
+                     (src1 (Reg ((s Q) (name r.11))))
+                     (src2 (Reg ((s Q) (name b.0)))))
                     (Jump
-                     ((label loop.1)
-                      (args
-                       (((s Q) (name e.8) (precolored ()))
-                        ((s Q) (name r.6) (precolored ()))))))))))
+                     ((label loop.1) (args (((s Q) (name e.8)) ((s Q) (name r.6))))))))))
                 (done.2
-                 ((instrs
-                   ((Block_args ())
-                    (Mov (s Q) (dst (Reg ((s Q) (name r.15) (precolored (RAX)))))
-                     (src (Reg ((s Q) (name r.11) (precolored ())))))
-                    Ret))))
+                 ((instrs ((Block_args ()) (Ret ((Reg ((s Q) (name r.11)))))))))
                 (loop.1
                  ((instrs
-                   ((Block_args
-                     (((s Q) (name e.10) (precolored ()))
-                      ((s Q) (name r.11) (precolored ()))))
-                    (MovAbs (dst (Reg ((s Q) (name z.12) (precolored ())))) (imm 0))
-                    (Cmp (s Q) (src1 (Reg ((s Q) (name e.10) (precolored ()))))
-                     (src2 (Reg ((s Q) (name z.12) (precolored ())))))
-                    (Set (s Q) (cond A)
-                     (dst (Reg ((s Q) (name f.13) (precolored ())))))
-                    (Test (s Q) (src1 (Reg ((s Q) (name f.13) (precolored ()))))
-                     (src2 (Reg ((s Q) (name f.13) (precolored ())))))
+                   ((Block_args (((s Q) (name e.10)) ((s Q) (name r.11))))
+                    (MovAbs (dst (Reg ((s Q) (name z.12)))) (imm 0))
+                    (Cmp (src1 (Reg ((s Q) (name e.10))))
+                     (src2 (Reg ((s Q) (name z.12)))))
+                    (Set (cond A) (dst (Reg ((s Q) (name f.13)))))
+                    (Test (src1 (Reg ((s Q) (name f.13))))
+                     (src2 (Reg ((s Q) (name f.13)))))
                     (CondJump (cond NE) (j1 ((label done.2) (args ())))
                      (j2 ((label body.3) (args ()))))))))
                 (start.0
                  ((instrs
-                   ((Block_args ())
-                    (MovAbs (dst (Reg ((s Q) (name r.2) (precolored ())))) (imm 1))
+                   ((Block_args ()) (MovAbs (dst (Reg ((s Q) (name r.2)))) (imm 1))
                     (Jump
-                     ((label loop.1)
-                      (args
-                       (((s Q) (name e.1) (precolored ()))
-                        ((s Q) (name r.2) (precolored ()))))))))))))
+                     ((label loop.1) (args (((s Q) (name e.1)) ((s Q) (name r.2))))))))))))
               (exit done.2)))
-            (unique_name 16) (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)))))) |}]
+            (unique_name 15) (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11))
+            (stack_end_size 0))))) |}]
     ;;
 
     let%expect_test "regalloc" =
@@ -247,39 +233,23 @@ let%test_module _ =
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
       [%expect
         {|
-        ((functions
-          (((graph
-             ((entry start.0)
-              (blocks
-               ((body.3
-                 ((instrs
-                   ((MovAbs (dst (Reg (one R10))) (imm 1))
-                    (Mov (s Q) (dst (Reg (e RSI))) (src (Reg (e R9))))
-                    (Add (s Q) (dst (Reg (e RSI))) (src1 (Reg (e RSI)))
-                     (src2 (Reg (one R10))))
-                    (Mov (s Q) (dst (Reg (r RDX))) (src (Reg (r RDI))))
-                    (Add (s Q) (dst (Reg (r RDX))) (src1 (Reg (r RDX)))
-                     (src2 (Reg (b RAX))))
-                    (Mov (s Q) (dst (Reg (e R9))) (src (Reg (e RSI))))
-                    (Mov (s Q) (dst (Reg (r RDI))) (src (Reg (r RDX))))
-                    (Jump ((label loop.1) (args ())))))))
-                (done.2
-                 ((instrs ((Mov (s Q) (dst (Reg (r RAX))) (src (Reg (r RDI)))) Ret))))
-                (loop.1
-                 ((instrs
-                   ((MovAbs (dst (Reg (z R8))) (imm 0))
-                    (Cmp (s Q) (src1 (Reg (e R9))) (src2 (Reg (z R8))))
-                    (Set (s Q) (cond A) (dst (Reg (f RCX))))
-                    (Test (s Q) (src1 (Reg (f RCX))) (src2 (Reg (f RCX))))
-                    (CondJump (cond NE) (j1 ((label done.2) (args ())))
-                     (j2 ((label body.3) (args ()))))))))
-                (start.0
-                 ((instrs
-                   ((MovAbs (dst (Reg (r RDI))) (imm 1))
-                    (Mov (s Q) (dst (Reg (e R9))) (src (Reg (e RAX))))
-                    (Jump ((label loop.1) (args ())))))))))
-              (exit done.2)))
-            (unique_name 16) (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)))))) |}]
+        ((Label start.0) (Instr (MovAbs (dst (Reg (r RDI))) (imm 1)))
+         (Instr (Mov (dst (Reg (e R10))) (src (Reg (e RAX)))))
+         (Instr (Jmp (src loop.1))) (Label loop.1)
+         (Instr (MovAbs (dst (Reg (z R8))) (imm 0)))
+         (Instr (Cmp (src1 (Reg (e R10))) (src2 (Reg (z R8)))))
+         (Instr (Set (cond A) (dst (Reg (f RCX)))))
+         (Instr (Test (src1 (Reg (f RCX))) (src2 (Reg (f RCX)))))
+         (Instr (J (cond NE) (src done.2))) (Instr (Jmp (src body.3))) (Label body.3)
+         (Instr (MovAbs (dst (Reg (one R9))) (imm 1)))
+         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e R10)))))
+         (Instr (Add (dst (Reg (e RSI))) (src (Reg (one R9)))))
+         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RDI)))))
+         (Instr (Add (dst (Reg (r RDX))) (src (Reg (b RAX)))))
+         (Instr (Mov (dst (Reg (e R10))) (src (Reg (e RSI)))))
+         (Instr (Mov (dst (Reg (r RDI))) (src (Reg (r RDX)))))
+         (Instr (Jmp (src loop.1))) (Label done.2)
+         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RDI)))))) |}]
     ;;
   end)
 ;;
