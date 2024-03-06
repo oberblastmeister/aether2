@@ -233,23 +233,24 @@ let%test_module _ =
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
       [%expect
         {|
-        ((Label start.0) (Instr (MovAbs (dst (Reg (r RDI))) (imm 1)))
-         (Instr (Mov (dst (Reg (e R10))) (src (Reg (e RAX)))))
+        ((Label start.0) (Instr (MovAbs (dst (Reg (r R8))) (imm 1)))
+         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e RAX)))))
+         (Instr (Mov (dst (Reg (r RSI))) (src (Reg (r R8)))))
          (Instr (Jmp (src loop.1))) (Label loop.1)
-         (Instr (MovAbs (dst (Reg (z R8))) (imm 0)))
-         (Instr (Cmp (src1 (Reg (e R10))) (src2 (Reg (z R8)))))
-         (Instr (Set (cond A) (dst (Reg (f RCX)))))
-         (Instr (Test (src1 (Reg (f RCX))) (src2 (Reg (f RCX)))))
+         (Instr (MovAbs (dst (Reg (z R10))) (imm 0)))
+         (Instr (Cmp (src1 (Reg (e RSI))) (src2 (Reg (z R10)))))
+         (Instr (Set (cond A) (dst (Reg (f RDX)))))
+         (Instr (Test (src1 (Reg (f RDX))) (src2 (Reg (f RDX)))))
          (Instr (J (cond NE) (src done.2))) (Instr (Jmp (src body.3))) (Label body.3)
-         (Instr (MovAbs (dst (Reg (one R9))) (imm 1)))
-         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e R10)))))
-         (Instr (Add (dst (Reg (e RSI))) (src (Reg (one R9)))))
-         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RDI)))))
-         (Instr (Add (dst (Reg (r RDX))) (src (Reg (b RAX)))))
-         (Instr (Mov (dst (Reg (e R10))) (src (Reg (e RSI)))))
-         (Instr (Mov (dst (Reg (r RDI))) (src (Reg (r RDX)))))
+         (Instr (MovAbs (dst (Reg (one RCX))) (imm 1)))
+         (Instr (Mov (dst (Reg (e RDI))) (src (Reg (e RSI)))))
+         (Instr (Add (dst (Reg (e RDI))) (src (Reg (one RCX)))))
+         (Instr (Mov (dst (Reg (r R9))) (src (Reg (r RSI)))))
+         (Instr (Add (dst (Reg (r R9))) (src (Reg (b RAX)))))
+         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e RDI)))))
+         (Instr (Mov (dst (Reg (r RSI))) (src (Reg (r R9)))))
          (Instr (Jmp (src loop.1))) (Label done.2)
-         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RDI)))))) |}]
+         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RSI)))))) |}]
     ;;
   end)
 ;;

@@ -66,7 +66,7 @@ let add_block_edges ~interference ~constraints block live_out =
 ;; *)
 
 let construct_fn fn =
-  (* let precolored_names =  *)
+  (* let precolored_names = *)
   let _, live_out_facts = Dataflow.Liveness.run fn in
   let interference = Interference.create () in
   let constraints = Ra.Constraints.create () in
