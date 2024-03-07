@@ -15,7 +15,7 @@ type t = (Value.t, state) Entity.Map.t [@@deriving sexp_of]
 
 let create fn instr_of_value =
   let use_states = ValueMap.create () in
-  (Function.instrs_forward_fold @> Some_instr.uses_fold) fn ~f:(fun use ->
+  (Function.iter_instrs_forward @> Some_instr.iter_uses) fn ~f:(fun use ->
     ValueMap.set
       use_states
       ~key:use
@@ -24,7 +24,7 @@ let create fn instr_of_value =
          let prev = ValueMap.find use_states use in
          match instr with
          | Some instr
-           when let defs_count = Instr.defs_fold instr |> F.Iter.length in
+           when let defs_count = Instr.iter_defs instr |> F.Iter.length in
                 defs_count > 1 -> Multiple
          | Some _ | None -> inc_state prev));
   use_states

@@ -33,15 +33,15 @@ module Expr : sig
   include module type of Expr
 
   val get_ty : 'v t -> Ty.t
-  val uses_fold : ('v, 'v t) F.Fold.t
+  val iter_uses : ('v, 'v t) F.Fold.t
 end
 
 module Some_instr : sig
   include module type of Some_instr
 
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
-  val uses_fold : ('v, 'v t) F.Fold.t
-  val defs_fold : (Value.t, 'v t) F.Fold.t
+  val iter_uses : ('v, 'v t) F.Fold.t
+  val iter_defs : (Value.t, 'v t) F.Fold.t
   val uses : 'v t -> 'v list
   val defs : 'v t -> Value.t list
   val has_side_effect : 'v t -> bool
@@ -53,8 +53,8 @@ module Instr : sig
   val has_side_effect : 'v t -> bool
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
   val map_defs : 'v t -> f:(Value.t -> Value.t) -> 'v t
-  val defs_fold : (Value.t, 'v t) F.Fold.t
-  val uses_fold : ('v, 'v t) F.Fold.t
+  val iter_defs : (Value.t, 'v t) F.Fold.t
+  val iter_uses : ('v, 'v t) F.Fold.t
   val to_some : 'v t -> 'v Some_instr.t
 end
 
@@ -68,11 +68,11 @@ module Control_instr : sig
   include module type of Control_instr
 
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
-  val block_calls_fold : ('v Block_call.t, 'v t) F.Fold.t
+  val iter_block_calls : ('v Block_call.t, 'v t) F.Fold.t
   val block_calls : 'v t -> 'v Block_call.t list
   val map_block_calls : 'v t -> f:('v Block_call.t -> 'v Block_call.t) -> 'v t
   val to_some : 'v t -> 'v Some_instr.t
-  val uses_fold : ('v, 'v t) F.Fold.t
+  val iter_uses : ('v, 'v t) F.Fold.t
 end
 
 module Block_args : sig
@@ -104,13 +104,13 @@ module Generic_instr : sig
 
   val map : ('v, 'c) t -> f:('v -> 'u) -> ('u, 'c) t
   val to_some : ('v, 'c) t -> 'v Some_instr.t
-  val uses_fold : ('v, ('v, 'c) t) F.Fold.t
+  val iter_uses : ('v, ('v, 'c) t) F.Fold.t
   val uses : ('v, 'c) t -> 'v list
   val map_uses : ('v, 'c) t -> f:('v -> 'u) -> ('u, 'c) t
   val map_defs : ('v, 'c) t -> f:(Value.t -> Value.t) -> ('v, 'c) t
-  val defs_fold : (Value.t, ('v, 'c) t) F.Fold.t
+  val iter_defs : (Value.t, ('v, 'c) t) F.Fold.t
   val defs : ('v, 'c) t -> Value.t list
-  val block_calls_fold : ('v Block_call.t, ('v, 'c) t) F.Fold.t
+  val iter_block_calls : ('v Block_call.t, ('v, 'c) t) F.Fold.t
   val block_calls : ('v, 'c) t -> 'v Block_call.t list
 end
 
@@ -124,9 +124,9 @@ module Block : sig
   end
 
   val map_instrs_forwards : ('v, 'u) Mapper.t -> 'v t -> 'u t
-  val instrs_forward_fold : ('v Some_instr.t, 'v t) F.Fold.t
-  val instrs_backward_fold : ('v Some_instr.t, 'v t) F.Fold.t
-  val jumps_fold : (Label.t, 'v t) F.Fold.t
+  val iter_instrs_forward : ('v Some_instr.t, 'v t) F.Fold.t
+  val iter_instrs_backward : ('v Some_instr.t, 'v t) F.Fold.t
+  val iter_jumps : (Label.t, 'v t) F.Fold.t
   val jumps : 'v t -> Label.t list
 end
 
@@ -153,7 +153,7 @@ module Function : sig
   val map_graph : 'v t -> f:('v Graph.t -> 'u Graph.t) -> 'u t
 
   (* val map_blocks : 'v t -> f:('v Block.t Label.Map.t -> 'u Block.t Label.Map.t) -> 'u t *)
-  val instrs_forward_fold : ('v Some_instr.t, 'v t) F.Fold.t
+  val iter_instrs_forward : ('v Some_instr.t, 'v t) F.Fold.t
   val thaw : 'v t -> 'v Mut_function.t
   val freeze : 'v Mut_function.t -> 'v t
   val with_mut : 'v t -> ('v Mut_function.t -> unit) -> 'v t

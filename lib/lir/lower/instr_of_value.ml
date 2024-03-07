@@ -10,7 +10,7 @@ let create iter =
   (F.Iter.enumerate iter) (fun (i, Some_instr.T instr) ->
     match instr with
     | Generic_instr.Instr instr ->
-      Instr.defs_fold instr (fun use ->
+      Instr.iter_defs instr (fun use ->
         ValueMap.set instr_of_value ~key:use ~data:(i, instr))
     | _ -> ());
   instr_of_value

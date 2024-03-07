@@ -40,8 +40,8 @@ let%test_module _ =
           F.Fold.of_fn Function.graph
           @> F.Fold.of_fn Cfg.Graph.blocks
           @> Map.iter
-          @> Block.instrs_forward_fold
-          @> Some_instr.uses_fold)
+          @> Block.iter_instrs_forward
+          @> Some_instr.iter_uses)
       in
       let uses = F.Fold.reduce p F.Reduce.to_list_rev fn in
       print_s [%sexp (uses : Lir.Value.t list)];

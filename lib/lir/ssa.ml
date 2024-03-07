@@ -53,7 +53,7 @@ let check_all_temps_unique (fn : Value.t Function.t) =
   List.iter fn.params ~f:(check_define None None);
   let fold =
     F.Fold.(
-      Cfg.Graph.iteri @> ix (dup Block.instrs_forward_fold) @> ix2 Some_instr.defs_fold)
+      Cfg.Graph.iteri @> ix (dup Block.iter_instrs_forward) @> ix2 Some_instr.iter_defs)
   in
   F.Fold.iter
     fold
@@ -79,7 +79,7 @@ let validate_ssa_function (fn : Vir.Function.t) =
   List.iter fn.params ~f:(fun param -> Hash_set.add defined param);
   Vec.iter labels ~f:(fun label ->
     let block = Cfg.Graph.find_exn label fn.graph in
-    F.Fold.iter Block.instrs_forward_fold block ~f:(fun (Some_instr.T instr as i) ->
+    F.Fold.iter Block.iter_instrs_forward block ~f:(fun (Some_instr.T instr as i) ->
       let uses = Generic_instr.uses instr in
       List.iter uses ~f:(fun use ->
         if not @@ Hash_set.mem defined use
@@ -198,7 +198,7 @@ let get_phis (graph : Vir.Graph.t) =
     |> Map.of_alist_exn (module Label)
   in
   let fold =
-    F.Fold.(Cfg.Graph.iteri @> ix (of_fn Block.exit @> Control_instr.block_calls_fold))
+    F.Fold.(Cfg.Graph.iteri @> ix (of_fn Block.exit @> Control_instr.iter_block_calls))
   in
   let phis_of_block =
     F.Fold.fold

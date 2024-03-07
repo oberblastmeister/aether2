@@ -14,8 +14,8 @@ module Liveness = struct
     Cfg.Dataflow.Liveness.make_transfer
       ~sexp_of_instr:[%sexp_of: Some_instr.t]
       ~value:(module Lir.Value)
-      ~uses:Lir.Some_instr.uses_fold
-      ~defs:Lir.Some_instr.defs_fold
+      ~uses:Lir.Some_instr.iter_uses
+      ~defs:Lir.Some_instr.iter_defs
   ;;
 
   let block_transfer = Dataflow.instr_to_block_transfer (module Lir.Value) instr_transfer

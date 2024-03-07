@@ -77,7 +77,7 @@ module Instr = struct
   let iter_uses i ~f =
     iter_operands
       i
-      ~on_use:(fun op -> Op.any_regs_fold op ~f)
+      ~on_use:(fun op -> Op.iter_any_regs op ~f)
       ~on_def:(function
         | Mem m -> Types_basic.Mem.iter_regs m ~f
         | _ -> ())
@@ -90,7 +90,7 @@ module Instr = struct
   ;;
 
   let iter_regs i ~f:k =
-    iter_operands ~on_use:(fun op -> Op.any_regs_fold op k) ~on_def:(Fn.const ()) i
+    iter_operands ~on_use:(fun op -> Op.iter_any_regs op k) ~on_def:(Fn.const ()) i
   ;;
 
   let map_regs i ~f = map f i

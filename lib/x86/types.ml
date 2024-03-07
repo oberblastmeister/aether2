@@ -68,7 +68,7 @@ module Address = struct
   module Base = struct
     include Base
 
-    let regs_fold a k = reg_val a |> Option.iter ~f:k
+    let iter_regs a k = reg_val a |> Option.iter ~f:k
   end
 
   module Scale = struct
@@ -78,7 +78,7 @@ module Address = struct
   module Index = struct
     include Index
 
-    let regs_fold a k =
+    let iter_regs a k =
       some_val a |> Option.iter ~f:(fun (`index index, `scale _) -> k index)
     ;;
   end
@@ -93,19 +93,19 @@ module Address = struct
   let base_offset base offset = Complex { base; index = None; offset }
   let rip_relative offset = base_offset Base.Rip offset
 
-  let regs_fold a ~f:k =
+  let iter_regs a ~f:k =
     match a with
     | Imm _ -> ()
     | Complex { base; index; _ } ->
-      Base.regs_fold base k;
-      Index.regs_fold index k
+      Base.iter_regs base k;
+      Index.iter_regs index k
   ;;
 end
 
 module Mem = struct
   include Mem
 
-  let regs_fold a = Address.regs_fold a.addr
+  let iter_regs a = Address.iter_regs a.addr
 end
 
 module Operand = struct
@@ -116,14 +116,14 @@ module Operand = struct
   let stack_local s name = Operand.mem s (Address.stack_local name)
   let vreg s name = Reg (VReg.create s name)
   let precolored s name = Reg (VReg.precolored s name)
-  let reg_val_fold o ~f:k = reg_val o |> Option.iter ~f:k
-  let mem_val_fold o ~f:k = mem_val o |> Option.iter ~f:k
-  let mem_regs_fold o ~f:k = (mem_val_fold @> Mem.regs_fold) o ~f:k
+  let iter_reg_val o ~f:k = reg_val o |> Option.iter ~f:k
+  let iter_mem_val o ~f:k = mem_val o |> Option.iter ~f:k
+  let iter_mem_regs o ~f:k = (iter_mem_val @> Mem.iter_regs) o ~f:k
 
-  let any_regs_fold o ~f:k =
+  let iter_any_regs o ~f:k =
     match o with
     | Reg r -> k r
-    | Mem m -> Mem.regs_fold m ~f:k
+    | Mem m -> Mem.iter_regs m ~f:k
     | Imm _ -> ()
   ;;
 
@@ -136,7 +136,7 @@ end
 module Block_call = struct
   include Block_call
 
-  let uses_fold (type r) (instr : r t) (k : r -> unit) = instr.args |> List.iter ~f:k
+  let iter_uses (type r) (instr : r t) (k : r -> unit) = instr.args |> List.iter ~f:k
   let map_regs i ~f = map f i
 end
 
@@ -145,16 +145,16 @@ module Jump = struct
 
   let map_regs i ~f = map f i
 
-  let uses_fold i k =
+  let iter_uses i k =
     match i with
-    | Jump j -> Block_call.uses_fold j k
+    | Jump j -> Block_call.iter_uses j k
     | CondJump { j1; j2; _ } ->
-      Block_call.uses_fold j1 k;
-      Block_call.uses_fold j2 k
-    | Ret r -> Option.iter r ~f:(fun o -> Operand.any_regs_fold o ~f:k)
+      Block_call.iter_uses j1 k;
+      Block_call.iter_uses j2 k
+    | Ret r -> Option.iter r ~f:(fun o -> Operand.iter_any_regs o ~f:k)
   ;;
 
-  let block_calls_fold j ~f:k =
+  let iter_block_calls j ~f:k =
     match j with
     | Jump j -> k j
     | CondJump { j1; j2; _ } ->
@@ -178,7 +178,7 @@ module VInstr = struct
 
   let map_regs i ~f = map f i
 
-  let regs_fold i f =
+  let iter_regs i f =
     let module O = Operand in
     let module A = Address in
     match i with
@@ -193,15 +193,15 @@ module VInstr = struct
     | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 
-  let defs_fold i ~f:k =
+  let iter_defs i ~f =
     let module O = Operand in
     match i with
-    | Par_mov movs -> (List.iter @> F.Fold.of_fn fst) movs ~f:k
-    | Block_args args -> FC.List.fold args k
+    | Par_mov movs -> (List.iter @> F.Fold.of_fn fst) movs ~f
+    | Block_args args -> List.iter args ~f
     | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 
-  let uses_fold i ~f =
+  let iter_uses i ~f =
     let module O = Operand in
     match i with
     | Par_mov movs -> (List.iter @> F.Fold.of_fn snd) movs ~f
@@ -215,7 +215,7 @@ module Instr = struct
 
   (* add a on_mach_reg parameter *)
   (* then add a specialized fold_mach_regs *)
-  let operands_fold_with i ~on_def ~on_use =
+  let iter_operands_with i ~on_def ~on_use =
     let module O = Operand in
     let module A = Address in
     match i with
@@ -223,7 +223,7 @@ module Instr = struct
     | Lea { dst; src; _ } ->
       on_def @@ O.Reg dst;
       on_def @@ O.Reg dst;
-      Address.regs_fold src ~f:(fun reg -> on_use (O.Reg reg))
+      Address.iter_regs src ~f:(fun reg -> on_use (O.Reg reg))
     | Add { dst; src1; src2; _ } ->
       on_def dst;
       on_use src1;
@@ -241,10 +241,10 @@ module Instr = struct
     | Call { reg_args; dst; _ } ->
       List.iter reg_args ~f:(fun (_, arg) -> on_use (Reg arg));
       on_def (Reg dst)
-    | Jump jump -> Jump.uses_fold jump (fun reg -> on_use (Reg reg))
+    | Jump jump -> Jump.iter_uses jump (fun reg -> on_use (Reg reg))
     | Virt vinstr ->
-      VInstr.uses_fold vinstr ~f:(fun reg -> on_use (Reg reg));
-      VInstr.defs_fold vinstr ~f:(fun reg -> on_def (Reg reg))
+      VInstr.iter_uses vinstr ~f:(fun reg -> on_use (Reg reg));
+      VInstr.iter_defs vinstr ~f:(fun reg -> on_def (Reg reg))
   ;;
 
   (* type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t } *)
@@ -275,22 +275,22 @@ module Instr = struct
     | Jump j -> Jump j
     | Virt v -> Virt v *)
 
-  let operands_fold i ~f = operands_fold_with i ~on_def:f ~on_use:f
-  let regs_fold i ~f = operands_fold i ~f:(fun o -> Operand.any_regs_fold o ~f)
+  let iter_operands i ~f = iter_operands_with i ~on_def:f ~on_use:f
+  let iter_regs i ~f = iter_operands i ~f:(fun o -> Operand.iter_any_regs o ~f)
   let map_regs i ~f = map f i
 
-  let defs_fold i ~f =
-    operands_fold_with
+  let iter_defs i ~f =
+    iter_operands_with
       i
-      ~on_def:(fun o -> Operand.reg_val_fold o ~f)
+      ~on_def:(fun o -> Operand.iter_reg_val o ~f)
       ~on_use:(Fn.const ())
   ;;
 
-  let uses_fold i ~f =
-    operands_fold_with
+  let iter_uses i ~f =
+    iter_operands_with
       i
-      ~on_def:(fun o -> Operand.mem_regs_fold o ~f)
-      ~on_use:(fun o -> Operand.any_regs_fold o ~f)
+      ~on_def:(fun o -> Operand.iter_mem_regs o ~f)
+      ~on_use:(fun o -> Operand.iter_any_regs o ~f)
   ;;
 
   let mov_to_reg_from_stack s reg (stack_name : Name.t) =
@@ -346,31 +346,31 @@ end
    | Jump i -> Jump (Jump.map_regs i ~f)
    ;;
 
-   let regs_fold (type r) (i : r t) (k : r -> unit) =
+   let iter_regs (type r) (i : r t) (k : r -> unit) =
    let module O = Operand in
    let module A = Address in
    match i with
-   | Virt i -> VInstr.regs_fold i k
-   | Real i -> MInstr.regs_fold i k
-   | Jump i -> Jump.regs_fold i k
+   | Virt i -> VInstr.iter_regs i k
+   | Real i -> MInstr.iter_regs i k
+   | Jump i -> Jump.iter_regs i k
    ;;
 
-   let defs_fold i k =
+   let iter_defs i k =
    let module O = Operand in
    let open Instr_variant in
    match to_variant i with
-   | Virt i -> VInstr.defs_fold i k
-   | Real i -> MInstr.defs_fold i k
+   | Virt i -> VInstr.iter_defs i k
+   | Real i -> MInstr.iter_defs i k
    | Jump _ -> ()
    ;;
 
-   let uses_fold (type r) (i : r t) (k : r -> unit) =
+   let iter_uses (type r) (i : r t) (k : r -> unit) =
    let module O = Operand in
    let open Instr_variant in
    match i with
-   | Virt i -> VInstr.uses_fold i k
-   | Real i -> MInstr.uses_fold i k
-   | Jump i -> Jump.uses_fold i k
+   | Virt i -> VInstr.iter_uses i k
+   | Real i -> MInstr.iter_uses i k
+   | Jump i -> Jump.iter_uses i k
    ;;
 
    end *)
@@ -407,7 +407,7 @@ module Block = struct
 
   let cons instr b = { instrs = Vec.cons instr b.instrs }
 
-  let jumps_fold block ~f:k =
+  let iter_jumps block ~f:k =
     match jump_exn block with
     | Jump j -> k j.label
     | CondJump { j1; j2; _ } ->
@@ -416,8 +416,8 @@ module Block = struct
     | Ret _ -> ()
   ;;
 
-  let instrs_forward_fold b = Vec.to_iter b.instrs
-  let instrs_backward_fold b = Vec.to_iter_rev b.instrs
+  let iter_instrs_forward b = Vec.to_iter b.instrs
+  let iter_instrs_backward b = Vec.to_iter_rev b.instrs
 end
 
 module Graph = struct
@@ -426,7 +426,7 @@ module Graph = struct
   include Cfg.Graph.Make_gen (struct
       type 'r t = 'r Block.t
 
-      let jumps_fold = Block.jumps_fold
+      let iter_jumps = Block.iter_jumps
     end)
 
   let map_blocks = Cfg.Graph.map
@@ -435,7 +435,7 @@ end
 module Function = struct
   include Function
 
-  let instrs_forward_fold fn = (Cfg.Graph.iter @> Block.instrs_forward_fold) fn.graph
+  let iter_instrs_forward fn = (Cfg.Graph.iter @> Block.iter_instrs_forward) fn.graph
   let map_blocks fn ~f = { fn with graph = Graph.map_blocks fn.graph ~f }
 end
 

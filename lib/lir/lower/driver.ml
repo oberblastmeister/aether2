@@ -2,7 +2,7 @@ open! O
 module Lir = Types
 
 let blocks_fold graph = (Cfg.Graph.iter_on_labels (Lir.Graph.Dfs.preorder graph)) graph
-let instr_fold fn = (blocks_fold @> F.Fold.mapped snd @> Lir.Block.instrs_forward_fold) fn
+let instr_fold fn = (blocks_fold @> F.Fold.mapped snd @> Lir.Block.iter_instrs_forward) fn
 
 module Context = struct
   type t =
@@ -67,7 +67,7 @@ let lower_block cx (block : Vir.Block.t) instr_index =
   let body =
     List.filter_map block.body ~f:(fun instr ->
       let res =
-        if F.Iter.exists (Lir.Instr.defs_fold instr) ~f:(fun def ->
+        if F.Iter.exists (Lir.Instr.iter_defs instr) ~f:(fun def ->
              [%equal: Use_states.state] (Use_states.find cx.use_states def) Once)
         then
           (* this instruction will be inlined later, so don't duplicate it by lowering it again *)

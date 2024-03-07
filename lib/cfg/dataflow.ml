@@ -85,8 +85,8 @@ end
 
 let instr_to_block_transfer
   ?(sexp_of_block = sexp_of_opaque)
-  ~instrs_forward_fold
-  ~instrs_backward_fold
+  ~iter_instrs_forward
+  ~iter_instrs_backward
   (instr_transfer : _ Instr_transfer.t)
   : _ Block_transfer.t
   =
@@ -94,8 +94,8 @@ let instr_to_block_transfer
     let new_fact =
       F.Fold.fold
         (match instr_transfer.direction with
-         | Forward -> instrs_forward_fold
-         | Backward -> instrs_backward_fold)
+         | Forward -> iter_instrs_forward
+         | Backward -> iter_instrs_backward)
         block
         ~init:other_facts
         ~f:(fun i d -> instr_transfer.transfer d i)

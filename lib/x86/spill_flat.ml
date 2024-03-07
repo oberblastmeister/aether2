@@ -125,7 +125,7 @@ let lower_jump = function
 let lower_instr cx instr = lower_minstr cx instr
 
 (* let lower_block cx (block : _ Block.t) =
-    (Block.instrs_forward_fold block) (lower_instr cx);
+    (Block.iter_instrs_forward block) (lower_instr cx);
     let instrs = Vec.copy_exact cx.instrs in
     Vec.clear cx.instrs;
     { Block.instrs }

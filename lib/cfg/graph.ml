@@ -115,7 +115,7 @@ module Dfs = struct
 end
 
 module Make_gen (Block : Block_gen) = struct
-  let jumps b = Block.jumps_fold b
+  let jumps b = Block.iter_jumps b
   let to_graph g = to_graph ~jumps g
   let to_double_graph g = to_double_graph ~jumps g
   let predecessors_of_label g = predecessors_of_label ~jumps g

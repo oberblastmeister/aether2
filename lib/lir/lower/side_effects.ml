@@ -19,7 +19,7 @@ let color (graph : _ Cfg.Graph.t) =
   let colors = Vec.create () in
   Cfg.Graph.iter graph (fun block ->
     incr cur_color;
-    Block.instrs_forward_fold block (fun instr ->
+    Block.iter_instrs_forward block (fun instr ->
       Vec.push colors !cur_color;
       if Some_instr.has_side_effect instr then incr cur_color));
   colors |> Vec.freeze

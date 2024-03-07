@@ -12,7 +12,7 @@ let split pred (fn : Vir.Function.t) =
       if pred block
       then (
         let block_calls_count =
-          F.Fold.reduce Control_instr.block_calls_fold F.Reduce.count block.exit
+          F.Fold.reduce Control_instr.iter_block_calls F.Reduce.count block.exit
         in
         if block_calls_count > 1
         then (

@@ -60,8 +60,8 @@ let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.t
 (* TODO: multiple defs in the same instruction interfere with each other *)
 let add_block_edges ~interference ~precolored block live_out =
   let live_out = ref live_out in
-  Block.instrs_backward_fold block ~f:(fun instr ->
-    let defs = Instr.defs_fold instr |> F.Iter.to_list in
+  Block.iter_instrs_backward block ~f:(fun instr ->
+    let defs = Instr.iter_defs instr |> F.Iter.to_list in
     let defs =
       match instr with
       | Instr.Mov { src = Operand.Reg src; _ } -> src :: defs
@@ -72,7 +72,7 @@ let add_block_edges ~interference ~precolored block live_out =
       not @@ List.mem ~equal:[%equal: VReg.t] defs live
     in
     (* make sure we at least add every use/def in, because the register allocator uses the domain of interference as all nodes *)
-    Instr.regs_fold instr
+    Instr.iter_regs instr
     |> F.Iter.iter ~f:(fun def -> Interference.add_node interference def.VReg.name);
     Instr.mach_reg_defs instr (fun mach_reg ->
       Interference.add_node interference (Precolored.get_name precolored mach_reg);
@@ -81,7 +81,7 @@ let add_block_edges ~interference ~precolored block live_out =
     Set.iter !live_out
     |> F.Iter.filter ~f:(fun live -> is_edge live)
     |> F.Iter.iter ~f:(fun live ->
-      Instr.defs_fold instr
+      Instr.iter_defs instr
       |> F.Iter.iter ~f:(fun def ->
         Interference.add_edge interference def.VReg.name live.VReg.name);
       Instr.mach_reg_defs instr (fun mach_reg ->
@@ -122,7 +122,7 @@ let alloc_fn fn =
 ;;
 
 let collect_all_vregs fn =
-  (Function.instrs_forward_fold @> Instr.regs_fold) fn
+  (Function.iter_instrs_forward @> Instr.iter_regs) fn
   |> F.Iter.map ~f:(fun (reg : VReg.t) -> reg.name, reg)
   |> Name.Table.of_iter
 ;;

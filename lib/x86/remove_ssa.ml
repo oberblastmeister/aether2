@@ -23,7 +23,7 @@ let remove_ssa (fn : _ Function.t) =
       let jump_with_no_args =
         Jump.map_block_calls jump ~f:(fun j -> { j with args = [] })
       in
-      let block_calls = Jump.block_calls_fold jump |> F.Iter.to_list in
+      let block_calls = Jump.iter_block_calls jump |> F.Iter.to_list in
       let get_data (j : _ Block_call.t) =
         let args = j.args in
         let to_block = Cfg.Graph.find_exn j.label graph in

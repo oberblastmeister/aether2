@@ -111,7 +111,7 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
 
 let legalize_block cx label (block : _ Block.t) =
   Cx.add_label cx (Entity.Name.to_dotted_string label);
-  Block.instrs_forward_fold block |> F.Iter.iter ~f:(legalize_instr cx)
+  Block.iter_instrs_forward block |> F.Iter.iter ~f:(legalize_instr cx)
 ;;
 
 let legalize_function (fn : _ Function.t) =

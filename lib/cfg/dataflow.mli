@@ -54,8 +54,8 @@ end
 
 val instr_to_block_transfer
   :  ?sexp_of_block:('b -> Sexp.t)
-  -> instrs_forward_fold:('i, 'b) F.Fold.t
-  -> instrs_backward_fold:('i, 'b) F.Fold.t
+  -> iter_instrs_forward:('i, 'b) F.Fold.t
+  -> iter_instrs_backward:('i, 'b) F.Fold.t
   -> ('i, 'd) Instr_transfer.t
   -> ('b, 'd) Block_transfer.t
 

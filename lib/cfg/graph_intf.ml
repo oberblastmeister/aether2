@@ -4,7 +4,7 @@ open Utils.Instr_types
 module type Block_gen = sig
   type 'a t
 
-  val jumps_fold : (Label.t, 'a t) F.Fold.t
+  val iter_jumps : (Label.t, 'a t) F.Fold.t
 end
 
 module type Gen_S = sig

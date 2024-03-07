@@ -96,7 +96,7 @@ let pretty_block cx (label : Label.t) (block : _ Block.t) =
 ;;
 
 let pretty_graph cx (graph : _ Graph.t) =
-  Cfg.Graph.Dfs.reverse_postorder ~jumps:Block.jumps_fold graph
+  Cfg.Graph.Dfs.reverse_postorder ~jumps:Block.iter_jumps graph
   |> Vec.to_list
   |> List.map ~f:(fun label ->
     let block = Cfg.Graph.find_exn label graph in
