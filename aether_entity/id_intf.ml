@@ -15,6 +15,7 @@ module type S' = sig
   val of_int : int -> t
   val to_int : t -> int
   val next : t -> t
+  val prev : t -> t
   val of_global_unique : unit -> t
 
   include Base.Comparable.S with type t := t
@@ -27,6 +28,7 @@ module type Intf = sig
   val of_int : int -> 'k t
   val to_int : 'k t -> int
   val next : 'k t -> 'k t
+  val prev : 'k t -> 'k t
   val of_global_unique : unit -> 'k t
 
   module type S = S' with type 'k t' := 'k t

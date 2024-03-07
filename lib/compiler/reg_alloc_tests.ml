@@ -54,14 +54,7 @@ let%test_module _ =
       Interference.add_node i b;
       Interference.add_node i c;
       Interference.add_node i d;
-      let allocation =
-        Greedy.run
-          ~precolored:(Entity.Map.create ())
-          ~interference:i
-          ~constraints:(Constraints.create ())
-        |> Result.map_error ~f:(fun _ -> "wrong")
-        |> Result.ok_or_failwith
-      in
+      let allocation = Greedy.run ~precolored:[] ~interference:i in
       print_s @@ [%sexp (allocation : Allocation.t)];
       ();
       [%expect
@@ -81,12 +74,7 @@ let%test_module _ =
       I.add_edge i b a;
       I.add_edge i b c;
       I.add_edge i b d;
-      let precolored = Entity.Map.create () in
-      let allocation =
-        Greedy.run ~precolored ~interference:i ~constraints:(Constraints.create ())
-        |> Result.map_error ~f:(fun _ -> "wrong")
-        |> Result.ok_or_failwith
-      in
+      let allocation = Greedy.run ~precolored:[] ~interference:i in
       print_s @@ [%sexp (allocation : Allocation.t)];
       [%expect
         {|
@@ -107,12 +95,7 @@ let%test_module _ =
       I.add_edge i b c;
       I.add_edge i b d;
       I.add_edge i a d;
-      let precolored = Entity.Map.create () in
-      let allocation =
-        Greedy.run ~precolored ~interference:i ~constraints:(Constraints.create ())
-        |> Result.map_error ~f:(fun _ -> "wrong")
-        |> Result.ok_or_failwith
-      in
+      let allocation = Greedy.run ~precolored:[] ~interference:i in
       print_s @@ [%sexp (allocation : Allocation.t)];
       [%expect
         {|

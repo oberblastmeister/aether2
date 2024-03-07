@@ -78,8 +78,7 @@ end
 module type Algorithm = sig
   val run
     :  dict:'r dict
-    -> precolored:(Name.t, 'r) Entity.Map.t
+    -> precolored:(Name.t * 'r) list
     -> interference:Interference.t
-    -> constraints:'r Constraints.t
-    -> 'r allocation Or_error.t
+    -> 'r allocation
 end

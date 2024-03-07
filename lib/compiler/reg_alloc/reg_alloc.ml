@@ -26,10 +26,9 @@ module Make (Config : Config) : sig
 
   module type Algorithm = sig
     val run
-      :  precolored:(Name.t, Register.t) Entity.Map.t
+      :  precolored:(Name.t * Register.t) list
       -> interference:Interference.t
-      -> constraints:Constraints.t
-      -> Allocation.t Or_error.t
+      -> Allocation.t
   end
 
   module Greedy : Algorithm
@@ -74,10 +73,9 @@ end = struct
 
   module type Algorithm = sig
     val run
-      :  precolored:(Name.t, Register.t) Entity.Map.t
+      :  precolored:(Name.t * Register.t) list
       -> interference:Interference.t
-      -> constraints:Constraints.t
-      -> Allocation.t Or_error.t
+      -> Allocation.t
   end
 
   module Make_algorithm (Algorithm : Types.Algorithm) : Algorithm = struct
