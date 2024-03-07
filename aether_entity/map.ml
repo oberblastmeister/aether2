@@ -50,7 +50,6 @@ let foldi t ~init ~f =
 ;;
 
 let iteri t = Container.iter ~fold:foldi t
-let to_iteri t k = iteri t ~f:k
 
 let fold t ~init ~f =
   OA.fold t.a ~init ~f:(fun z -> Option.value_map ~default:z ~f:(fun (_, v) -> f z v))

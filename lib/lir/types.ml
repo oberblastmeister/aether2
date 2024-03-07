@@ -26,7 +26,7 @@ module Expr = struct
     | Alloca _ -> todo ()
   ;;
 
-  let uses_fold i k = iter k i
+  let uses_fold i ~f = iter f i
 end
 
 module Instr = struct
@@ -45,13 +45,13 @@ module Instr = struct
     | Store _ -> i
   ;;
 
-  let defs_fold i k =
+  let defs_fold i ~f =
     match i with
-    | Assign { dst; _ } -> k dst
+    | Assign { dst; _ } -> f dst
     | Store _ -> ()
   ;;
 
-  let uses_fold i k = iter k i
+  let uses_fold i ~f = iter f i
   let to_some i = Some_instr.T (Instr i)
 end
 
@@ -66,12 +66,12 @@ module Control_instr = struct
 
   let map_uses i ~f = map f i
 
-  let block_calls_fold i k =
+  let block_calls_fold i ~f =
     match i with
-    | Jump j -> k j
+    | Jump j -> f j
     | CondJump (_, j1, j2) ->
-      k j1;
-      k j2
+      f j1;
+      f j2
     | Ret _ -> ()
   ;;
 
@@ -85,7 +85,7 @@ module Control_instr = struct
   ;;
 
   let to_some i = Some_instr.T (Control i)
-  let uses_fold i k = fold (fun () use -> k use) () i
+  let uses_fold i ~f = fold (fun () use -> f use) () i
 end
 
 module Block_args = struct
@@ -128,7 +128,7 @@ module Generic_instr = struct
   ;;
 
   let to_some i = Some_instr.T i
-  let uses_fold i k = fold i ~init:() ~f:(fun () u -> k u)
+  let uses_fold i ~f = fold i ~init:() ~f:(fun () u -> f u)
   let uses i = fold ~init:[] ~f:(Fn.flip List.cons) i
   let map_uses = map
 
@@ -140,18 +140,18 @@ module Generic_instr = struct
     | Control c -> Control c
   ;;
 
-  let defs_fold (type c) (i : (_, c) t) k =
+  let defs_fold (type c) (i : (_, c) t) ~f =
     match i with
-    | Block_args vs -> List.iter ~f:k vs
-    | Instr instr -> Instr.defs_fold instr k
+    | Block_args vs -> List.iter ~f vs
+    | Instr instr -> Instr.defs_fold instr ~f
     | Control _ -> ()
   ;;
 
   let defs i = F.Fold.reduce defs_fold F.Reduce.to_list_rev i
 
-  let block_calls_fold (type c) (i : (_, c) t) k =
+  let block_calls_fold (type c) (i : (_, c) t) ~f =
     match i with
-    | Control c -> Control_instr.block_calls_fold c k
+    | Control c -> Control_instr.block_calls_fold c ~f
     | _ -> ()
   ;;
 
@@ -207,12 +207,12 @@ module Block = struct
     f init (Block_args.to_some entry)
   ;;
 
-  let instrs_forward_fold block k =
-    fold_instrs_forward block ~init:() ~f:(fun () i -> k i)
+  let instrs_forward_fold block ~f =
+    fold_instrs_forward block ~init:() ~f:(fun () i -> f i)
   ;;
 
-  let instrs_backward_fold block k =
-    fold_instrs_backward block ~init:() ~f:(fun () i -> k i)
+  let instrs_backward_fold block ~f =
+    fold_instrs_backward block ~init:() ~f:(fun () i -> f i)
   ;;
 
   let jumps_fold (b : _ t) =
@@ -270,7 +270,7 @@ module Function = struct
   (* let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn *)
 
   let instrs_forward_fold fn =
-    F.Fold.(Cfg.Graph.to_iter @> Block.instrs_forward_fold) fn.graph
+    F.Fold.(Cfg.Graph.iter @> Block.instrs_forward_fold) fn.graph
   ;;
 
   let thaw fn =

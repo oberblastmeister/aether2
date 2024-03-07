@@ -47,7 +47,6 @@ module type Intf = sig
   val set : ('k, 'v) t -> key:'k -> data:'v -> to_int:('k -> int) -> unit
   val to_list : ('k, 'v) t -> ('k * 'v) list
   val iteri : ('k, 'v) t -> f:('k * 'v -> unit) -> unit
-  val to_iteri : ('k, 'v) t -> ('k * 'v) F.Iter.t
 
   module type S = S
 

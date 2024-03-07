@@ -39,7 +39,7 @@ let%test_module _ =
         Lir.(
           F.Fold.of_fn Function.graph
           @> F.Fold.of_fn Cfg.Graph.blocks
-          @> F.Core.Map.fold
+          @> Map.iter
           @> Block.instrs_forward_fold
           @> Some_instr.uses_fold)
       in

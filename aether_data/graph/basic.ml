@@ -6,13 +6,13 @@ module FC = Folds.Core_instances
 let t_of_double { all_nodes; succs; _ } = { all_nodes; succs }
 
 let of_map_generic ~iter map =
-  { succs = (fun n -> Map.find map n |> Option.value_map ~default:Iter.empty ~f:iter)
-  ; all_nodes = (fun k -> Map.iter_keys map ~f:k)
+  { succs = (fun n -> Map.find map n |> Option.value_map ~default:F.Iter.empty ~f:iter)
+  ; all_nodes = (fun ~f -> Map.iter_keys map ~f)
   }
 ;;
 
-let t_of_map_list node = of_map_generic node ~iter:F.Iter.of_list
-let t_of_map_set node = of_map_generic node ~iter:FC.Set.iter
+let t_of_map_list node = of_map_generic node ~iter:List.iter
+let t_of_map_set node = of_map_generic node ~iter:Set.iter
 
 let get_pred_map (type k h) (map : (k, h) Constructors.map) ({ succs; all_nodes } : _ t) =
   let module Map = (val map) in
@@ -33,7 +33,7 @@ let double_of_t
   let module Map = (val map) in
   let preds = get_pred_map (module Map) t in
   { succs
-  ; preds = (fun n -> Map.find preds n |> Option.value ~default:[] |> F.Iter.of_list)
+  ; preds = (fun n -> Map.find preds n |> Option.value ~default:[] |> List.iter)
   ; all_nodes
   }
 ;;

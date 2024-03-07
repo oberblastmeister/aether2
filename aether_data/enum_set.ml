@@ -12,10 +12,7 @@ let iter ~enum t ~f = Bitvec.iteri t ~f:(fun i b -> if b then f (enum.of_enum_ex
 let count = Bitvec.count
 
 let sexp_of_t_with ~enum t =
-  F.Iter.of_lab (iter ~enum t)
-  |> F.Iter.map ~f:enum.sexp_of
-  |> F.Iter.to_list
-  |> Sexp.List
+  iter ~enum t |> F.Iter.map ~f:enum.sexp_of |> F.Iter.to_list |> Sexp.List
 ;;
 
 module Make_enum (T : Enum.S) = struct

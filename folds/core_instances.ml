@@ -31,7 +31,7 @@ end
 module Hashtbl = struct
   let of_iter key i =
     let t = Hashtbl.create key in
-    i (fun (k, v) -> Hashtbl.set t ~key:k ~data:v);
+    i ~f:(fun (k, v) -> Hashtbl.set t ~key:k ~data:v);
     t
   ;;
 end

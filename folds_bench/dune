@@ -4,4 +4,10 @@
   (:standard -warn-error -A))
  (preprocess
   (pps ppx_jane ppx_accessor))
- (libraries core core_unix.command_unix core_bench folds))
+ (libraries
+  core
+  core_unix.command_unix
+  core_bench
+  containers-data
+  folds
+  aether_data))

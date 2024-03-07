@@ -15,7 +15,7 @@ type t = (Value.t, state) Entity.Map.t [@@deriving sexp_of]
 
 let create fn instr_of_value =
   let use_states = ValueMap.create () in
-  (Function.instrs_forward_fold @> Some_instr.uses_fold) fn (fun use ->
+  (Function.instrs_forward_fold @> Some_instr.uses_fold) fn ~f:(fun use ->
     ValueMap.set
       use_states
       ~key:use

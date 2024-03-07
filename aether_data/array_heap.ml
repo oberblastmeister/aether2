@@ -180,31 +180,27 @@ module Indexed = struct
 
   let invariant ~cmp t =
     [%test_eq: int] (OA.length t.values) (OA.length t.qp);
-    F.Iter.(
-      0 -- (OA.length t.values - 1)
-      |> filter ~f:(fun i -> OA.is_some t.values i)
-      |> iter ~f:(fun key ->
-        if not @@ OA.is_some t.qp key
-        then raise_s [%message "qp not some when values was some" (key : int)];
-        let heap_index = OA.get_some_exn t.qp key in
-        let heap_len = Vec.length t.pq in
-        if not (heap_index >= 0 && heap_index < Vec.length t.pq)
-        then
-          raise_s
-            [%message
-              "heap index was not in bounds"
-                (key : int)
-                (heap_index : int)
-                (heap_len : int)];
-        let stable_index = Vec.get t.pq heap_index in
-        if not (stable_index = key)
-        then
-          raise_s
-            [%message
-              "heap index to stable index was not correct"
-                (key : int)
-                (heap_index : int)
-                (stable_index : int)]));
+    F.Iter.(0 -- (OA.length t.values - 1))
+    |> F.Iter.filter ~f:(fun i -> OA.is_some t.values i)
+    |> F.Iter.iter ~f:(fun key ->
+      if not @@ OA.is_some t.qp key
+      then raise_s [%message "qp not some when values was some" (key : int)];
+      let heap_index = OA.get_some_exn t.qp key in
+      let heap_len = Vec.length t.pq in
+      if not (heap_index >= 0 && heap_index < Vec.length t.pq)
+      then
+        raise_s
+          [%message
+            "heap index was not in bounds" (key : int) (heap_index : int) (heap_len : int)];
+      let stable_index = Vec.get t.pq heap_index in
+      if not (stable_index = key)
+      then
+        raise_s
+          [%message
+            "heap index to stable index was not correct"
+              (key : int)
+              (heap_index : int)
+              (stable_index : int)]);
     heap_invariant ~cmp t
   ;;
 
@@ -290,7 +286,7 @@ module Indexed = struct
     let n = 1000 in
     let ipq = create () in
     Heap.invariant ipq;
-    let is = F.Iter.(0 -- n |> filter ~f:(fun i -> i mod 3 = 0)) in
+    let is = F.Iter.(0 -- n |> F.Iter.filter ~f:(fun i -> i mod 3 = 0)) in
     F.Iter.(
       is
       |> iter ~f:(fun i ->

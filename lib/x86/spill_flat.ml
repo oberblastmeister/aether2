@@ -60,7 +60,7 @@ let lower_minstr cx minstr =
     |> F.Iter.iter ~f:(fun reg -> Set.add set reg);
     Enum_set.negate set;
     Set.remove set R11;
-    (fun f -> Set.iter set ~f) |> Iter.to_list
+    Set.iter set |> F.Iter.to_list
   in
   let spilled =
     Flat.Instr.iter_regs minstr
@@ -82,9 +82,7 @@ let lower_minstr cx minstr =
   let victims = List.map name_and_victim ~f:snd in
   (* spill victims *)
   List.iter victims ~f:(Cx.spill_reg cx);
-  let victim_of_spilled =
-    F.Iter.of_list name_and_victim |> FC.Hashtbl.of_iter (module Name)
-  in
+  let victim_of_spilled = List.iter name_and_victim |> FC.Hashtbl.of_iter (module Name) in
   (* move spilled uses to the victims *)
   Flat.Instr.iter_uses minstr
   |> F.Iter.filter_map ~f:AReg.spilled_val

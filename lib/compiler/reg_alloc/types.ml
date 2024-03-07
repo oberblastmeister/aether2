@@ -71,7 +71,7 @@ module Constraints = struct
   ;;
 
   let iter_counts t =
-    Entity.Map.to_iteri t |> F.Iter.map ~f:(Tuple2.map_snd ~f:Data.Enum_set.count)
+    Entity.Map.iteri t |> F.Iter.map ~f:(Tuple2.map_snd ~f:Data.Enum_set.count)
   ;;
 end
 

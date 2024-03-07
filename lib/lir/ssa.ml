@@ -53,7 +53,7 @@ let check_all_temps_unique (fn : Value.t Function.t) =
   List.iter fn.params ~f:(check_define None None);
   let fold =
     F.Fold.(
-      Cfg.Graph.to_iteri @> ix (dup Block.instrs_forward_fold) @> ix2 Some_instr.defs_fold)
+      Cfg.Graph.iteri @> ix (dup Block.instrs_forward_fold) @> ix2 Some_instr.defs_fold)
   in
   F.Fold.iter
     fold
@@ -198,7 +198,7 @@ let get_phis (graph : Vir.Graph.t) =
     |> Map.of_alist_exn (module Label)
   in
   let fold =
-    F.Fold.(Cfg.Graph.to_iteri @> ix (of_fn Block.exit @> Control_instr.block_calls_fold))
+    F.Fold.(Cfg.Graph.iteri @> ix (of_fn Block.exit @> Control_instr.block_calls_fold))
   in
   let phis_of_block =
     F.Fold.fold
@@ -315,7 +315,7 @@ let convert_ssa_function (fn : Vir.Function.t) =
   let fn = convert_naive_ssa fn in
   let phis = get_phis fn.graph in
   let subst, simplified_phis =
-    F.Core.Map.fold @> F.Core.List.fold
+    Map.iter @> List.iter
     |> (fun f -> F.Fold.reduce f F.Reduce.to_list_rev phis)
     |> simplify_phis
   in

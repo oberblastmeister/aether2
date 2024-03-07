@@ -60,7 +60,7 @@ let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.t
 (* TODO: multiple defs in the same instruction interfere with each other *)
 let add_block_edges ~interference ~precolored block live_out =
   let live_out = ref live_out in
-  Block.instrs_backward_fold block (fun instr ->
+  Block.instrs_backward_fold block ~f:(fun instr ->
     let defs = Instr.defs_fold instr |> F.Iter.to_list in
     let defs =
       match instr with
@@ -78,7 +78,7 @@ let add_block_edges ~interference ~precolored block live_out =
       Interference.add_node interference (Precolored.get_name precolored mach_reg);
       ());
     (* add interference edges *)
-    FC.Set.iter !live_out
+    Set.iter !live_out
     |> F.Iter.filter ~f:(fun live -> is_edge live)
     |> F.Iter.iter ~f:(fun live ->
       Instr.defs_fold instr
@@ -107,7 +107,7 @@ let construct_fn (fn : _ Function.t) =
   let _, live_out_facts = Dataflow.Liveness.run fn in
   let interference = Interference.create () in
   let precolored = Precolored.create () in
-  (Cfg.Graph.to_iteri fn.graph) (fun (label, block) ->
+  Cfg.Graph.iteri fn.graph ~f:(fun (label, block) ->
     let live_out = Cfg.Dataflow.Fact_base.find_exn live_out_facts label in
     add_block_edges ~interference ~precolored block live_out;
     ());

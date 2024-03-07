@@ -21,7 +21,7 @@ let set label block graph =
   map_blocks graph ~f:(fun blocks -> Map.set ~key:label ~data:block blocks)
 ;;
 
-let iter_labels graph f = Map.iter_keys graph.blocks ~f
+let iter_labels graph ~f = Map.iter_keys graph.blocks ~f
 
 let mapi graph ~f =
   map_blocks graph ~f:(Map.mapi ~f:(fun ~key:label ~data:block -> f (label, block)))
@@ -37,8 +37,8 @@ let fold graph ~init ~f =
   Map.fold graph.blocks ~init ~f:(fun ~key:_ ~data:block acc -> f acc block)
 ;;
 
-let to_iteri graph f = foldi graph ~init:() ~f:(fun () x -> f x)
-let to_iter graph f = fold graph ~init:() ~f:(fun () x -> f x)
+let iteri graph ~f = foldi graph ~init:() ~f:(fun () x -> f x)
+let iter graph ~f = fold graph ~init:() ~f:(fun () x -> f x)
 let add_exn graph label block = map_blocks graph ~f:(Map.add_exn ~key:label ~data:block)
 let set_blocks_alist blocks graph = { graph with blocks = Label.Map.of_alist_exn blocks }
 
@@ -50,7 +50,7 @@ let validate graph =
 
 let to_graph ~jumps graph =
   { Data.Graph.succs = (fun label -> jumps (Map.find_exn graph.blocks label))
-  ; all_nodes = (fun k -> Map.iter_keys graph.blocks ~f:k)
+  ; all_nodes = (fun ~f -> Map.iter_keys graph.blocks ~f)
   }
 ;;
 
@@ -94,7 +94,7 @@ let get_idoms ~jumps (graph : _ t) =
   Dominators.get_idoms ~start:graph.entry @@ to_double_graph ~jumps graph
 ;;
 
-let fold_labels labels graph k =
+let iter_on_labels labels graph ~f:k =
   Vec.iter labels ~f:(fun label -> k (label, get_block_exn graph label))
 ;;
 

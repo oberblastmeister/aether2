@@ -44,9 +44,9 @@ module type Intf = sig
   val set_blocks_alist : (Label.t * 'b) list -> _ t -> 'b t
   val foldi : 'b t -> init:'a -> f:('a -> Label.t * 'b -> 'a) -> 'a
   val iter_labels : 'b t -> Label.t F.Iter.t
-  val to_iteri : 'b t -> (Label.t * 'b) F.Iter.t
+  val iteri : 'b t -> (Label.t * 'b) F.Iter.t
   val fold : 'b t -> init:'a -> f:('a -> 'b -> 'a) -> 'a
-  val to_iter : 'b t -> 'b F.Iter.t
+  val iter : 'b t -> 'b F.Iter.t
   val add_exn : 'b t -> Label.t -> 'b -> 'b t
   val validate : 'b t -> unit
 
@@ -58,7 +58,7 @@ module type Intf = sig
   val map : 'a t -> f:('a -> 'b) -> 'b t
   val mapi : 'a t -> f:(Label.t * 'a -> 'b) -> 'b t
   val map_simple_order : 'b t -> f:(Label.t * 'b -> 'b) -> 'b t
-  val fold_labels : (Label.t, [> read ]) Vec.t -> (Label.t * 'b, 'b t) F.Fold.t
+  val iter_on_labels : (Label.t, [> read ]) Vec.t -> (Label.t * 'b, 'b t) F.Fold.t
 
   module Dfs : sig
     val reverse_postorder

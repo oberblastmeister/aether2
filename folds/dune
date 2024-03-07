@@ -5,4 +5,4 @@
   (pps ppx_inline_test))
  (flags
   (:standard -warn-error -A))
- (libraries core core_unix core_bench ppx_inline_test iter))
+ (libraries core core_unix core_bench ppx_inline_test))

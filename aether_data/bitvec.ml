@@ -216,7 +216,6 @@ let iteri bv ~f =
 ;;
 
 let iter bv ~f = iteri bv ~f:(fun _ b -> f b)
-let to_iter bv k = iter bv ~f:k
 
 let count bv =
   if bv.size = 0
@@ -234,25 +233,6 @@ let init size ~f : t =
   done;
   v
 ;;
-
-(* let concat bvs = *)
-(* Interpret these as indices. *)
-(* let of_list l =
-   let size =
-   match l with
-   | [] -> 0
-   | _ -> List.fold_left ~f:max ~init:0 l + 1
-   in
-   let bv = create ~size false in
-   List.iter ~f:(fun i -> set bv i) l;
-   bv
-   ;; *)
-
-(* let to_list bv =
-   let l = ref [] in
-   iteri bv ~f:(fun i b -> if b then l := i :: !l);
-   !l
-   ;; *)
 
 let of_array a =
   let bv = create ~size:(Array.length a) false in
@@ -310,7 +290,7 @@ let concat bvs =
   bv
 ;;
 
-let fold bv ~init ~f = to_iter bv |> F.Iter.fold ~init ~f
+let fold bv ~init ~f = iter bv |> F.Iter.fold ~init ~f
 
 module C = struct
   type elt = bool

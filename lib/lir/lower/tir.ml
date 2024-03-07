@@ -25,10 +25,10 @@ module Value = struct
     | I { dst; _ } -> dst.ty
   ;;
 
-  let rec uses_fold t k =
+  let rec uses_fold t ~f =
     match t with
-    | V v -> k v
-    | I { expr; _ } -> (Lir.Expr.uses_fold @> uses_fold) expr k
+    | V v -> f v
+    | I { expr; _ } -> (Lir.Expr.uses_fold @> uses_fold) expr ~f
   ;;
 end
 

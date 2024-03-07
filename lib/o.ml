@@ -1,3 +1,7 @@
+module Core = struct
+  include Core
+end
+
 include Core
 include Folds.O
 module F = Folds

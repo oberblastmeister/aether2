@@ -22,7 +22,6 @@ val negate_self : t -> unit
 val negate : t -> t
 val iteri : t -> f:(int -> bool -> unit) -> unit
 val iter : t -> f:(bool -> unit) -> unit
-val to_iter : t -> bool F.Iter.t
 val init : int -> f:(int -> bool) -> t
 val of_array : bool array -> t
 val to_array : t -> bool array

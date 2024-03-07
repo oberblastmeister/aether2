@@ -146,7 +146,7 @@ module Mem = struct
     }
   [@@deriving sexp_of, map, fold, iter]
 
-  let iter_regs i k = iter k i
+  let iter_regs i ~f:k = iter k i
   let map_addr t ~f = { t with addr = f t.addr }
 end
 
@@ -192,6 +192,15 @@ end
 
 module Cmp_op = struct
   type t = Gt [@@deriving equal, compare, sexp]
+end
+
+module Stack_instr = struct
+  type t =
+    | ReserveEnd of { size : int32 }
+    | ReserveLocal of
+        { name : Name.t
+        ; size : int32
+        }
 end
 
 module VInstr = struct

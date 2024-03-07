@@ -107,7 +107,7 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
       let dst = precolored (fresh_value cx arg) reg in
       Cx.add cx (MInstr.Mov { s = ty_to_size arg.ty; dst; src = Reg (vreg arg) });
       ()); *)
-    F.Iter.of_list stack_args
+    List.iter stack_args
     |> F.Iter.enumerate
     |> F.Iter.iter ~f:(fun (i, arg) ->
       Cx.add cx

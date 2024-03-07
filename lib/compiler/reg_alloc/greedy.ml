@@ -49,13 +49,11 @@ let simplicial_elimination_ordering ~interference ~precolored =
   in
   Map.iter_keys precolored ~f:(fun node -> increase_neighbor_weights node);
   (* |> F.Iter.iter ~f:(fun (node, _) -> increase_neighbor_weights node); *)
-  F.Iter.unfoldr
-    (fun _ ->
-      let open Option.Let_syntax in
-      let%bind node, _weight = IntHeap.pop heap in
-      increase_neighbor_weights node;
-      Some (node, ()))
-    ()
+  F.Iter.unfoldr ~init:() ~f:(fun () ->
+    let open Option.Let_syntax in
+    let%bind node, _weight = IntHeap.pop heap in
+    increase_neighbor_weights node;
+    Some (node, ()))
 ;;
 
 let color_with ~interference ~precolored ~ordering =
@@ -70,9 +68,9 @@ let color_with ~interference ~precolored ~ordering =
   |> F.Iter.iter ~f:(fun name ->
     let neighbor_colors =
       Interference.neighbors interference name
-      |> F.Iter.flat_map ~f:(fun neighbor ->
+      |> F.Iter.concat_map ~f:(fun neighbor ->
         (* the neighbor may not have been colored yet *)
-        Name.Table.find color_of_name neighbor |> FC.Option.fold)
+        Name.Table.find color_of_name neighbor |> Option.iter)
       |> F.Iter.to_array
     in
     Array.sort neighbor_colors ~compare:Color.compare;
@@ -114,14 +112,14 @@ let alloc_colors ~dict ~precolored ~interference =
     let color = Name.Table.find_exn color_of_name name in
     ColorMap.set alloc_of_color ~key:color ~data:(Alloc_reg.inreg reg);
     todo ());
-  F.Iter.(
+  F.Iter.Infix.(
     Color.to_int Color.lowest -- Color.to_int max_color
-    |> iter ~f:(fun color ->
+    |> F.Iter.iter ~f:(fun color ->
       let color = Color.of_int color in
       let reg =
         F.Iter.(
-          of_list config.register_order
-          |> F.Iter.find_pred ~f:(fun reg ->
+          List.iter config.register_order
+          |> F.Iter.find ~f:(fun reg ->
             let not_used = not (Data.Enum_set.mem ~enum used_registers reg) in
             not_used))
       in
@@ -141,7 +139,7 @@ let run ~dict ~precolored ~interference =
     alloc_colors ~dict ~precolored ~interference
   in
   let alloc_of_name =
-    Entity.Map.to_iteri color_of_name
+    Entity.Map.iteri color_of_name
     |> F.Iter.map ~f:(fun (name, color) ->
       let alloc = ColorMap.find_exn alloc_of_color color in
       name, alloc)

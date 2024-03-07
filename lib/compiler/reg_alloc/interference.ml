@@ -17,6 +17,6 @@ let add_edge g n1 n2 =
   add_directed_edge g n2 n1
 ;;
 
-let neighbors g n = Name.Table.find g n |> FC.Option.fold @> FC.Set.fold
+let neighbors g n = Name.Table.find g n |> Option.iter @> Set.iter
 let size = Entity.Map.size
-let nodes t = Entity.Map.to_iteri t |> F.Iter.map ~f:fst
+let nodes t = Entity.Map.iteri t |> F.Iter.map ~f:fst

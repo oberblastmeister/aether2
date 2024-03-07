@@ -1,7 +1,7 @@
 open! O
 module Lir = Types
 
-let blocks_fold graph = (Cfg.Graph.fold_labels (Lir.Graph.Dfs.preorder graph)) graph
+let blocks_fold graph = (Cfg.Graph.iter_on_labels (Lir.Graph.Dfs.preorder graph)) graph
 let instr_fold fn = (blocks_fold @> F.Fold.mapped snd @> Lir.Block.instrs_forward_fold) fn
 
 module Context = struct

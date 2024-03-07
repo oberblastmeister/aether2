@@ -11,7 +11,7 @@ let remove_ssa (fn : _ Function.t) =
   let graph = fn.graph in
   (* we need this because we are removing the block parameters as we go, so first save them here *)
   let params_of_label =
-    Cfg.Graph.to_iteri graph
+    Cfg.Graph.iteri graph
     |> F.Iter.map ~f:(fun (label, block) ->
       let params = Block.block_args_exn block in
       label, params)

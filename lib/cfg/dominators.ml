@@ -11,7 +11,7 @@ end
 module Frontier = struct
   type t = (Label.t, Label.t Hash_set.t) Entity.Map.t [@@deriving sexp_of]
 
-  let find (t : t) label = (FC.Option.fold @> FC.Hash_set.fold) (Table.find t label)
+  let find (t : t) label = (Option.iter @> Hash_set.iter) (Table.find t label)
 end
 
 let get_idoms ?node_length ~start (graph : Label.t Data.Graph.double) =
@@ -102,7 +102,7 @@ let frontier_of_idoms idoms (graph : Label.t Data.Graph.double) =
   in
   graph.all_nodes
   |> F.Iter.iter ~f:(fun node ->
-    let preds = graph.preds node |> Iter.length in
+    let preds = graph.preds node |> F.Iter.length in
     if is_join_point preds
     then
       F.Iter.iter (graph.preds node) ~f:(fun pred ->

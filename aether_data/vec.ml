@@ -190,8 +190,8 @@ module Raw = struct
     go (t.size - 1)
   ;;
 
-  let to_iter t f = iter t ~f
-  let to_iter_rev t f = iter t ~f
+  let to_iter t ~f = iter t ~f
+  let to_iter_rev t ~f = iter t ~f
   let length t = t.size
 
   let iteri t ~f =

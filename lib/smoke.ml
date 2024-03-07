@@ -130,7 +130,7 @@ let lower_address ~cx ~can_use_scratch address =
   match operand with
   | Operand.Reg reg when Cx.is_spilled cx reg -> Operand.stack_local reg.name
   | Operand.Mem address
-    when Address.regs_fold address |> F.Iter.exists ~f:(Cx.is_spilled cx) ->
+    when Address.regs_fold address |> F.Iter.find ~f:(Cx.is_spilled cx) ->
     let stack_slot = Cx.fresh_name cx "spill_address" |> Address.stack_local in
     let address_of_address =
       apply_allocation_address ~cx size address |> Option.value_exn

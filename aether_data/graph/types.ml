@@ -5,11 +5,11 @@ type 'v graph_fold = ('v, 'v) F.Fold.t
 
 type 'n t =
   { succs : 'n graph_fold
-  ; all_nodes : 'n Iter.t
+  ; all_nodes : 'n F.Iter.t
   }
 
 type 'n double =
   { succs : 'n graph_fold
   ; preds : 'n graph_fold
-  ; all_nodes : 'n Iter.t
+  ; all_nodes : 'n F.Iter.t
   }

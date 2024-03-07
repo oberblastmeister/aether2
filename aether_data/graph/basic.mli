@@ -2,7 +2,7 @@ open Core
 open Types
 
 val t_of_double : 'a double -> 'a t
-val of_map_generic : iter:('a -> 'b Iter.t) -> ('b, 'a, 'c) Map.t -> 'b t
+val of_map_generic : iter:('a -> 'b F.Iter.t) -> ('b, 'a, 'c) Map.t -> 'b t
 val t_of_map_list : ('a, 'a list, 'b) Map.t -> 'a t
 val t_of_map_set : ('a, ('a, 'b) Set.t, 'c) Map.t -> 'a t
 
