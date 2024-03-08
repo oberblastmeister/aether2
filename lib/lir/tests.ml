@@ -185,7 +185,8 @@ let%test_module _ =
       [%expect
         {|
         ((functions
-          (((graph
+          (((name pow)
+            (graph
              ((entry start.0)
               (blocks
                ((body.3
@@ -231,25 +232,64 @@ let%test_module _ =
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
       [%expect
         {|
-        ((Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
+        ((Label pow) (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
          (Instr (Mov (dst (Reg (b RAX))) (src (Reg RDI))))
-         (Instr (Mov (dst (Reg (e RDI))) (src (Reg RSI)))) (Label start.0)
+         (Instr (Mov (dst (Reg (e RDI))) (src (Reg RSI)))) (Label .Lstart.0)
          (Instr (MovAbs (dst (Reg (r RDI))) (imm 1)))
          (Instr (Mov (dst (Reg (e RDX))) (src (Reg (e RDI)))))
-         (Instr (Jmp (src loop.1))) (Label loop.1)
+         (Instr (Jmp (src .Lloop.1))) (Label .Lloop.1)
          (Instr (Cmp (src1 (Reg (e RDX))) (src2 (Imm (Int 0)))))
          (Instr (Set (cond A) (dst (Reg (f RCX)))))
          (Instr (Test (src1 (Reg (f RCX))) (src2 (Reg (f RCX)))))
-         (Instr (J (cond NE) (src done.2))) (Instr (Jmp (src body.3))) (Label body.3)
-         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e RDX)))))
+         (Instr (J (cond NE) (src .Ldone.2))) (Instr (Jmp (src .Lbody.3)))
+         (Label .Lbody.3) (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e RDX)))))
          (Instr (Add (dst (Reg (e RSI))) (src (Imm (Int 1)))))
          (Instr (Mov (dst (Reg (r R8))) (src (Reg (r RDI)))))
          (Instr (Add (dst (Reg (r R8))) (src (Reg (b RAX)))))
          (Instr (Mov (dst (Reg (e RDX))) (src (Reg (e RSI)))))
          (Instr (Mov (dst (Reg (r RDI))) (src (Reg (r R8)))))
-         (Instr (Jmp (src loop.1))) (Label done.2)
+         (Instr (Jmp (src .Lloop.1))) (Label .Ldone.2)
          (Instr (Mov (dst (Reg RAX)) (src (Reg (r RDI)))))
-         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))) |}]
+         (Instr (Add (dst (Reg RSP)) (src (Imm (Int 0))))) (Instr Ret)) |}]
+    ;;
+
+    let%expect_test "print" =
+      let program =
+        Lazy.force loop_lir
+        |> Ssa.convert_ssa
+        |> Lower.run
+        |> Lir_x86.lower
+        |> X86.Reg_alloc.run
+        |> X86.Print.run
+      in
+      print_string program;
+      [%expect {|
+        pow:
+        	subq	rsp, 0
+        	movq	rax, rdi
+        	movq	rdi, rsi
+        .Lstart.0:
+        	movabsq	rdi, 1
+        	movq	rdx, rdi
+        	jmp .Lloop.1
+        .Lloop.1:
+        	cmpq	rdx, 0
+        	seta	rcx
+        	testq	rcx, rcx
+        	jne .Ldone.2
+        	jmp .Lbody.3
+        .Lbody.3:
+        	movq	rsi, rdx
+        	addq	rsi, 1
+        	movq	r8, rdi
+        	addq	r8, rax
+        	movq	rdx, rsi
+        	movq	rdi, r8
+        	jmp .Lloop.1
+        .Ldone.2:
+        	movq	rax, rdi
+        	addq	rsp, 0
+        	ret |}]
     ;;
   end)
 ;;
@@ -328,26 +368,69 @@ let%test_module _ =
         |> X86.Reg_alloc.run
       in
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
-      [%expect {|
-        ((Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
+      [%expect
+        {|
+        ((Label if) (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
          (Instr (Mov (dst (Reg (x RAX))) (src (Reg RDI))))
-         (Instr (Mov (dst (Reg (y RDX))) (src (Reg RSI)))) (Label start.0)
+         (Instr (Mov (dst (Reg (y RDX))) (src (Reg RSI)))) (Label .Lstart.0)
          (Instr (Cmp (src1 (Reg (x RAX))) (src2 (Imm (Int 9)))))
          (Instr (Set (cond A) (dst (Reg (f RDI)))))
          (Instr (Test (src1 (Reg (f RDI))) (src2 (Reg (f RDI)))))
-         (Instr (J (cond NE) (src then.4))) (Instr (Jmp (src else.5))) (Label else.5)
-         (Instr (Mov (dst (Reg (a RSI))) (src (Reg (x RAX)))))
+         (Instr (J (cond NE) (src .Lthen.4))) (Instr (Jmp (src .Lelse.5)))
+         (Label .Lelse.5) (Instr (Mov (dst (Reg (a RSI))) (src (Reg (x RAX)))))
          (Instr (Add (dst (Reg (a RSI))) (src (Reg (y RDX)))))
          (Instr (Mov (dst (Reg (r RSI))) (src (Imm (Int 5)))))
          (Instr (Add (dst (Reg (r RSI))) (src (Reg (a RSI)))))
          (Instr (Mov (dst (Reg (r RAX))) (src (Reg (r RSI)))))
-         (Instr (Jmp (src done.2))) (Label then.4)
+         (Instr (Jmp (src .Ldone.2))) (Label .Lthen.4)
          (Instr (Mov (dst (Reg (r RSI))) (src (Imm (Int 3)))))
          (Instr (Add (dst (Reg (r RSI))) (src (Reg (x RAX)))))
          (Instr (Mov (dst (Reg (r RAX))) (src (Reg (r RSI)))))
-         (Instr (Jmp (src done.2))) (Label done.2)
+         (Instr (Jmp (src .Ldone.2))) (Label .Ldone.2)
          (Instr (Mov (dst (Reg RAX)) (src (Reg (r RAX)))))
-         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))) |}]
+         (Instr (Add (dst (Reg RSP)) (src (Imm (Int 0))))) (Instr Ret)) |}]
     ;;
+
+    let%expect_test "print" =
+      let program =
+        Lazy.force if_lir
+        |> Ssa.convert_ssa
+        |> Lower.run
+        |> Lir_x86.lower
+        |> X86.Reg_alloc.run
+        |> X86.Print.run
+      in
+      print_string program;
+      [%expect
+        {|
+        if:
+        	subq	rsp, 0
+        	movq	rax, rdi
+        	movq	rdx, rsi
+        .Lstart.0:
+        	cmpq	rax, 9
+        	seta	rdi
+        	testq	rdi, rdi
+        	jne .Lthen.4
+        	jmp .Lelse.5
+        .Lelse.5:
+        	movq	rsi, rax
+        	addq	rsi, rdx
+        	movq	rsi, 5
+        	addq	rsi, rsi
+        	movq	rax, rsi
+        	jmp .Ldone.2
+        .Lthen.4:
+        	movq	rsi, 3
+        	addq	rsi, rax
+        	movq	rax, rsi
+        	jmp .Ldone.2
+        .Ldone.2:
+        	movq	rax, rax
+        	addq	rsp, 0
+        	ret |}]
+    ;;
+
+    ()
   end)
 ;;

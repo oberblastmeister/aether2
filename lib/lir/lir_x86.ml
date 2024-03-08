@@ -193,7 +193,8 @@ let lower_function (fn : Tir.Function.t) =
       vreg value, X86.MReg.create (value_size value) mach_reg)
   in
   let stack_params = List.map stack_params ~f:vreg in
-  { X86.Function.graph
+  { name = fn.name
+  ; X86.Function.graph
   ; caller_saved = X86.Mach_reg.caller_saved (* ; params = *)
   ; params
   ; stack_params

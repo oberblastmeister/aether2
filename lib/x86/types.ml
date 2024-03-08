@@ -111,6 +111,10 @@ end
 module Operand = struct
   include Operand
 
+  (* let type_of o = match o with
+  | Reg _ -> _
+  | Imm _ ->  *)
+
   let imm i = Imm (Imm.Int i)
   let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
   let stack_local s name = Operand.mem s (Address.stack_local name)

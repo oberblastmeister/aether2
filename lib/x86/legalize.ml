@@ -42,6 +42,8 @@ let legalize_vinstr cx instr =
   | _ -> ()
 ;;
 
+let string_of_label label = ".L" ^ Entity.Name.to_dotted_string label
+
 let legalize_instr cx (instr : AReg.t Instr.t) =
   let open Types_basic.Instr in
   let force_register ~size o =
@@ -78,12 +80,17 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
     let src2 = legal_mem dst src2 in
     dst, src2
   in
+  let flip_src src1 src2 =
+    match src1, src2 with
+    | Operand.Imm _, _ -> src2, src1
+    | _ -> src1, src2
+  in
   (match instr with
    | Instr.Virt instr -> legalize_vinstr cx instr
-   | Jump (Jump j) -> Cx.add cx @@ Jmp { src = Entity.Name.to_dotted_string j.label }
+   | Jump (Jump j) -> Cx.add cx @@ Jmp { src = string_of_label j.label }
    | Jump (CondJump { cond; j1; j2 }) ->
-     Cx.add cx @@ J { cond; src = Entity.Name.to_dotted_string j1.label };
-     Cx.add cx @@ Jmp { src = Entity.Name.to_dotted_string j2.label };
+     Cx.add cx @@ J { cond; src = string_of_label j1.label };
+     Cx.add cx @@ Jmp { src = string_of_label j2.label };
      ()
    | Jump (Ret (Some src)) ->
      Cx.add cx @@ Mov { dst = Reg (AReg.create Q RAX); src = to_op src }
@@ -96,9 +103,11 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      Cx.add cx @@ Mov { dst = to_op dst; src = to_op src }
    | Cmp { src1; src2; _ } ->
      let src2 = legal_mem src1 src2 in
+     let src1, src2 = flip_src src1 src2 in
      Cx.add cx @@ Cmp { src1 = to_op src1; src2 = to_op src2 }
    | Test { src1; src2; _ } ->
      let src2 = legal_mem src1 src2 in
+     let src1, src2 = flip_src src1 src2 in
      Cx.add cx @@ Test { src1 = to_op src1; src2 = to_op src2 }
    | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst = to_op dst; imm }
    | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst = to_op dst }
@@ -107,7 +116,7 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
 ;;
 
 let legalize_block cx label (block : _ Block.t) =
-  Cx.add_label cx (Entity.Name.to_dotted_string label);
+  Cx.add_label cx (string_of_label label);
   Block.iter_instrs_forward block |> F.Iter.iter ~f:(legalize_instr cx)
 ;;
 

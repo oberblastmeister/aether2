@@ -1,14 +1,14 @@
 open O
 open Types
 
-(* type context = { buffer : Buffer.t }
+type context = Buffer.t
 
 module Cx = struct
-  let add cx s = Buffer.add_string cx.buffer s
+  let add cx s = Buffer.add_string cx s
   let space cx = add cx " "
 end
 
-let string_of_size (s : Size.t) =
+let suffix_of_size (s : Size.t) =
   match s with
   | Q -> "q"
   | L -> "l"
@@ -16,7 +16,7 @@ let string_of_size (s : Size.t) =
   | B -> "b"
 ;;
 
-let print_size cx s = Cx.add cx @@ string_of_size s
+let print_size cx s = Cx.add cx @@ suffix_of_size s
 
 let string_of_mach_reg (s : Size.t) (reg : Mach_reg.t) =
   match s with
@@ -39,6 +39,15 @@ let string_of_mach_reg (s : Size.t) (reg : Mach_reg.t) =
      | R14 -> "r14"
      | R15 -> "r15")
   | _ -> todo ()
+;;
+
+let string_of_cond (cond : Cond.t) =
+  match cond with
+  | E -> "e"
+  | NE -> "ne"
+  | B -> "b"
+  | BE -> "be"
+  | A -> "a"
 ;;
 
 let print_mreg cx (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg mreg.s mreg.reg
@@ -109,22 +118,52 @@ let print_instr cx name s =
   ()
 ;;
 
-let print_minstr cx (instr : MReg.t Instr.t) =
-  match instr with
-  | NoOp -> ()
-  | Add {  dst; src2; _ } ->
-    print_instr cx "add" s;
-    print_operands cx [ dst; src2 ]
-  | Mov { s; dst; src } ->
-    print_instr cx "mov" s;
-    print_operands cx [ dst; src ]
-  | MovAbs { dst; imm } -> ()
-  | _ -> raise_s [%message "could print instr" (instr : MReg.t Instr.t)]
+let op = print_operand
+
+let suffix (op : _ Flat.Op.t) =
+  match op with
+  | Imm _ -> ""
+  | Mem { size; _ } -> suffix_of_size size
+  | Reg { MReg.s; _ } -> suffix_of_size s
 ;;
 
-(* print_mreg dst;
-   print_mreg src2; *)
+let i1 b s x = bprintf b "\t%s\t%a" s op x
+let i2_s cx s x y = bprintf cx "\t%s%s\t%a, %a" s (suffix x) op x op y
 
-(* Cx.add cx *)
+let print_instr b (instr : MReg.t Flat.Instr.t) =
+  match instr with
+  | Add { dst; src } -> i2_s b "add" dst src
+  | Sub { dst; src } -> i2_s b "sub" dst src
+  | Mov { dst; src } -> i2_s b "mov" dst src
+  | Cmp { src1; src2 } -> i2_s b "cmp" src1 src2
+  | Test { src1; src2 } -> i2_s b "test" src1 src2
+  | Set { cond; dst } -> i1 b ("set" ^ string_of_cond cond) dst
+  | J { cond; src } -> bprintf b "\t%s %s" ("j" ^ string_of_cond cond) src
+  | Jmp { src } -> bprintf b "\tjmp %s" src
+  | MovAbs { dst; imm } ->
+    bprintf
+      b
+      "\t%s%s\t%a, %a"
+      "movabs"
+      (suffix dst)
+      op
+      dst
+      (fun b i -> Buffer.add_string b (Int64.to_string_hum i))
+      imm
+  | Ret -> bprintf b "\tret"
+  | _ -> raise_s [%message "could not print instr" (instr : MReg.t Flat.Instr.t)]
+;;
 
-let print _ = todo () *)
+let print_line b line =
+  (match line with
+   | Flat.Line.Instr instr -> print_instr b instr
+   | Label l -> bprintf b "%s:" l
+   | Comment s -> bprintf b "# %s" s);
+  Buffer.add_char b '\n'
+;;
+
+let run program =
+  let buffer = Buffer.create 1000 in
+  Vec.iter program ~f:(fun line -> print_line buffer line);
+  Buffer.contents buffer
+;;

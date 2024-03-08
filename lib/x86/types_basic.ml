@@ -334,7 +334,8 @@ end
 
 module Function = struct
   type 'r t =
-    { graph : 'r Graph.t
+    { name : string
+    ; graph : 'r Graph.t
     ; params : ('r * MReg.t) list
     ; stack_params : 'r list
     ; unique_name : Name.Id.t

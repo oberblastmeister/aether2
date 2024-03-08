@@ -276,10 +276,11 @@ let run_function fn =
   (* print_s [%message "lowered" (fn : MReg.t Function.t)]; *)
   let flat = Resolve_stack.resolve_function stack_layout flat in
   let prologue = create_prologue stack_layout in
-  let epilogue = create_prologue stack_layout in
+  let epilogue = create_epilogue stack_layout in
   let flat' =
     Vec.create ~size:(List.length prologue + Vec.length flat + List.length epilogue) ()
   in
+  Vec.push flat' (Flat.Line.Label fn.name);
   List.iter prologue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
   Vec.append_into ~into:flat' flat;
   List.iter epilogue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
