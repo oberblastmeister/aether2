@@ -259,6 +259,7 @@ let create_epilogue stack_layout =
   ]
 ;;
 
+(* TODO: save and restore callee saved registers that were used by the register allocator *)
 let run_function fn =
   (* print_s [%message (fn : VReg.t Function.t)]; *)
   let allocation = alloc_fn fn in
@@ -285,8 +286,6 @@ let run_function fn =
   Vec.shrink_to_fit flat';
   Vec.freeze flat'
 ;;
-
-(* print_s [%message "resolved" (fn : MReg.t Function.t)]; *)
 
 let run program =
   let res_program = Vec.create () in

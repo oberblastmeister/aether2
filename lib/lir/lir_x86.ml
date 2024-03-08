@@ -72,35 +72,47 @@ let rec lower_value cx = function
 and lower_value_reg cx v = vreg (lower_value cx v)
 and lower_value_op cx v = X86.Operand.Reg (vreg (lower_value cx v))
 
+and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
+  match v with
+  | I { expr = Const { ty = U64; const }; _ }
+    when Int64.(const <= Int64.of_int32 Int32.max_value) ->
+    Imm (Int (Int32.of_int64_exn const))
+  | I { dst; expr = Const { ty = U64; const }; _ } ->
+    let dst = vreg dst in
+    Cx.add cx (MovAbs { dst = Reg dst; imm = const });
+    Reg dst
+  | I { expr = Val { v; _ }; _ } -> lower_value_op_merge cx v
+  | v -> lower_value_op cx v
+
 and lower_assign cx dst (expr : _ Expr.t) : unit =
   match expr with
-  | Bin { ty; op; v1; v2 } ->
+  | Bin { op; v1; v2; _ } ->
     (match op with
      | Bin_op.Add ->
-       let src1 = lower_value_op cx v1 in
-       let src2 = lower_value_op cx v2 in
+       let src1 = lower_value_op_merge cx v1 in
+       let src2 = lower_value_op_merge cx v2 in
        let dst = vreg dst in
        Cx.add cx (Add { dst = X86.Operand.Reg dst; src1; src2 })
      | _ -> failwith "can't handle op yet")
   | Const { ty = Ty.U64; const } ->
     let dst = vreg dst in
     Cx.add cx (MovAbs { dst = X86.Operand.Reg dst; imm = const })
-  | Const { ty; const } ->
+  | Const { const; _ } ->
     let dst = vreg dst in
     Cx.add
       cx
       (Mov { dst = X86.Operand.Reg dst; src = X86.Operand.imm (Int64.to_int32_exn const) })
   | Cmp { ty; op; v1; v2 } ->
-    let src1 = lower_value_op cx v1 in
-    let src2 = lower_value_op cx v2 in
+    let src1 = lower_value_op_merge cx v1 in
+    let src2 = lower_value_op_merge cx v2 in
     Cx.add cx (Cmp { src1; src2 });
     let dst = vreg dst in
     Cx.add cx (Set { cond = cmp_op_to_cond ty op; dst = X86.Operand.Reg dst })
-  | Val { ty; v } ->
+  | Val { v; _ } ->
     let dst = vreg dst in
-    let src = lower_value_op cx v in
+    let src = lower_value_op_merge cx v in
     Cx.add cx (Mov { dst = X86.Operand.Reg dst; src })
-  | Call { ty; name; args } ->
+  | Call { name; args; _ } ->
     let args = List.map ~f:(lower_value cx) args in
     let args_with_reg, stack_args = categorize_args args in
     (* List.iter args_with_reg ~f:(fun (arg, reg) ->
