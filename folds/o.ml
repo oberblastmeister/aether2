@@ -6,8 +6,4 @@ module Folds = struct
   module Iter = Iter
   module Reduce = Reduce
   module Map = Map
-
-  module Core = struct
-    include Core_instances
-  end
 end

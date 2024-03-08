@@ -201,6 +201,7 @@ module Stack_instr = struct
         { name : Name.t
         ; size : int32
         }
+  [@@deriving sexp_of]
 end
 
 module VInstr = struct
@@ -334,13 +335,16 @@ end
 module Function = struct
   type 'r t =
     { graph : 'r Graph.t
+    ; params : ('r * MReg.t) list
+    ; stack_params : 'r list
     ; unique_name : Name.Id.t
     ; caller_saved : Mach_reg.t list
-    ; stack_end_size : int32
+    ; stack_instrs : Stack_instr.t list
     }
   [@@deriving sexp_of, fields]
 
   let map_regs fn ~f = { fn with graph = Graph.map_regs ~f fn.graph }
+  let all_params fn = List.map fn.params ~f:fst @ fn.stack_params
 end
 
 module Program = struct

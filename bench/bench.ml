@@ -136,23 +136,26 @@ let iter_benches () =
   ]
 ;;
 
+let[@noinline] ref_cons x xs = xs := x :: !xs
+
 let vec_benches () =
   let module Vec = Data.Vec in
-  let n = 10000 in
+  let n = 1000 in
   Bench.Test.
     [ create ~name:"list" (fun () ->
         let l = ref [] in
         for i = 1 to n do
-          l := i :: !l
+          ref_cons i l
         done;
-        let res = !l in
-        res)
+        List.rev !l)
+    ; create ~name:"mlist" (fun () ->
+        F.Iter.int_range ~start:1 ~stop:n |> F.Iter.Private.to_mlist)
     ; create ~name:"vec" (fun () ->
         let vec = Vec.create () in
         for i = 1 to n do
           Vec.push vec i
         done;
-        (* Vec.shrink_to_fit vec; *)
+        Vec.shrink_to_fit vec;
         Vec.freeze vec)
     ; create ~name:"containers vec" (fun () ->
         let vec = Containers.Vector.create () in
@@ -163,9 +166,22 @@ let vec_benches () =
     ]
 ;;
 
+let list_benches () =
+  let n = 10000 in
+  Bench.Test.
+    [ create ~name:"rev iter list" (fun () ->
+        let list = F.Iter.int_range ~start:1 ~stop:n |> F.Iter.to_list in
+        List.rev list |> List.iter |> F.Iter.sum)
+    ; create ~name:"rev iter mlist" (fun () ->
+        let mlist = F.Iter.int_range ~start:1 ~stop:n |> F.Iter.Private.to_mlist in
+        F.Iter.Private.MList.iter_rev mlist |> F.Iter.sum)
+    ]
+;;
+
 let main () =
   Random.self_init ();
-  Bench.make_command (iter_benches () @ vec_benches ()) |> Command_unix.run
+  Bench.make_command (iter_benches () @ vec_benches () @ list_benches ())
+  |> Command_unix.run
 ;;
 
 let () = main ()

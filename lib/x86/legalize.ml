@@ -9,9 +9,6 @@ module Cx = struct
   let create () = { instrs = Vec.create () }
   let add cx i = Vec.push cx.instrs (Instr i)
   let add_label cx label = Vec.push cx.instrs (Label label)
-  (* let add_vinstr cx vinstr = Vec.push cx.instrs (Instr.Virt vinstr)
-     let add cx = Vec.push cx.instrs *)
-  (* let add_minstr cx minstr = Vec.push cx.instrs minstr *)
 end
 
 let to_op = function
@@ -116,6 +113,29 @@ let legalize_block cx label (block : _ Block.t) =
 
 let legalize_function (fn : _ Function.t) =
   let cx = Cx.create () in
+  let param_movs =
+    legalize_par_mov
+      ((List.map & Tuple2.map_snd) ~f:(fun reg -> AReg.of_mreg reg) fn.params)
+  in
+  List.iter param_movs ~f:(Cx.add cx);
+  let rsp = AReg.create Q Mach_reg.RBP in
+  List.iter fn.stack_params
+  |> F.Iter.enumerate
+  |> F.Iter.iter ~f:(fun (i, param) ->
+    Cx.add cx
+    @@ Flat.Instr.Mov
+         { dst =
+             Mem
+               { size = Q
+               ; addr =
+                   Complex
+                     { base = Reg rsp
+                     ; index = None
+                     ; offset = Stack (Start Int32.(8l * of_int_exn i))
+                     }
+               }
+         ; src = Reg param
+         });
   Cfg.Graph.iter_on_labels
     (Graph.Dfs.reverse_postorder fn.graph)
     fn.graph
@@ -123,6 +143,3 @@ let legalize_function (fn : _ Function.t) =
   Vec.shrink_to_fit cx.instrs;
   Vec.freeze cx.instrs
 ;;
-(* Function.blocks_forward_fold fn |> F.Iter.iter ~f:(legalize_block cx *)
-
-(* let legalize_function fn = Function.map_blocks fn ~f:legalize_block *)

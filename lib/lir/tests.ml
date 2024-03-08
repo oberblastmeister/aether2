@@ -218,8 +218,9 @@ let%test_module _ =
                     (Jump
                      ((label loop.1) (args (((s Q) (name e.1)) ((s Q) (name r.2))))))))))))
               (exit done.2)))
-            (unique_name 15) (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11))
-            (stack_end_size 0))))) |}]
+            (params ((((s Q) (name b.0)) RDI) (((s Q) (name e.1)) RSI)))
+            (stack_params ()) (unique_name 15)
+            (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)) (stack_instrs ()))))) |}]
     ;;
 
     let%expect_test "regalloc" =
@@ -233,24 +234,27 @@ let%test_module _ =
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
       [%expect
         {|
-        ((Label start.0) (Instr (MovAbs (dst (Reg (r R8))) (imm 1)))
-         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e RAX)))))
-         (Instr (Mov (dst (Reg (r RSI))) (src (Reg (r R8)))))
+        ((Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
+         (Instr (Mov (dst (Reg (b RAX))) (src (Reg RDI))))
+         (Instr (Mov (dst (Reg (e RDI))) (src (Reg RSI)))) (Label start.0)
+         (Instr (MovAbs (dst (Reg (r R9))) (imm 1)))
+         (Instr (Mov (dst (Reg (e RDX))) (src (Reg (e RDI)))))
          (Instr (Jmp (src loop.1))) (Label loop.1)
-         (Instr (MovAbs (dst (Reg (z R10))) (imm 0)))
-         (Instr (Cmp (src1 (Reg (e RSI))) (src2 (Reg (z R10)))))
-         (Instr (Set (cond A) (dst (Reg (f RDX)))))
-         (Instr (Test (src1 (Reg (f RDX))) (src2 (Reg (f RDX)))))
+         (Instr (MovAbs (dst (Reg (z RDI))) (imm 0)))
+         (Instr (Cmp (src1 (Reg (e RDX))) (src2 (Reg (z RDI)))))
+         (Instr (Set (cond A) (dst (Reg (f RCX)))))
+         (Instr (Test (src1 (Reg (f RCX))) (src2 (Reg (f RCX)))))
          (Instr (J (cond NE) (src done.2))) (Instr (Jmp (src body.3))) (Label body.3)
-         (Instr (MovAbs (dst (Reg (one RCX))) (imm 1)))
-         (Instr (Mov (dst (Reg (e RDI))) (src (Reg (e RSI)))))
-         (Instr (Add (dst (Reg (e RDI))) (src (Reg (one RCX)))))
-         (Instr (Mov (dst (Reg (r R9))) (src (Reg (r RSI)))))
-         (Instr (Add (dst (Reg (r R9))) (src (Reg (b RAX)))))
-         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e RDI)))))
-         (Instr (Mov (dst (Reg (r RSI))) (src (Reg (r R9)))))
+         (Instr (MovAbs (dst (Reg (one R8))) (imm 1)))
+         (Instr (Mov (dst (Reg (e RSI))) (src (Reg (e RDX)))))
+         (Instr (Add (dst (Reg (e RSI))) (src (Reg (one R8)))))
+         (Instr (Mov (dst (Reg (r R10))) (src (Reg (r R9)))))
+         (Instr (Add (dst (Reg (r R10))) (src (Reg (b RAX)))))
+         (Instr (Mov (dst (Reg (e RDX))) (src (Reg (e RSI)))))
+         (Instr (Mov (dst (Reg (r R9))) (src (Reg (r R10)))))
          (Instr (Jmp (src loop.1))) (Label done.2)
-         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RSI)))))) |}]
+         (Instr (Mov (dst (Reg RAX)) (src (Reg (r R9)))))
+         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))) |}]
     ;;
   end)
 ;;
@@ -318,6 +322,40 @@ let%test_module _ =
             (jump (done.2 (add u64 (const u64 3) x.0))))
           (label (done.2 (r.12 u64))
             (ret r.12))) |}]
+    ;;
+
+    let%expect_test "regalloc" =
+      let program =
+        Lazy.force if_lir
+        |> Ssa.convert_ssa
+        |> Lower.run
+        |> Lir_x86.lower
+        |> X86.Reg_alloc.run
+      in
+      print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
+      [%expect {|
+        ((Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
+         (Instr (Mov (dst (Reg (x RAX))) (src (Reg RDI))))
+         (Instr (Mov (dst (Reg (y RCX))) (src (Reg RSI)))) (Label start.0)
+         (Instr (MovAbs (dst (Reg (one RSI))) (imm 9)))
+         (Instr (Cmp (src1 (Reg (x RAX))) (src2 (Reg (one RSI)))))
+         (Instr (Set (cond A) (dst (Reg (f RDI)))))
+         (Instr (Test (src1 (Reg (f RDI))) (src2 (Reg (f RDI)))))
+         (Instr (J (cond NE) (src then.4))) (Instr (Jmp (src else.5))) (Label else.5)
+         (Instr (MovAbs (dst (Reg (r RDX))) (imm 5)))
+         (Instr (Mov (dst (Reg (a RDX))) (src (Reg (x RAX)))))
+         (Instr (Add (dst (Reg (a RDX))) (src (Reg (y RCX)))))
+         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RDX)))))
+         (Instr (Add (dst (Reg (r RDX))) (src (Reg (a RDX)))))
+         (Instr (Mov (dst (Reg (r RAX))) (src (Reg (r RDX)))))
+         (Instr (Jmp (src done.2))) (Label then.4)
+         (Instr (MovAbs (dst (Reg (r RDX))) (imm 3)))
+         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RDX)))))
+         (Instr (Add (dst (Reg (r RDX))) (src (Reg (x RAX)))))
+         (Instr (Mov (dst (Reg (r RAX))) (src (Reg (r RDX)))))
+         (Instr (Jmp (src done.2))) (Label done.2)
+         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RAX)))))
+         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))) |}]
     ;;
   end)
 ;;

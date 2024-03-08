@@ -72,8 +72,8 @@ let map_simple_order (graph : 'b t) ~(f : Label.t * 'b -> 'b) =
     Map.find_exn graph.blocks graph.entry |> fun block -> f (graph.entry, block)
   in
   let blocks =
-    F.Core.Map.mapi
-      ~f:(fun (label, block) ->
+    Map.mapi
+      ~f:(fun ~key:label ~data:block ->
         if [%equal: Label.t] label graph.entry || [%equal: Label.t] label graph.exit
         then block
         else f (label, block))

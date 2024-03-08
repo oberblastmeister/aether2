@@ -1,5 +1,5 @@
 (executable
- (public_name folds_bench)
+ (public_name bench)
  (flags
   (:standard -warn-error -A))
  (preprocess

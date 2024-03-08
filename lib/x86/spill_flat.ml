@@ -6,7 +6,7 @@ type context =
   { instrs : (MReg.t Flat.Line.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
   ; mutable unique_name : Name.Id.t
   ; spill_slots : (Mach_reg.t, Name.t) Hashtbl.t
-  ; stack_locals : (Name.t * int32, read_write) Vec.t
+  ; mutable stack_instrs : Stack_instr.t list
   }
 
 module Cx = struct
@@ -14,7 +14,7 @@ module Cx = struct
     { instrs = Vec.create ()
     ; unique_name
     ; spill_slots = Hashtbl.create (module Mach_reg)
-    ; stack_locals = Vec.create ()
+    ; stack_instrs = []
     }
   ;;
 
@@ -32,7 +32,7 @@ module Cx = struct
     | None ->
       let name = fresh_name cx "spill_mach_reg" in
       Hashtbl.add_exn cx.spill_slots ~key:reg ~data:name;
-      Vec.push cx.stack_locals (name, 0l);
+      cx.stack_instrs <- ReserveLocal { name; size = 8l } :: cx.stack_instrs;
       name
   ;;
 
@@ -82,7 +82,7 @@ let lower_minstr cx minstr =
   let victims = List.map name_and_victim ~f:snd in
   (* spill victims *)
   List.iter victims ~f:(Cx.spill_reg cx);
-  let victim_of_spilled = List.iter name_and_victim |> FC.Hashtbl.of_iter (module Name) in
+  let victim_of_spilled = List.iter name_and_victim |> Hashtbl.of_iter (module Name) in
   (* move spilled uses to the victims *)
   Flat.Instr.iter_uses minstr
   |> F.Iter.filter_map ~f:AReg.spilled_val
@@ -138,10 +138,8 @@ let lower_function unique_name (fn : _ Flat.Program.t) =
     | Label l -> Cx.add cx @@ Flat.Line.Label l
     | Comment s -> Cx.add cx @@ Comment s);
   Vec.shrink_to_fit cx.instrs;
-  Vec.shrink_to_fit cx.stack_locals;
   let instrs = Vec.freeze cx.instrs in
-  let stack_locals = Vec.freeze cx.stack_locals in
-  instrs, stack_locals
+  instrs, cx.stack_instrs
 ;;
 (* let fn = Function.map_blocks fn ~f:(lower_block cx) in
     { fn with unique_name = cx.unique_name } *)

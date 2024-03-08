@@ -7,9 +7,12 @@ let create () = Name.Table.create ()
 let add_node g n = Name.Table.update g n ~f:(Option.value ~default:Name.Set.empty)
 
 let add_directed_edge g n1 n2 =
-  Name.Table.update g n1 ~f:(function
-    | None -> Name.Set.singleton n2
-    | Some set -> Set.add set n2)
+  if Name.(n1 <> n2)
+  then (
+    Name.Table.update g n1 ~f:(function
+      | None -> Name.Set.singleton n2
+      | Some set -> Set.add set n2);
+    ())
 ;;
 
 let add_edge g n1 n2 =

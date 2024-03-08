@@ -1,7 +1,6 @@
 open! Core
 open Types
 module F = Folds
-module FC = Folds.Core_instances
 
 let t_of_double { all_nodes; succs; _ } = { all_nodes; succs }
 

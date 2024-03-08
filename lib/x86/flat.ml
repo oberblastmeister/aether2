@@ -22,6 +22,10 @@ module Instr = struct
         { dst : 'r Op.t
         ; src : 'r Op.t
         }
+    | Sub of
+        { dst : 'r Op.t
+        ; src : 'r Op.t
+        }
     | Push of { src : 'r Op.t }
     | Pop of { dst : 'r Op.t }
     | Cmp of
@@ -42,6 +46,7 @@ module Instr = struct
         ; src : string
         }
     | Jmp of { src : string }
+    | Ret
   [@@deriving sexp_of, map, iter]
 
   let iter_operands ~on_use ~on_def i =
@@ -53,7 +58,7 @@ module Instr = struct
     | Lea { dst; src } ->
       on_use src;
       on_def dst
-    | Add { dst; src } ->
+    | Add { dst; src } | Sub { dst; src } ->
       on_use src;
       on_use dst;
       on_def dst
@@ -67,8 +72,7 @@ module Instr = struct
       on_use src2
     | Set { dst; _ } -> on_def dst
     | Call { src } -> on_use src
-    | J { src; _ } -> ()
-    | Jmp { src } -> ()
+    | J _ | Jmp _ | Ret -> ()
   ;;
 
   let iter_op_uses i k = iter_operands ~on_use:k ~on_def:(Fn.const ()) i
@@ -89,8 +93,8 @@ module Instr = struct
       | _ -> ())
   ;;
 
-  let iter_regs i ~f:k =
-    iter_operands ~on_use:(fun op -> Op.iter_any_regs op k) ~on_def:(Fn.const ()) i
+  let iter_regs i ~f =
+    iter_operands ~on_use:(fun op -> Op.iter_any_regs op ~f) ~on_def:(Fn.const ()) i
   ;;
 
   let map_regs i ~f = map f i

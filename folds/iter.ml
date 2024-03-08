@@ -23,6 +23,7 @@ let fold i ~init ~f =
   !acc
 ;;
 
+let sum = fold ~init:0 ~f:( + )
 let filter i ~f:pred ~f:f' = i ~f:(fun x -> if pred x then f' x)
 let concat_map i ~f ~f:f' = i ~f:(fun x -> f x ~f:f')
 
@@ -35,12 +36,7 @@ let enumerate it ~f =
 ;;
 
 let map i ~f ~f:k = i ~f:(fun x -> k (f x))
-
-let to_list i =
-  let l = ref [] in
-  i ~f:(fun x -> l := x :: !l);
-  !l
-;;
+let to_list i = List.rev (fold i ~init:[] ~f:(fun xs x -> x :: xs))
 
 let length i =
   let len = ref 0 in
@@ -65,6 +61,125 @@ let unfoldr ~init ~f ~f:k =
   in
   loop init ~f
 ;;
+
+(** Mutable unrolled list to serve as intermediate storage *)
+module MList = struct
+  type 'a t =
+    | Nil
+    | Cons of 'a array * int ref * 'a t ref
+
+  (* build and call callback on every element *)
+  let of_iter_with seq ~f:k =
+    let start = ref Nil in
+    let chunk_size = ref 8 in
+    (* fill the list. prev: tail-reference from previous node *)
+    let prev, cur = ref start, ref Nil in
+    seq ~f:(fun x ->
+      k x;
+      (* callback *)
+      match !cur with
+      | Nil ->
+        let n = !chunk_size in
+        if n < 4096 then chunk_size := 2 * !chunk_size;
+        cur := Cons (Array.init n ~f:(Fn.const x), ref 1, ref Nil)
+      | Cons (a, n, next) ->
+        assert (!n < Array.length a);
+        a.(!n) <- x;
+        incr n;
+        if !n = Array.length a
+        then (
+          !prev := !cur;
+          prev := next;
+          cur := Nil));
+    !prev := !cur;
+    !start
+  ;;
+
+  let of_iter seq = of_iter_with seq ~f:(fun _ -> ())
+
+  let rec iter f l =
+    match l with
+    | Nil -> ()
+    | Cons (a, n, tl) ->
+      for i = 0 to !n - 1 do
+        f a.(i)
+      done;
+      iter f !tl
+  ;;
+
+  let iteri f l =
+    let rec iteri i f l =
+      match l with
+      | Nil -> ()
+      | Cons (a, n, tl) ->
+        for j = 0 to !n - 1 do
+          f (i + j) a.(j)
+        done;
+        iteri (i + !n) f !tl
+    in
+    iteri 0 f l
+  ;;
+
+  let rec iter_rev l ~f =
+    match l with
+    | Nil -> ()
+    | Cons (a, n, tl) ->
+      iter_rev !tl ~f;
+      for i = !n - 1 downto 0 do
+        f a.(i)
+      done
+  ;;
+
+  let length l =
+    let rec len acc l =
+      match l with
+      | Nil -> acc
+      | Cons (_, n, tl) -> len (acc + !n) !tl
+    in
+    len 0 l
+  ;;
+
+  (** Get element by index *)
+  let rec get l i =
+    match l with
+    | Nil -> raise (Invalid_argument "MList.get")
+    | Cons (a, n, _) when i < !n -> a.(i)
+    | Cons (_, n, tl) -> get !tl (i - !n)
+  ;;
+
+  let to_iter l k = iter k l
+
+  let _to_next arg l =
+    let cur = ref l in
+    let i = ref 0 in
+    (* offset in cons *)
+    let rec get_next _ =
+      match !cur with
+      | Nil -> None
+      | Cons (_, n, tl) when !i = !n ->
+        cur := !tl;
+        i := 0;
+        get_next arg
+      | Cons (a, _, _) ->
+        let x = a.(!i) in
+        incr i;
+        Some x
+    in
+    get_next
+  ;;
+
+  let to_gen l = _to_next () l
+
+  let to_seq l =
+    let rec make (l, i) () =
+      match l with
+      | Nil -> Seq.Nil
+      | Cons (_, n, tl) when i = !n -> make (!tl, 0) ()
+      | Cons (a, _, _) -> Seq.Cons (a.(i), make (l, i + 1))
+    in
+    make (l, 0)
+  ;;
+end
 
 (* TODO: make this faster *)
 let to_array i = Array.of_list @@ to_list i
@@ -91,9 +206,9 @@ let int_range ~start ~stop ~f =
 ;;
 
 (* TODO: make this faster *)
-let rev i ~f =
-  let l = to_list i in
-  List.iter (List.rev l) ~f
+let rev i =
+  let l = MList.of_iter i in
+  MList.iter_rev l
 ;;
 
 module Infix = struct
@@ -101,3 +216,9 @@ module Infix = struct
 end
 
 include Infix
+
+module Private = struct
+  module MList = MList
+
+  let to_mlist = MList.of_iter
+end

@@ -6,6 +6,7 @@ val cons : 'a -> 'a t -> 'a t
 val snoc : 'a t -> 'a -> 'a t
 val iter : 'a t -> f:('a -> unit) -> unit
 val fold : 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
+val sum : int t -> int
 val filter : 'a t -> f:('a -> bool) -> 'a t
 val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
 val concat_map : 'a t -> f:('a -> 'b t) -> 'b t
@@ -26,3 +27,13 @@ module Infix : sig
 end
 
 val ( -- ) : int -> int -> int t
+
+module Private : sig
+  module MList : sig
+    type 'a t
+
+    val iter_rev : 'a t -> f:('a -> unit) -> unit
+  end
+
+  val to_mlist : 'a t -> 'a MList.t
+end

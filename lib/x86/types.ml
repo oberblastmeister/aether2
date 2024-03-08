@@ -26,7 +26,7 @@ module AReg = struct
 
   let size (Spilled { s; _ } | InReg { s; _ }) = s
   let create ?name s reg = InReg { s; name; reg }
-
+  let of_mreg (mreg : MReg.t) = InReg { s = mreg.s; name = mreg.name; reg = mreg.reg }
   (* let in_reg s name reg = { s; name; reg = Some reg }
   let spilled s name = { s; name; reg = None }
   let is_spilled t = Option.is_none t.reg

@@ -11,11 +11,11 @@ module Context = struct
   type t =
     { instrs : (X86.VReg.t X86.Instr.t, Perms.Read_write.t) Vec.t
     ; mutable unique_name : Name.Id.t
-    ; stack_end_size : int32
+    ; mutable stack_instrs : X86.Stack_instr.t list
     }
 
   let create (fn : Tir.Function.t) =
-    { instrs = Vec.create (); unique_name = fn.unique_name; stack_end_size = 0l }
+    { instrs = Vec.create (); unique_name = fn.unique_name; stack_instrs = [] }
   ;;
 
   let add cx instr = Vec.push cx.instrs instr
@@ -175,10 +175,18 @@ let lower_graph cx graph = Cfg.Graph.map graph ~f:(fun block -> lower_block cx b
 let lower_function (fn : Tir.Function.t) =
   let cx = Context.create fn in
   let graph = lower_graph cx fn.graph in
+  let params, stack_params = categorize_args fn.params in
+  let params =
+    List.map params ~f:(fun (value, mach_reg) ->
+      vreg value, X86.MReg.create (value_size value) mach_reg)
+  in
+  let stack_params = List.map stack_params ~f:vreg in
   { X86.Function.graph
-  ; caller_saved = X86.Mach_reg.caller_saved
+  ; caller_saved = X86.Mach_reg.caller_saved (* ; params = *)
+  ; params
+  ; stack_params
   ; unique_name = cx.unique_name
-  ; stack_end_size = cx.stack_end_size
+  ; stack_instrs = cx.stack_instrs
   }
 ;;
 

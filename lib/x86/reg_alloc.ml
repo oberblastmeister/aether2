@@ -57,19 +57,35 @@ end
 
 let transfer = Dataflow.Liveness.instr_transfer |> Cfg.Dataflow.Instr_transfer.transfer
 
+let iter_pairs xs ~f =
+  let rec go xs =
+    match xs with
+    | [] -> ()
+    | x :: xs ->
+      List.iter xs ~f:(fun y -> f (x, y));
+      go xs
+  in
+  go xs
+;;
+
 (* TODO: multiple defs in the same instruction interfere with each other *)
 let add_block_edges ~interference ~precolored block live_out =
   let live_out = ref live_out in
   Block.iter_instrs_backward block ~f:(fun instr ->
     let defs = Instr.iter_defs instr |> F.Iter.to_list in
-    let defs =
-      match instr with
-      | Instr.Mov { src = Operand.Reg src; _ } -> src :: defs
-      | _ -> defs
-    in
-    let is_edge live =
-      (* don't add an edge to what we are currently defining *)
-      not @@ List.mem ~equal:[%equal: VReg.t] defs live
+    (* ensure that multiple defs interfere with each other *)
+    iter_pairs defs ~f:(fun (def1, def2) ->
+      Interference.add_edge interference def1.VReg.name def2.name);
+    let is_edge =
+      let defs =
+        (* dst and src in movs are in the same equivalence class *)
+        match instr with
+        | Instr.Mov { src = Operand.Reg src; _ } -> src :: defs
+        | _ -> defs
+      in
+      fun live ->
+        (* don't add an edge to what we are currently defining *)
+        not @@ List.mem ~equal:[%equal: VReg.t] defs live
     in
     (* make sure we at least add every use/def in, because the register allocator uses the domain of interference as all nodes *)
     Instr.iter_regs instr
@@ -81,7 +97,7 @@ let add_block_edges ~interference ~precolored block live_out =
     Set.iter !live_out
     |> F.Iter.filter ~f:(fun live -> is_edge live)
     |> F.Iter.iter ~f:(fun live ->
-      Instr.iter_defs instr
+      List.iter defs
       |> F.Iter.iter ~f:(fun def ->
         Interference.add_edge interference def.VReg.name live.VReg.name);
       Instr.mach_reg_defs instr (fun mach_reg ->
@@ -106,6 +122,10 @@ let%expect_test _ =
 let construct_fn (fn : _ Function.t) =
   let _, live_out_facts = Dataflow.Liveness.run fn in
   let interference = Interference.create () in
+  (* function parameters must interfere with each other *)
+  Function.all_params fn
+  |> iter_pairs ~f:(fun (param1, param2) ->
+    Interference.add_edge interference param1.VReg.name param2.VReg.name);
   let precolored = Precolored.create () in
   Cfg.Graph.iteri fn.graph ~f:(fun (label, block) ->
     let live_out = Cfg.Dataflow.Fact_base.find_exn live_out_facts label in
@@ -133,6 +153,12 @@ module Apply : sig
     -> VReg.t Function.t
     -> AReg.t Function.t
 end = struct
+  let apply_vreg ~allocation (vreg : VReg.t) : AReg.t =
+    match Ra.Allocation.find_exn allocation vreg.name with
+    | Spilled -> Spilled { s = vreg.s; name = vreg.name }
+    | InReg reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg }
+  ;;
+
   let apply_allocation_instr ~allocation (instr : VReg.t Instr.t) =
     let spilled = Vec.create () in
     ( spilled |> Vec.freeze
@@ -158,7 +184,12 @@ end = struct
 
   (* TODO: handle using callee saved registers *)
   let apply_allocation_function ~allocation (fn : VReg.t Function.t) =
-    Function.map_blocks fn ~f:(apply_allocation_block ~allocation)
+    let graph =
+      Graph.map_blocks fn.graph ~f:(fun block -> apply_allocation_block ~allocation block)
+    in
+    let params = (List.map & Tuple2.map_fst) fn.params ~f:(apply_vreg ~allocation) in
+    let stack_params = List.map fn.stack_params ~f:(apply_vreg ~allocation) in
+    { fn with graph; params; stack_params }
   ;;
 end
 
@@ -196,6 +227,7 @@ end = struct
     | MovAbs { dst; imm } -> MovAbs { dst = resolve_operand dst; imm }
     | Lea { dst; src } -> Lea { dst = resolve_operand dst; src = resolve_operand src }
     | Add { dst; src } -> Add { dst = resolve_operand dst; src = resolve_operand src }
+    | Sub { dst; src } -> Sub { dst = resolve_operand dst; src = resolve_operand src }
     | Push { src } -> Push { src = resolve_operand src }
     | Pop { dst } -> Pop { dst = resolve_operand dst }
     | Cmp { src1; src2 } ->
@@ -206,12 +238,26 @@ end = struct
     | Call p -> Call p
     | J { cond; src } -> J { cond; src }
     | Jmp { src } -> Jmp { src }
+    | Ret -> Ret
   ;;
 
   let resolve_function stack_layout fn =
     Flat.Program.map_instrs fn ~f:(resolve_minstr stack_layout)
   ;;
 end
+
+let create_prologue stack_layout =
+  [ Flat.Instr.Sub
+      { dst = Reg (MReg.create Q RSP); src = Imm (Int (Stack_layout.size stack_layout)) }
+  ]
+;;
+
+let create_epilogue stack_layout =
+  [ Flat.Instr.Add
+      { dst = Reg (MReg.create Q RSP); src = Imm (Int (Stack_layout.size stack_layout)) }
+  ; Ret
+  ]
+;;
 
 let run_function fn =
   (* print_s [%message (fn : VReg.t Function.t)]; *)
@@ -224,15 +270,23 @@ let run_function fn =
   (* print_s [%message "remove_ssa" (fn : AReg.t Function.t)]; *)
   let flat = Legalize.legalize_function fn in
   (* print_s [%message "legalized" (fn : AReg.t Function.t)]; *)
-  let flat, stack_locals = Spill_flat.lower_function fn.unique_name flat in
-  let stack_layout =
-    Stack_layout.create ~end_size:fn.stack_end_size ~locals:stack_locals
-  in
+  let flat, stack_instrs = Spill_flat.lower_function fn.unique_name flat in
+  let stack_layout = Stack_layout.create stack_instrs in
   (* print_s [%message "lowered" (fn : MReg.t Function.t)]; *)
   let flat = Resolve_stack.resolve_function stack_layout flat in
-  (* print_s [%message "resolved" (fn : MReg.t Function.t)]; *)
-  flat
+  let prologue = create_prologue stack_layout in
+  let epilogue = create_prologue stack_layout in
+  let flat' =
+    Vec.create ~size:(List.length prologue + Vec.length flat + List.length epilogue) ()
+  in
+  List.iter prologue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
+  Vec.append_into ~into:flat' flat;
+  List.iter epilogue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
+  Vec.shrink_to_fit flat';
+  Vec.freeze flat'
 ;;
+
+(* print_s [%message "resolved" (fn : MReg.t Function.t)]; *)
 
 let run program =
   let res_program = Vec.create () in
