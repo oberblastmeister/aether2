@@ -111,7 +111,12 @@ let instr_to_block_transfer
   }
 ;;
 
-let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
+(* this algorithm is wrong *)
+(* we can't just stop if a it hasn't changed *)
+(* we have to run a full round first so we actually fill in all the liveness facts *)
+(* then we can't decide to stop if something hasn't changed *)
+(* so instead use the algorithm in engineering a compiler where you do reverse postorder iteration at least once *)
+let run_block_transfer' (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
   let fact_base = Label.Table.create () in
   let other_facts_base = Label.Table.create () in
   let queue = LabelQueue.create () in
@@ -168,6 +173,56 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
        | None -> go ())
   in
   go ();
+  fact_base, other_facts_base
+;;
+
+let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
+  let fact_base = Label.Table.create () in
+  let other_facts_base = Label.Table.create () in
+  let labels =
+    (match transfer.direction with
+     | Forward -> Data.Graph.Dfs.reverse_postorder
+     | Backward ->
+       Data.Graph.Dfs.postorder (* TODO: might want to do rpo on the transpose *))
+      ~start:[ graph.entry ]
+      ~set:(Data.Constructors.some_hashset (module Label))
+      (Data.Graph.t_of_double graph.v)
+  in
+  let changed = ref true in
+  while !changed do
+    changed := false;
+    Vec.iter labels ~f:(fun label ->
+      let current_block = graph.get_block label in
+      let current_fact =
+        Label.Table.find fact_base label |> Option.value ~default:transfer.empty
+      in
+      let other_labels =
+        (match transfer.direction with
+         | Forward ->
+           (* Option.value with default because the start has no predecessors *)
+           graph.v.preds
+         | Backward -> graph.v.succs)
+          label
+      in
+      let other_facts =
+        F.Iter.map other_labels ~f:(fun node ->
+          Label.Table.find fact_base node |> Option.value ~default:transfer.empty)
+        |> F.Iter.to_list
+        |> transfer.combine
+      in
+      Label.Table.set other_facts_base ~key:label ~data:other_facts;
+      let maybe_new_facts =
+        transfer.transfer label current_block ~other_facts ~current_fact
+      in
+      (match maybe_new_facts with
+       | Some new_fact ->
+         changed := true;
+         (* the fact changed, so we need to add all labels that depend on the current label *)
+         Label.Table.set fact_base ~key:label ~data:new_fact
+       | None -> ());
+      ());
+    ()
+  done;
   fact_base, other_facts_base
 ;;
 

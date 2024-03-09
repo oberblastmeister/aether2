@@ -53,16 +53,44 @@ let%test_module _ =
     ;;
 
     let%expect_test "liveness" =
-      let fn = List.hd_exn (Lazy.force loop_lir).functions in
-      let res, _ = Vir.Liveness.run fn.graph in
-      print_s [%sexp (res : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
-      ();
+      let program = Lazy.force loop_lir in
+      let fn = List.hd_exn program.functions in
+      let live_in, live_out = Vir.Liveness.run fn.graph in
+      print_s [%sexp (live_in : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
       [%expect
         {|
     ((start.0 (((name b.0) (ty U64)) ((name e.1) (ty U64))))
      (loop.1 (((name b.0) (ty U64)) ((name e.1) (ty U64)) ((name r.2) (ty U64))))
      (done.2 (((name r.2) (ty U64))))
-     (body.3 (((name b.0) (ty U64)) ((name e.1) (ty U64)) ((name r.2) (ty U64))))) |}]
+     (body.3 (((name b.0) (ty U64)) ((name e.1) (ty U64)) ((name r.2) (ty U64))))) |}];
+      print_s [%sexp (live_out : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
+      [%expect
+        {|
+        ((start.0
+          (((name b.0) (ty U64)) ((name e.1) (ty U64)) ((name r.2) (ty U64))))
+         (loop.1 (((name b.0) (ty U64)) ((name e.1) (ty U64)) ((name r.2) (ty U64))))
+         (done.2 ())
+         (body.3 (((name b.0) (ty U64)) ((name e.1) (ty U64)) ((name r.2) (ty U64))))) |}]
+    ;;
+
+    let%expect_test "liveness ssa" =
+      let program = Lazy.force loop_lir |> Ssa.convert_ssa in
+      let fn = List.hd_exn program.functions in
+      let live_in, live_out = Vir.Liveness.run fn.graph in
+      print_s [%sexp (live_in : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
+      [%expect
+        {|
+    ((start.0 (((name b.0) (ty U64)) ((name e.1) (ty U64))))
+     (loop.1 (((name b.0) (ty U64)))) (done.2 (((name r.11) (ty U64))))
+     (body.3
+      (((name b.0) (ty U64)) ((name e.10) (ty U64)) ((name r.11) (ty U64))))) |}];
+      print_s [%sexp (live_out : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
+      [%expect
+        {|
+        ((start.0 (((name b.0) (ty U64))))
+         (loop.1
+          (((name b.0) (ty U64)) ((name e.10) (ty U64)) ((name r.11) (ty U64))))
+         (done.2 ()) (body.3 (((name b.0) (ty U64))))) |}]
     ;;
 
     (* let%expect_test "dominators" =
@@ -230,26 +258,27 @@ let%test_module _ =
         |> X86.Reg_alloc.run
       in
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
-      [%expect.unreachable]
-    [@@expect.uncaught_exn {|
-      (* CR expect_test_collector: This test expectation appears to contain a backtrace.
-         This is strongly discouraged as backtraces are fragile.
-         Please change this test to not include a backtrace. *)
-
-      ("key not found" (key body.3))
-      Raised at Base__Error.raise in file "src/error.ml" (inlined), line 9, characters 14-30
-      Called from Base__Error.raise_s in file "src/error.ml", line 10, characters 19-40
-      Called from Aether2__X86__Reg_alloc.construct_fn.(fun) in file "lib/x86/reg_alloc.ml", line 131, characters 19-71
-      Called from Base__Map.Tree0.fold in file "src/map.ml", line 920, characters 64-86
-      Called from Base__Map.Tree0.fold in file "src/map.ml", line 920, characters 64-86
-      Called from Aether2__X86__Reg_alloc.construct_fn in file "lib/x86/reg_alloc.ml", line 130, characters 2-197
-      Called from Aether2__X86__Reg_alloc.alloc_fn in file "lib/x86/reg_alloc.ml", line 140, characters 33-48
-      Called from Aether2__X86__Reg_alloc.run_function in file "lib/x86/reg_alloc.ml", line 258, characters 19-30
-      Called from Aether2__X86__Reg_alloc.run.(fun) in file "lib/x86/reg_alloc.ml", line 313, characters 15-30
-      Called from Base__List0.iter in file "src/list0.ml", line 60, characters 4-7
-      Called from Aether2__X86__Reg_alloc.run in file "lib/x86/reg_alloc.ml", line 312, characters 2-132
-      Called from Aether2__Lir__Tests.(fun).M.(fun) in file "lib/lir/tests.ml", line 226, characters 8-129
-      Called from Expect_test_collector.Make.Instance_io.exec in file "collector/expect_test_collector.ml", line 234, characters 12-19 |}]
+      [%expect
+        {|
+        (SectionText (Type pow @function) (Global pow) (Label pow)
+         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 8)))))
+         (Instr (Mov (dst (Reg (b RAX))) (src (Reg RDI))))
+         (Instr (Mov (dst (Reg (e RDI))) (src (Reg RSI)))) (Label .Lstart.0)
+         (Instr (MovAbs (dst (Reg (r RSI))) (imm 1)))
+         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RSI)))))
+         (Instr (Jmp (src .Lloop.1))) (Label .Lloop.1)
+         (Instr (Cmp (src1 (Reg (e RDI))) (src2 (Imm (Int 0)))))
+         (Instr (Set (cond A) (dst (Reg (f RSI)))))
+         (Instr (Test (src1 (Reg (f RSI))) (src2 (Reg (f RSI)))))
+         (Instr (J (cond NE) (src .Ldone.2))) (Instr (Jmp (src .Lbody.3)))
+         (Label .Lbody.3) (Instr (Mov (dst (Reg (e RDI))) (src (Reg (e RDI)))))
+         (Instr (Add (dst (Reg (e RDI))) (src (Imm (Int 1)))))
+         (Instr (Mov (dst (Reg (r RSI))) (src (Reg (r RDX)))))
+         (Instr (Add (dst (Reg (r RSI))) (src (Reg (b RAX)))))
+         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RSI)))))
+         (Instr (Jmp (src .Lloop.1))) (Label .Ldone.2)
+         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RDX)))))
+         (Instr (Add (dst (Reg RSP)) (src (Imm (Int 8))))) (Instr Ret)) |}]
     ;;
 
     let%expect_test "print" =
@@ -262,26 +291,36 @@ let%test_module _ =
         |> X86.Print.run
       in
       print_string program;
-      [%expect.unreachable]
-    [@@expect.uncaught_exn {|
-      (* CR expect_test_collector: This test expectation appears to contain a backtrace.
-         This is strongly discouraged as backtraces are fragile.
-         Please change this test to not include a backtrace. *)
-
-      ("key not found" (key body.3))
-      Raised at Base__Error.raise in file "src/error.ml" (inlined), line 9, characters 14-30
-      Called from Base__Error.raise_s in file "src/error.ml", line 10, characters 19-40
-      Called from Aether2__X86__Reg_alloc.construct_fn.(fun) in file "lib/x86/reg_alloc.ml", line 131, characters 19-71
-      Called from Base__Map.Tree0.fold in file "src/map.ml", line 920, characters 64-86
-      Called from Base__Map.Tree0.fold in file "src/map.ml", line 920, characters 64-86
-      Called from Aether2__X86__Reg_alloc.construct_fn in file "lib/x86/reg_alloc.ml", line 130, characters 2-197
-      Called from Aether2__X86__Reg_alloc.alloc_fn in file "lib/x86/reg_alloc.ml", line 140, characters 33-48
-      Called from Aether2__X86__Reg_alloc.run_function in file "lib/x86/reg_alloc.ml", line 258, characters 19-30
-      Called from Aether2__X86__Reg_alloc.run.(fun) in file "lib/x86/reg_alloc.ml", line 313, characters 15-30
-      Called from Base__List0.iter in file "src/list0.ml", line 60, characters 4-7
-      Called from Aether2__X86__Reg_alloc.run in file "lib/x86/reg_alloc.ml", line 312, characters 2-132
-      Called from Aether2__Lir__Tests.(fun).M.(fun) in file "lib/lir/tests.ml", line 257, characters 8-129
-      Called from Expect_test_collector.Make.Instance_io.exec in file "collector/expect_test_collector.ml", line 234, characters 12-19 |}]
+      [%expect
+        {|
+        	.text
+        	.type	pow,@function
+        	.globl	pow
+        pow:
+        	subq	rsp, 8
+        	movq	rax, rdi
+        	movq	rdi, rsi
+        .Lstart.0:
+        	movabsq	rsi, 1
+        	movq	rdx, rsi
+        	jmp .Lloop.1
+        .Lloop.1:
+        	cmpq	rdi, 0
+        	seta	rsi
+        	testq	rsi, rsi
+        	jne .Ldone.2
+        	jmp .Lbody.3
+        .Lbody.3:
+        	movq	rdi, rdi
+        	addq	rdi, 1
+        	movq	rsi, rdx
+        	addq	rsi, rax
+        	movq	rdx, rsi
+        	jmp .Lloop.1
+        .Ldone.2:
+        	movq	rax, rdx
+        	addq	rsp, 8
+        	ret |}]
     ;;
   end)
 ;;
@@ -360,25 +399,25 @@ let%test_module _ =
         |> X86.Reg_alloc.run
       in
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
-      [%expect.unreachable]
-    [@@expect.uncaught_exn {|
-      (* CR expect_test_collector: This test expectation appears to contain a backtrace.
-         This is strongly discouraged as backtraces are fragile.
-         Please change this test to not include a backtrace. *)
-
-      ("key not found" (key else.5))
-      Raised at Base__Error.raise in file "src/error.ml" (inlined), line 9, characters 14-30
-      Called from Base__Error.raise_s in file "src/error.ml", line 10, characters 19-40
-      Called from Aether2__X86__Reg_alloc.construct_fn.(fun) in file "lib/x86/reg_alloc.ml", line 131, characters 19-71
-      Called from Base__Map.Tree0.fold in file "src/map.ml", line 920, characters 64-86
-      Called from Aether2__X86__Reg_alloc.construct_fn in file "lib/x86/reg_alloc.ml", line 130, characters 2-197
-      Called from Aether2__X86__Reg_alloc.alloc_fn in file "lib/x86/reg_alloc.ml", line 140, characters 33-48
-      Called from Aether2__X86__Reg_alloc.run_function in file "lib/x86/reg_alloc.ml", line 258, characters 19-30
-      Called from Aether2__X86__Reg_alloc.run.(fun) in file "lib/x86/reg_alloc.ml", line 313, characters 15-30
-      Called from Base__List0.iter in file "src/list0.ml", line 60, characters 4-7
-      Called from Aether2__X86__Reg_alloc.run in file "lib/x86/reg_alloc.ml", line 312, characters 2-132
-      Called from Aether2__Lir__Tests.(fun).M.(fun) in file "lib/lir/tests.ml", line 356, characters 8-127
-      Called from Expect_test_collector.Make.Instance_io.exec in file "collector/expect_test_collector.ml", line 234, characters 12-19 |}]
+      [%expect
+        {|
+        (SectionText (Type if @function) (Global if) (Label if)
+         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 8)))))
+         (Instr (Mov (dst (Reg (x RAX))) (src (Reg RDI)))) (Label .Lstart.0)
+         (Instr (Cmp (src1 (Reg (x RAX))) (src2 (Imm (Int 9)))))
+         (Instr (Set (cond A) (dst (Reg (f RDI)))))
+         (Instr (Test (src1 (Reg (f RDI))) (src2 (Reg (f RDI)))))
+         (Instr (J (cond NE) (src .Lthen.4))) (Instr (Jmp (src .Lelse.5)))
+         (Label .Lelse.5) (Instr (Mov (dst (Reg (a RAX))) (src (Reg (x RAX)))))
+         (Instr (Add (dst (Reg (a RAX))) (src (Reg (y RSI)))))
+         (Instr (Mov (dst (Reg (r RAX))) (src (Imm (Int 5)))))
+         (Instr (Add (dst (Reg (r RAX))) (src (Reg (a RAX)))))
+         (Instr (Jmp (src .Ldone.2))) (Label .Lthen.4)
+         (Instr (Mov (dst (Reg (r RAX))) (src (Imm (Int 3)))))
+         (Instr (Add (dst (Reg (r RAX))) (src (Reg (x RAX)))))
+         (Instr (Jmp (src .Ldone.2))) (Label .Ldone.2)
+         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RAX)))))
+         (Instr (Add (dst (Reg RSP)) (src (Imm (Int 8))))) (Instr Ret)) |}]
     ;;
 
     let%expect_test "print" =
@@ -391,25 +430,34 @@ let%test_module _ =
         |> X86.Print.run
       in
       print_string program;
-      [%expect.unreachable]
-    [@@expect.uncaught_exn {|
-      (* CR expect_test_collector: This test expectation appears to contain a backtrace.
-         This is strongly discouraged as backtraces are fragile.
-         Please change this test to not include a backtrace. *)
-
-      ("key not found" (key else.5))
-      Raised at Base__Error.raise in file "src/error.ml" (inlined), line 9, characters 14-30
-      Called from Base__Error.raise_s in file "src/error.ml", line 10, characters 19-40
-      Called from Aether2__X86__Reg_alloc.construct_fn.(fun) in file "lib/x86/reg_alloc.ml", line 131, characters 19-71
-      Called from Base__Map.Tree0.fold in file "src/map.ml", line 920, characters 64-86
-      Called from Aether2__X86__Reg_alloc.construct_fn in file "lib/x86/reg_alloc.ml", line 130, characters 2-197
-      Called from Aether2__X86__Reg_alloc.alloc_fn in file "lib/x86/reg_alloc.ml", line 140, characters 33-48
-      Called from Aether2__X86__Reg_alloc.run_function in file "lib/x86/reg_alloc.ml", line 258, characters 19-30
-      Called from Aether2__X86__Reg_alloc.run.(fun) in file "lib/x86/reg_alloc.ml", line 313, characters 15-30
-      Called from Base__List0.iter in file "src/list0.ml", line 60, characters 4-7
-      Called from Aether2__X86__Reg_alloc.run in file "lib/x86/reg_alloc.ml", line 312, characters 2-132
-      Called from Aether2__Lir__Tests.(fun).M.(fun) in file "lib/lir/tests.ml", line 386, characters 8-127
-      Called from Expect_test_collector.Make.Instance_io.exec in file "collector/expect_test_collector.ml", line 234, characters 12-19 |}]
+      [%expect
+        {|
+        	.text
+        	.type	if,@function
+        	.globl	if
+        if:
+        	subq	rsp, 8
+        	movq	rax, rdi
+        .Lstart.0:
+        	cmpq	rax, 9
+        	seta	rdi
+        	testq	rdi, rdi
+        	jne .Lthen.4
+        	jmp .Lelse.5
+        .Lelse.5:
+        	movq	rax, rax
+        	addq	rax, rsi
+        	movq	rax, 5
+        	addq	rax, rax
+        	jmp .Ldone.2
+        .Lthen.4:
+        	movq	rax, 3
+        	addq	rax, rax
+        	jmp .Ldone.2
+        .Ldone.2:
+        	movq	rax, rax
+        	addq	rsp, 8
+        	ret |}]
     ;;
   end)
 ;;
