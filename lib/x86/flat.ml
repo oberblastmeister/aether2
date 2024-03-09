@@ -47,7 +47,7 @@ module Instr = struct
         }
     | Jmp of { src : string }
     | Ret
-  [@@deriving sexp_of, map, iter]
+  [@@deriving sexp_of, map, iter, variants]
 
   let iter_operands ~on_use ~on_def i =
     match i with

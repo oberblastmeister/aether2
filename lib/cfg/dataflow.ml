@@ -130,6 +130,12 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
   while !changed do
     changed := false;
     Vec.iter labels ~f:(fun label ->
+      (* make sure that we're initializing all the facts*)
+      if not (Label.Table.mem fact_base label)
+      then Label.Table.set fact_base ~key:label ~data:transfer.empty;
+      if not (Label.Table.mem other_facts_base label)
+      then Label.Table.set other_facts_base ~key:label ~data:transfer.empty;
+      [%log.global.debug (label : Label.t)];
       let current_block = graph.get_block label in
       let current_fact =
         Label.Table.find fact_base label |> Option.value ~default:transfer.empty

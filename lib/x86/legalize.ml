@@ -51,15 +51,15 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
     Cx.add cx @@ Mov { dst = Reg reg; src = to_op o };
     reg
   in
+  let operand_size = function
+    | Operand.Reg r -> AReg.size r
+    | Operand.Mem mem -> mem.size
+    | _ -> failwith "get_size"
+  in
   let force_same ~dst ~src =
-    let get_size = function
-      | Operand.Reg r -> AReg.size r
-      | Operand.Mem mem -> mem.size
-      | _ -> failwith "get_size"
-    in
     match dst, src with
     | Operand.Mem _, Operand.Mem _ ->
-      let size = get_size dst in
+      let size = operand_size dst in
       let reg = force_register ~size src in
       Cx.add cx @@ Mov { dst = to_op dst; src = Reg reg };
       Operand.Reg reg
@@ -75,10 +75,24 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
     | _ -> o2
   in
   (* precondition: instruction must work on the same size for all three operands *)
-  let legal3 dst src1 src2 =
-    let dst = force_same ~dst ~src:src1 in
-    let src2 = legal_mem dst src2 in
-    dst, src2
+  (* we have to use a scratch register here
+     could try to implement it like this:
+
+     dst <- src1
+     add dst, src2
+
+     however, if dst and src2 are allocated to the same register, then this wouldn't work.
+     So we have to check that moving to dst will not affect sources.
+     Furthermore, it is not clear how this combines with memory operands.
+     So we just use a scratch register.
+     We can then simplify all this stuff in the peephole optimization phase.
+  *)
+  let legal3 dst src1 src2 rmw =
+    let size = operand_size dst in
+    let r11 = Operand.Reg (AReg.create size Mach_reg.R11) in
+    Cx.add cx @@ Mov { dst = r11; src = src1 };
+    Cx.add cx @@ rmw ~dst:(Operand.Reg (AReg.create size Mach_reg.R11)) ~src:src2;
+    Cx.add cx @@ Mov { dst; src = r11 }
   in
   let flip_src src1 src2 =
     match src1, src2 with
@@ -92,25 +106,22 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      Cx.add cx @@ J { cond; src = string_of_label j1.label };
      Cx.add cx @@ Jmp { src = string_of_label j2.label };
      ()
-   | Jump (Ret (Some src)) ->
-     Cx.add cx @@ Mov { dst = Reg (AReg.create Q RAX); src = to_op src }
+   | Jump (Ret (Some src)) -> Cx.add cx @@ Mov { dst = Reg (AReg.create Q RAX); src }
    | Jump (Ret None) -> ()
-   | Add { dst; src1; src2; _ } ->
-     let dst, src2 = legal3 dst src1 src2 in
-     Cx.add cx @@ Flat.Instr.Add { dst = to_op dst; src = to_op src2 }
+   | Add { dst; src1; src2; _ } -> legal3 dst src1 src2 Flat.Instr.add
    | Mov { dst; src } ->
      let src = legal_mem dst src in
-     Cx.add cx @@ Mov { dst = to_op dst; src = to_op src }
+     Cx.add cx @@ Mov { dst; src }
    | Cmp { src1; src2; _ } ->
      let src2 = legal_mem src1 src2 in
      let src1, src2 = flip_src src1 src2 in
-     Cx.add cx @@ Cmp { src1 = to_op src1; src2 = to_op src2 }
+     Cx.add cx @@ Cmp { src1; src2 }
    | Test { src1; src2; _ } ->
      let src2 = legal_mem src1 src2 in
      let src1, src2 = flip_src src1 src2 in
-     Cx.add cx @@ Test { src1 = to_op src1; src2 = to_op src2 }
-   | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst = to_op dst; imm }
-   | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst = to_op dst }
+     Cx.add cx @@ Test { src1; src2 }
+   | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst; imm }
+   | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst }
    | Call { name; reg_args; dst_reg; dst; _ } ->
      List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create Q mach_reg, reg)
      |> legalize_par_mov

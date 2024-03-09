@@ -223,7 +223,7 @@ module Instr = struct
       on_def @@ O.Reg dst;
       on_def @@ O.Reg dst;
       Address.iter_regs src ~f:(fun reg -> on_use (O.Reg reg))
-    | Add { dst; src1; src2; _ } ->
+    | Add { dst; src1; src2 } ->
       on_def dst;
       on_use src1;
       on_use src2

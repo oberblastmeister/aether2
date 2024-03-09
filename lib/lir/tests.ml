@@ -249,38 +249,6 @@ let%test_module _ =
             (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)) (stack_instrs ()))))) |}]
     ;;
 
-    let%expect_test "regalloc" =
-      let program =
-        Lazy.force loop_lir
-        |> Ssa.convert_ssa
-        |> Lower.run
-        |> Lir_x86.lower
-        |> X86.Reg_alloc.run
-      in
-      print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
-      [%expect
-        {|
-        (SectionText (Type pow @function) (Global pow) (Label pow)
-         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 8)))))
-         (Instr (Mov (dst (Reg (b RAX))) (src (Reg RDI))))
-         (Instr (Mov (dst (Reg (e RDI))) (src (Reg RSI)))) (Label .Lstart.0)
-         (Instr (MovAbs (dst (Reg (r RSI))) (imm 1)))
-         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RSI)))))
-         (Instr (Jmp (src .Lloop.1))) (Label .Lloop.1)
-         (Instr (Cmp (src1 (Reg (e RDI))) (src2 (Imm (Int 0)))))
-         (Instr (Set (cond A) (dst (Reg (f RSI)))))
-         (Instr (Test (src1 (Reg (f RSI))) (src2 (Reg (f RSI)))))
-         (Instr (J (cond NE) (src .Ldone.2))) (Instr (Jmp (src .Lbody.3)))
-         (Label .Lbody.3) (Instr (Mov (dst (Reg (e RDI))) (src (Reg (e RDI)))))
-         (Instr (Add (dst (Reg (e RDI))) (src (Imm (Int 1)))))
-         (Instr (Mov (dst (Reg (r RSI))) (src (Reg (r RDX)))))
-         (Instr (Add (dst (Reg (r RSI))) (src (Reg (b RAX)))))
-         (Instr (Mov (dst (Reg (r RDX))) (src (Reg (r RSI)))))
-         (Instr (Jmp (src .Lloop.1))) (Label .Ldone.2)
-         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RDX)))))
-         (Instr (Add (dst (Reg RSP)) (src (Imm (Int 8))))) (Instr Ret)) |}]
-    ;;
-
     let%expect_test "print" =
       let program =
         Lazy.force loop_lir
@@ -311,10 +279,12 @@ let%test_module _ =
         	jne .Ldone.2
         	jmp .Lbody.3
         .Lbody.3:
-        	movq	rdi, rdi
-        	addq	rdi, 1
-        	movq	rsi, rdx
-        	addq	rsi, rax
+        	movq	r11, rdi
+        	addq	r11, 1
+        	movq	rdi, r11
+        	movq	r11, rdx
+        	addq	r11, rax
+        	movq	rsi, r11
         	movq	rdx, rsi
         	jmp .Lloop.1
         .Ldone.2:
@@ -390,48 +360,84 @@ let%test_module _ =
             (ret r.12))) |}]
     ;;
 
-    let%expect_test "regalloc" =
-      let program =
-        Lazy.force if_lir
-        |> Ssa.convert_ssa
-        |> Lower.run
-        |> Lir_x86.lower
-        |> X86.Reg_alloc.run
-      in
-      print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
+    let%expect_test "x86 lower" =
+      let program = Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower in
+      print_s @@ [%sexp_of: X86.Types.VReg.t X86.Types.Program.t] program;
       [%expect
         {|
-        (SectionText (Type if @function) (Global if) (Label if)
-         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 8)))))
-         (Instr (Mov (dst (Reg (x RAX))) (src (Reg RDI)))) (Label .Lstart.0)
-         (Instr (Cmp (src1 (Reg (x RAX))) (src2 (Imm (Int 9)))))
-         (Instr (Set (cond A) (dst (Reg (f RDI)))))
-         (Instr (Test (src1 (Reg (f RDI))) (src2 (Reg (f RDI)))))
-         (Instr (J (cond NE) (src .Lthen.4))) (Instr (Jmp (src .Lelse.5)))
-         (Label .Lelse.5) (Instr (Mov (dst (Reg (a RAX))) (src (Reg (x RAX)))))
-         (Instr (Add (dst (Reg (a RAX))) (src (Reg (y RSI)))))
-         (Instr (Mov (dst (Reg (r RAX))) (src (Imm (Int 5)))))
-         (Instr (Add (dst (Reg (r RAX))) (src (Reg (a RAX)))))
-         (Instr (Jmp (src .Ldone.2))) (Label .Lthen.4)
-         (Instr (Mov (dst (Reg (r RAX))) (src (Imm (Int 3)))))
-         (Instr (Add (dst (Reg (r RAX))) (src (Reg (x RAX)))))
-         (Instr (Jmp (src .Ldone.2))) (Label .Ldone.2)
-         (Instr (Mov (dst (Reg RAX)) (src (Reg (r RAX)))))
-         (Instr (Add (dst (Reg RSP)) (src (Imm (Int 8))))) (Instr Ret)) |}]
+        ((functions
+          (((name if)
+            (graph
+             ((entry start.0)
+              (blocks
+               ((done.2
+                 ((instrs
+                   ((Block_args (((s Q) (name r.12))))
+                    (Ret ((Reg ((s Q) (name r.12)))))))))
+                (else.5
+                 ((instrs
+                   ((Block_args ())
+                    (Add (dst (Reg ((s Q) (name a.7))))
+                     (src1 (Reg ((s Q) (name x.0)))) (src2 (Reg ((s Q) (name y.1)))))
+                    (Add (dst (Reg ((s Q) (name r.8)))) (src1 (Imm (Int 5)))
+                     (src2 (Reg ((s Q) (name a.7)))))
+                    (Jump ((label done.2) (args (((s Q) (name r.8))))))))))
+                (start.0
+                 ((instrs
+                   ((Block_args ())
+                    (Cmp (src1 (Reg ((s Q) (name x.0)))) (src2 (Imm (Int 9))))
+                    (Set (cond A) (dst (Reg ((s Q) (name f.3)))))
+                    (Test (src1 (Reg ((s Q) (name f.3))))
+                     (src2 (Reg ((s Q) (name f.3)))))
+                    (CondJump (cond NE) (j1 ((label then.4) (args ())))
+                     (j2 ((label else.5) (args ()))))))))
+                (then.4
+                 ((instrs
+                   ((Block_args ())
+                    (Add (dst (Reg ((s Q) (name r.11)))) (src1 (Imm (Int 3)))
+                     (src2 (Reg ((s Q) (name x.0)))))
+                    (Jump ((label done.2) (args (((s Q) (name r.11))))))))))))
+              (exit done.2)))
+            (params ((((s Q) (name x.0)) RDI) (((s Q) (name y.1)) RSI)))
+            (stack_params ()) (unique_name 13) (unique_stack_slot 0)
+            (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)) (stack_instrs ()))))) |}]
+    ;;
+
+    let%expect_test "liveness" =
+      Logger.Log.with_log false (fun () ->
+        let program =
+          Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower
+        in
+        let fn = List.hd_exn program.functions in
+        let live_in, live_out = X86.Dataflow.Liveness.run fn in
+        print_s
+          [%message
+            (live_in : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)
+              (live_out : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)]);
+      [%expect
+        {|
+        ((live_in
+          ((start.0 (((s Q) (name x.0)) ((s Q) (name y.1)))) (done.2 ())
+           (then.4 (((s Q) (name x.0))))
+           (else.5 (((s Q) (name x.0)) ((s Q) (name y.1))))))
+         (live_out
+          ((start.0 (((s Q) (name x.0)) ((s Q) (name y.1)))) (done.2 ()) (then.4 ())
+           (else.5 ())))) |}]
     ;;
 
     let%expect_test "print" =
-      let program =
-        Lazy.force if_lir
-        |> Ssa.convert_ssa
-        |> Lower.run
-        |> Lir_x86.lower
-        |> X86.Reg_alloc.run
-        |> X86.Print.run
-      in
-      print_string program;
-      [%expect
-        {|
+      Logger.Log.with_log false (fun () ->
+        let program =
+          Lazy.force if_lir
+          |> Ssa.convert_ssa
+          |> Lower.run
+          |> Lir_x86.lower
+          |> X86.Reg_alloc.run
+          |> X86.Print.run
+        in
+        print_string program;
+        [%expect
+          {|
         	.text
         	.type	if,@function
         	.globl	if
@@ -445,19 +451,22 @@ let%test_module _ =
         	jne .Lthen.4
         	jmp .Lelse.5
         .Lelse.5:
-        	movq	rax, rax
-        	addq	rax, rsi
-        	movq	rax, 5
-        	addq	rax, rax
+        	movq	r11, rax
+        	addq	r11, rsi
+        	movq	rax, r11
+        	movq	r11, 5
+        	addq	r11, rax
+        	movq	rax, r11
         	jmp .Ldone.2
         .Lthen.4:
-        	movq	rax, 3
-        	addq	rax, rax
+        	movq	r11, 3
+        	addq	r11, rax
+        	movq	rax, r11
         	jmp .Ldone.2
         .Ldone.2:
         	movq	rax, rax
         	addq	rsp, 8
-        	ret |}]
+        	ret |}])
     ;;
   end)
 ;;
@@ -512,8 +521,9 @@ let%test_module _ =
         	subq	rsp, 8
         	movq	rax, rdi
         .Lstart.0:
-        	movq	rdi, rax
-        	addq	rdi, rsi
+        	movq	r11, rax
+        	addq	r11, rsi
+        	movq	rdi, r11
         	movq	rdi, rax
         	call	another
         	movq	rax, rax

@@ -73,7 +73,9 @@ let add_block_edges ~interference ~precolored block live_out =
   let live_out = ref live_out in
   Block.iter_instrs_backward block ~f:(fun instr ->
     let out_list = Set.to_list !live_out in
-    [%log.global.debug (out_list : VReg.t list) (instr : VReg.t Instr.t)];
+    let uses = Instr.iter_uses instr |> F.Iter.to_list in
+    [%log.global.debug
+      (out_list : VReg.t list) (instr : VReg.t Instr.t) (uses : VReg.t list)];
     let defs = Instr.iter_defs instr |> F.Iter.to_list in
     (* ensure that multiple defs interfere with each other *)
     iter_pairs defs ~f:(fun (def1, def2) ->
