@@ -111,71 +111,9 @@ let instr_to_block_transfer
   }
 ;;
 
-(* this algorithm is wrong *)
-(* we can't just stop if a it hasn't changed *)
 (* we have to run a full round first so we actually fill in all the liveness facts *)
 (* then we can't decide to stop if something hasn't changed *)
-(* so instead use the algorithm in engineering a compiler where you do reverse postorder iteration at least once *)
-let run_block_transfer' (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
-  let fact_base = Label.Table.create () in
-  let other_facts_base = Label.Table.create () in
-  let queue = LabelQueue.create () in
-  let _ =
-    LabelQueue.enqueue_exn
-      queue
-      `back
-      (match transfer.direction with
-       | Forward -> graph.entry
-       | Backward -> graph.exit)
-      ()
-  in
-  let rec go () =
-    match LabelQueue.dequeue_with_key queue `front with
-    | None -> ()
-    | Some (label, ()) ->
-      let current_block = graph.get_block label in
-      (* we should have initialized all facts *)
-      (* let current_fact = Map.find fact_base label |> Option.value_exn in *)
-      let current_fact =
-        Label.Table.find fact_base label |> Option.value ~default:transfer.empty
-      in
-      let other_labels =
-        (match transfer.direction with
-         | Forward ->
-           (* Option.value with default because the start has no predecessors *)
-           graph.v.preds
-         | Backward -> graph.v.succs)
-          label
-      in
-      (* we should have initialized all facts *)
-      let other_facts =
-        F.Iter.map other_labels ~f:(fun node ->
-          Label.Table.find fact_base node |> Option.value ~default:transfer.empty)
-        |> F.Iter.to_list
-        |> transfer.combine
-      in
-      Label.Table.set other_facts_base ~key:label ~data:other_facts;
-      let maybe_new_facts =
-        transfer.transfer label current_block ~other_facts ~current_fact
-      in
-      (match maybe_new_facts with
-       | Some new_fact ->
-         (* the fact changed, so we need to add all labels that depend on the current label *)
-         let labels_todo =
-           match transfer.direction with
-           | Forward -> graph.v.succs label
-           | Backward -> graph.v.preds label
-         in
-         F.Iter.iter labels_todo ~f:(fun label ->
-           ignore (LabelQueue.enqueue queue `back label ()));
-         Label.Table.set fact_base ~key:label ~data:new_fact;
-         go ()
-       | None -> go ())
-  in
-  go ();
-  fact_base, other_facts_base
-;;
-
+(* algorihtm comes from engineering a compiler *)
 let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
   let fact_base = Label.Table.create () in
   let other_facts_base = Label.Table.create () in
