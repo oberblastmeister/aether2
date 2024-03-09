@@ -1,5 +1,5 @@
 (test
- (name aether2)
+ (name aether2_test)
  (flags
   (:standard -warn-error -A))
  (preprocess

@@ -21,7 +21,7 @@ module Make (Config : Config) : sig
     val to_iter : t -> (Name.t * Register.t Alloc_reg.t) F.Iter.t
     val to_spilled_iter : t -> Name.t F.Iter.t
     val find_exn : t -> Name.t -> Register.t Alloc_reg.t
-    val did_use_reg : t -> Register.t -> bool
+    val used_registers : t -> Register.t F.Iter.t
   end
 
   module type Algorithm = sig
@@ -67,6 +67,7 @@ end = struct
       Data.Enum_set.mem ~enum:Register_enum.enum t.used_registers reg
     ;;
 
+    let used_registers t = Data.Enum_set.iter ~enum:Register_enum.enum t.used_registers
     let to_iter _ = todo ()
     let to_spilled_iter _ = todo ()
   end

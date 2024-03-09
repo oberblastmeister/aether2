@@ -28,3 +28,11 @@ module Label = struct
   module Table = Entity.Map.Make (T)
   include T
 end
+
+module Stack_slot = struct
+  module T = Entity.Name.Make ()
+  module Map = Map.Make_using_comparator (T)
+  module Set = Set.Make_using_comparator (T)
+  module Table = Entity.Map.Make (T)
+  include T
+end

@@ -12,10 +12,15 @@ module Context = struct
     { instrs : (X86.VReg.t X86.Instr.t, Perms.Read_write.t) Vec.t
     ; mutable unique_name : Name.Id.t
     ; mutable stack_instrs : X86.Stack_instr.t list
+    ; mutable unique_stack_slot : X86.Stack_slot.Id.t
     }
 
   let create (fn : Tir.Function.t) =
-    { instrs = Vec.create (); unique_name = fn.unique_name; stack_instrs = [] }
+    { instrs = Vec.create ()
+    ; unique_name = fn.unique_name
+    ; unique_stack_slot = X86.Stack_slot.Id.of_int 0
+    ; stack_instrs = []
+    }
   ;;
 
   let add cx instr = Vec.push cx.instrs instr
@@ -199,6 +204,7 @@ let lower_function (fn : Tir.Function.t) =
   ; params
   ; stack_params
   ; unique_name = cx.unique_name
+  ; unique_stack_slot = cx.unique_stack_slot
   ; stack_instrs = cx.stack_instrs
   }
 ;;

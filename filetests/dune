@@ -1,0 +1,8 @@
+(executable
+ (public_name filetests)
+ (name main)
+ (flags
+  (:standard -warn-error -A))
+ (preprocess
+  (pps ppx_jane))
+ (libraries core alcotest aether2 eio))

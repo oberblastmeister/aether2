@@ -3,12 +3,7 @@ open! O
 open Utils.Instr_types
 
 module Size = struct
-  type t =
-    | Q
-    | L
-    | W
-    | B
-  [@@deriving equal, compare, hash, sexp]
+  type t = Q [@@deriving equal, compare, hash, sexp]
 end
 
 module Ty = struct
@@ -69,7 +64,7 @@ module AReg = struct
   type t =
     | Spilled of
         { s : Size.t [@equal.ignore]
-        ; name : Name.t
+        ; name : Stack_slot.t
         }
     | InReg of
         { s : Size.t [@equal.ignore]
@@ -86,7 +81,7 @@ module Stack_off = struct
     (* use ReserveStackEnd *)
     (* used to put arguments on the stack to call a function *)
     | End of int32
-    | Local of Name.t
+    | Local of Stack_slot.t
   [@@deriving sexp_of]
 end
 
@@ -198,7 +193,7 @@ module Stack_instr = struct
   type t =
     | ReserveEnd of { size : int32 }
     | ReserveLocal of
-        { name : Name.t
+        { stack_slot : Stack_slot.t
         ; size : int32
         }
   [@@deriving sexp_of]
@@ -209,11 +204,11 @@ module VInstr = struct
   (* TODO: put stack operations in separate type *)
   type 'r t =
     (* for calling conventions*)
-    | ReserveStackEnd of { size : int32 }
-    | ReserveStackLocal of
+    (* | ReserveStackEnd of { size : int32 } *)
+    (* | ReserveStackLocal of
         { name : Name.t
         ; size : int32
-        }
+        } *)
     (* for ssa *)
     | Block_args of 'r list
     (* | Par_mov of ('r Precolored.t * 'r Precolored.t) list *)
@@ -339,6 +334,7 @@ module Function = struct
     ; params : ('r * MReg.t) list
     ; stack_params : 'r list
     ; unique_name : Name.Id.t
+    ; unique_stack_slot : Stack_slot.Id.t
     ; caller_saved : Mach_reg.t list
     ; stack_instrs : Stack_instr.t list
     }

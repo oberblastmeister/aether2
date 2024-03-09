@@ -4,48 +4,22 @@ open Flat
 
 type context =
   { instrs : (MReg.t Flat.Line.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
-  ; mutable unique_name : Name.Id.t
-  ; spill_slots : (Mach_reg.t, Name.t) Hashtbl.t
-  ; mutable stack_instrs : Stack_instr.t list
+  ; stack_builder : Stack_builder.t
   }
 
 module Cx = struct
-  let create unique_name =
-    { instrs = Vec.create ()
-    ; unique_name
-    ; spill_slots = Hashtbl.create (module Mach_reg)
-    ; stack_instrs = []
-    }
-  ;;
-
+  let create stack_builder = { instrs = Vec.create (); stack_builder }
   let add cx = Vec.push cx.instrs
-
-  let fresh_name cx s =
-    let name = Name.create s cx.unique_name in
-    cx.unique_name <- Name.Id.next cx.unique_name;
-    name
-  ;;
-
-  let get_spill_slot cx reg =
-    match Hashtbl.find cx.spill_slots reg with
-    | Some name -> name
-    | None ->
-      let name = fresh_name cx "spill_mach_reg" in
-      Hashtbl.add_exn cx.spill_slots ~key:reg ~data:name;
-      cx.stack_instrs <- ReserveLocal { name; size = 8l } :: cx.stack_instrs;
-      name
-  ;;
-
   let add cx = Vec.push cx.instrs
   let add_instr cx instr = Vec.push cx.instrs (Instr instr)
 
   let spill_reg cx reg =
-    let spill_slot = get_spill_slot cx reg in
+    let spill_slot = Stack_builder.stack_slot_of_mach_reg cx.stack_builder reg in
     add_instr cx @@ Flat.Instr.mov_to_stack_from_reg Q spill_slot reg
   ;;
 
   let reload_reg cx reg =
-    let spill_slot = get_spill_slot cx reg in
+    let spill_slot = Stack_builder.stack_slot_of_mach_reg cx.stack_builder reg in
     add_instr cx @@ Flat.Instr.mov_to_reg_from_stack Q reg spill_slot
   ;;
 end
@@ -82,7 +56,9 @@ let lower_minstr cx minstr =
   let victims = List.map name_and_victim ~f:snd in
   (* spill victims *)
   List.iter victims ~f:(Cx.spill_reg cx);
-  let victim_of_spilled = List.iter name_and_victim |> Hashtbl.of_iter (module Name) in
+  let victim_of_spilled =
+    List.iter name_and_victim |> Hashtbl.of_iter (module Stack_slot)
+  in
   (* move spilled uses to the victims *)
   Flat.Instr.iter_uses minstr
   |> F.Iter.filter_map ~f:AReg.spilled_val
@@ -131,15 +107,15 @@ let lower_instr cx instr = lower_minstr cx instr
     { Block.instrs }
   ;; *)
 
-let lower_function unique_name (fn : _ Flat.Program.t) =
-  let cx = Cx.create unique_name in
+let lower_function stack_builder (fn : _ Flat.Program.t) =
+  let cx = Cx.create stack_builder in
   Vec.iter fn ~f:(function
     | Flat.Line.Instr instr -> lower_instr cx instr
     | Label l -> Cx.add cx @@ Flat.Line.Label l
     | Comment s -> Cx.add cx @@ Comment s);
   Vec.shrink_to_fit cx.instrs;
   let instrs = Vec.freeze cx.instrs in
-  instrs, cx.stack_instrs
+  instrs
 ;;
 (* let fn = Function.map_blocks fn ~f:(lower_block cx) in
     { fn with unique_name = cx.unique_name } *)

@@ -29,6 +29,7 @@
    (alcotest (= 1.7.0))
    (algaeff (= 2.0.0))
    (higher_kinded (= v0.16.0))
+   (eio (= 0.15))
  )
  (tags
   (topics "to describe" your project)))

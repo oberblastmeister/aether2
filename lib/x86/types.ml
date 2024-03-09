@@ -2,6 +2,7 @@ open! O
 include Types_basic
 module Name = Utils.Instr_types.Name
 module Label = Utils.Instr_types.Label
+module Stack_slot = Utils.Instr_types.Stack_slot
 module Control = Utils.Instr_types.Control
 module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
 
@@ -52,9 +53,6 @@ module Size = struct
 
   let to_byte_size = function
     | Q -> 8
-    | L -> 4
-    | W -> 2
-    | B -> 1
   ;;
 end
 
@@ -112,8 +110,8 @@ module Operand = struct
   include Operand
 
   (* let type_of o = match o with
-  | Reg _ -> _
-  | Imm _ ->  *)
+     | Reg _ -> _
+     | Imm _ -> *)
 
   let imm i = Imm (Imm.Int i)
   let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
@@ -194,7 +192,6 @@ module VInstr = struct
         movs
         ~f
     | Block_args regs -> List.iter regs ~f
-    | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 
   let iter_defs i ~f =
@@ -202,7 +199,6 @@ module VInstr = struct
     match i with
     | Par_mov movs -> (List.iter @> F.Fold.of_fn fst) movs ~f
     | Block_args args -> List.iter args ~f
-    | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 
   let iter_uses i ~f =
@@ -210,7 +206,6 @@ module VInstr = struct
     match i with
     | Par_mov movs -> (List.iter @> F.Fold.of_fn snd) movs ~f
     | Block_args _ -> ()
-    | ReserveStackEnd _ | ReserveStackLocal _ -> ()
   ;;
 end
 
@@ -297,14 +292,14 @@ module Instr = struct
       ~on_use:(fun o -> Operand.iter_any_regs o ~f)
   ;;
 
-  let mov_to_reg_from_stack s reg (stack_name : Name.t) =
+  let mov_to_reg_from_stack s reg (stack_name : Stack_slot.t) =
     Mov
       { dst = Reg (MReg.create ~name:stack_name.name s reg)
       ; src = Operand.mem s (Address.stack_local stack_name)
       }
   ;;
 
-  let mov_to_stack_from_reg s (stack_name : Name.t) reg =
+  let mov_to_stack_from_reg s (stack_name : Stack_slot.t) reg =
     Mov
       { dst = Operand.mem s (Address.stack_local stack_name)
       ; src = Reg (MReg.create ~name:stack_name.name s reg)

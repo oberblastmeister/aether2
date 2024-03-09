@@ -99,14 +99,14 @@ module Instr = struct
 
   let map_regs i ~f = map f i
 
-  let mov_to_stack_from_reg s (stack_name : Name.t) reg =
+  let mov_to_stack_from_reg s (stack_name : Stack_slot.t) reg =
     Mov
       { dst = Op.mem s (Address.stack_local stack_name)
       ; src = Reg (MReg.create ~name:stack_name.name s reg)
       }
   ;;
 
-  let mov_to_reg_from_stack s reg (stack_name : Name.t) =
+  let mov_to_reg_from_stack s reg (stack_name : Stack_slot.t) =
     Mov
       { dst = Reg (MReg.create ~name:stack_name.name s reg)
       ; src = Op.mem s (Address.stack_local stack_name)
@@ -118,8 +118,20 @@ module Line = struct
   type 'r t =
     | Instr of 'r Instr.t
     | Label of string
+    | Global of string
+    | Type of string * string
     | Comment of string
+    | SectionText
   [@@deriving sexp_of, map, iter]
+
+  let map_instr ~f = function
+    | Instr i -> Instr (f i)
+    | Label l -> Label l
+    | Global g -> Global g
+    | Type (a, b) -> Type (a, b)
+    | Comment c -> Comment c
+    | SectionText -> SectionText
+  ;;
 end
 
 module Program = struct

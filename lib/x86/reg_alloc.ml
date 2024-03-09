@@ -135,60 +135,50 @@ let construct_fn (fn : _ Function.t) =
 ;;
 
 let alloc_fn fn =
-  let open Result.Let_syntax in
   let interference, precolored = construct_fn fn in
   let allocation = Ra.Greedy.run ~precolored ~interference in
   allocation
 ;;
 
-let collect_all_vregs fn =
-  (Function.iter_instrs_forward @> Instr.iter_regs) fn
-  |> F.Iter.map ~f:(fun (reg : VReg.t) -> reg.name, reg)
-  |> Name.Table.of_iter
-;;
-
 module Apply : sig
   val apply_allocation_function
     :  allocation:Ra.Allocation.t
+    -> stack_builder:Stack_builder.t
     -> VReg.t Function.t
     -> AReg.t Function.t
 end = struct
-  let apply_vreg ~allocation (vreg : VReg.t) : AReg.t =
-    match Ra.Allocation.find_exn allocation vreg.name with
-    | Spilled -> Spilled { s = vreg.s; name = vreg.name }
+  type cx =
+    { allocation : Ra.Allocation.t
+    ; stack_builder : Stack_builder.t
+    }
+
+  let apply_vreg cx (vreg : VReg.t) : AReg.t =
+    match Ra.Allocation.find_exn cx.allocation vreg.name with
+    | Spilled ->
+      let stack_slot = Stack_builder.stack_slot_of_name cx.stack_builder vreg.name in
+      Spilled { s = vreg.s; name = stack_slot }
     | InReg reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg }
   ;;
 
-  let apply_allocation_instr ~allocation (instr : VReg.t Instr.t) =
-    let spilled = Vec.create () in
-    ( spilled |> Vec.freeze
-    , Instr.map_regs instr ~f:(fun vreg : AReg.t ->
-        match Ra.Allocation.find_exn allocation vreg.name with
-        | Spilled ->
-          Vec.push spilled (vreg.s, vreg.name);
-          Spilled { s = vreg.s; name = vreg.name }
-        | InReg reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg }) )
+  let apply_allocation_instr cx (instr : VReg.t Instr.t) =
+    Instr.map_regs instr ~f:(apply_vreg cx)
   ;;
 
-  let apply_allocation_block ~allocation (block : VReg.t Block.t) =
-    let instrs = Vec.create ~size:(Vec.length block.instrs) () in
-    Vec.iter block.instrs ~f:(fun instr ->
-      let spilled, instr = apply_allocation_instr ~allocation instr in
-      Vec.iter spilled ~f:(fun (s, name) ->
-        Vec.push instrs
-        @@ Instr.Virt
-             (ReserveStackLocal { name; size = Size.to_byte_size s |> Int32.of_int_exn }));
-      Vec.push instrs instr);
+  let apply_allocation_block cx (block : VReg.t Block.t) =
+    let instrs =
+      Vec.map_copy block.instrs ~f:(fun instr -> apply_allocation_instr cx instr)
+    in
     { Block.instrs = Vec.freeze instrs }
   ;;
 
   (* TODO: handle using callee saved registers *)
-  let apply_allocation_function ~allocation (fn : VReg.t Function.t) =
+  let apply_allocation_function ~allocation ~stack_builder (fn : VReg.t Function.t) =
+    let cx = { allocation; stack_builder } in
     let graph =
-      Graph.map_blocks fn.graph ~f:(fun block -> apply_allocation_block ~allocation block)
+      Graph.map_blocks fn.graph ~f:(fun block -> apply_allocation_block cx block)
     in
-    let params = (List.map & Tuple2.map_fst) fn.params ~f:(apply_vreg ~allocation) in
-    let stack_params = List.map fn.stack_params ~f:(apply_vreg ~allocation) in
+    let params = (List.map & Tuple2.map_fst) fn.params ~f:(apply_vreg cx) in
+    let stack_params = List.map fn.stack_params ~f:(apply_vreg cx) in
     { fn with graph; params; stack_params }
   ;;
 end
@@ -259,30 +249,48 @@ let create_epilogue stack_layout =
   ]
 ;;
 
-(* TODO: save and restore callee saved registers that were used by the register allocator *)
-let run_function fn =
-  (* print_s [%message (fn : VReg.t Function.t)]; *)
+let run_function (fn : _ Function.t) =
+  let stack_builder = Stack_builder.create fn.unique_stack_slot in
   let allocation = alloc_fn fn in
-  (* print_s [%message (allocation : Ra.Allocation.t)]; *)
-  let fn = Apply.apply_allocation_function ~allocation fn in
-  (* print_s [%message "apply_allocation" (fn : AReg.t Function.t)]; *)
-  (* something is wrong with the remove_ssa function, we need to add entry and exit to block *)
+  let callee_saved =
+    Ra.Allocation.used_registers allocation
+    |> F.Iter.filter ~f:(fun reg ->
+      List.mem ~equal:Mach_reg.equal Mach_reg.callee_saved reg)
+    |> F.Iter.map ~f:(fun reg ->
+      MReg.create Q reg, Stack_builder.fresh_stack_slot stack_builder "spill_callee_saved")
+    |> F.Iter.to_list
+  in
+  [%log.global.debug (allocation : Ra.Allocation.t)];
+  let fn = Apply.apply_allocation_function ~allocation ~stack_builder fn in
   let fn = Remove_ssa.remove_ssa fn in
-  (* print_s [%message "remove_ssa" (fn : AReg.t Function.t)]; *)
   let flat = Legalize.legalize_function fn in
-  (* print_s [%message "legalized" (fn : AReg.t Function.t)]; *)
-  let flat, stack_instrs = Spill_flat.lower_function fn.unique_name flat in
-  let stack_layout = Stack_layout.create stack_instrs in
-  (* print_s [%message "lowered" (fn : MReg.t Function.t)]; *)
+  let flat = Spill_flat.lower_function stack_builder flat in
+  let stack_layout = Stack_layout.create (Stack_builder.get_stack_instrs stack_builder) in
   let flat = Resolve_stack.resolve_function stack_layout flat in
   let prologue = create_prologue stack_layout in
   let epilogue = create_epilogue stack_layout in
   let flat' =
     Vec.create ~size:(List.length prologue + Vec.length flat + List.length epilogue) ()
   in
+  Vec.push flat' (Flat.Line.Type (fn.name, "@function"));
+  Vec.push flat' (Flat.Line.Global fn.name);
   Vec.push flat' (Flat.Line.Label fn.name);
   List.iter prologue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
+  (* spill callee saved *)
+  List.iter callee_saved ~f:(fun (reg, slot) ->
+    Vec.push
+      flat'
+      (Flat.Line.Instr
+         (Flat.Instr.Mov { dst = Operand.stack_local Q slot; src = Operand.Reg reg }));
+    ());
   Vec.append_into ~into:flat' flat;
+  (* reload callee saved *)
+  List.iter callee_saved ~f:(fun (reg, slot) ->
+    Vec.push
+      flat'
+      (Flat.Line.Instr
+         (Flat.Instr.Mov { dst = Operand.Reg reg; src = Operand.stack_local Q slot }));
+    ());
   List.iter epilogue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
   Vec.shrink_to_fit flat';
   Vec.freeze flat'
@@ -290,6 +298,7 @@ let run_function fn =
 
 let run program =
   let res_program = Vec.create () in
+  Vec.push res_program Flat.Line.SectionText;
   Program.iter_functions program ~f:(fun fn ->
     let flat = run_function fn in
     Vec.append_into ~into:res_program flat;

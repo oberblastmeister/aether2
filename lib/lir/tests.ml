@@ -217,7 +217,7 @@ let%test_module _ =
                      ((label loop.1) (args (((s Q) (name e.1)) ((s Q) (name r.2))))))))))))
               (exit done.2)))
             (params ((((s Q) (name b.0)) RDI) (((s Q) (name e.1)) RSI)))
-            (stack_params ()) (unique_name 15)
+            (stack_params ()) (unique_name 15) (unique_stack_slot 0)
             (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)) (stack_instrs ()))))) |}]
     ;;
 
@@ -232,7 +232,8 @@ let%test_module _ =
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
       [%expect
         {|
-        ((Label pow) (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
+        (SectionText (Type pow @function) (Global pow) (Label pow)
+         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
          (Instr (Mov (dst (Reg (b RAX))) (src (Reg RDI))))
          (Instr (Mov (dst (Reg (e RDI))) (src (Reg RSI)))) (Label .Lstart.0)
          (Instr (MovAbs (dst (Reg (r RDI))) (imm 1)))
@@ -263,7 +264,11 @@ let%test_module _ =
         |> X86.Print.run
       in
       print_string program;
-      [%expect {|
+      [%expect
+        {|
+        	.text
+        	.type	pow,@function
+        	.globl	pow
         pow:
         	subq	rsp, 0
         	movq	rax, rdi
@@ -370,7 +375,8 @@ let%test_module _ =
       print_s @@ [%sexp_of: X86.Types.MReg.t X86.Flat.Program.t] program;
       [%expect
         {|
-        ((Label if) (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
+        (SectionText (Type if @function) (Global if) (Label if)
+         (Instr (Sub (dst (Reg RSP)) (src (Imm (Int 0)))))
          (Instr (Mov (dst (Reg (x RAX))) (src (Reg RDI))))
          (Instr (Mov (dst (Reg (y RDX))) (src (Reg RSI)))) (Label .Lstart.0)
          (Instr (Cmp (src1 (Reg (x RAX))) (src2 (Imm (Int 9)))))
@@ -403,6 +409,9 @@ let%test_module _ =
       print_string program;
       [%expect
         {|
+        	.text
+        	.type	if,@function
+        	.globl	if
         if:
         	subq	rsp, 0
         	movq	rax, rdi

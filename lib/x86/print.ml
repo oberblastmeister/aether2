@@ -11,9 +11,6 @@ end
 let suffix_of_size (s : Size.t) =
   match s with
   | Q -> "q"
-  | L -> "l"
-  | W -> "w"
-  | B -> "b"
 ;;
 
 let print_size cx s = Cx.add cx @@ suffix_of_size s
@@ -122,7 +119,7 @@ let op = print_operand
 
 let suffix (op : _ Flat.Op.t) =
   match op with
-  | Imm _ -> ""
+  | Imm imm -> raise_s [%message "no suffix for immediate" (imm : Imm.t)]
   | Mem { size; _ } -> suffix_of_size size
   | Reg { MReg.s; _ } -> suffix_of_size s
 ;;
@@ -157,8 +154,11 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
 let print_line b line =
   (match line with
    | Flat.Line.Instr instr -> print_instr b instr
+   | SectionText -> bprintf b "\t.text"
+   | Type (s, ty) -> bprintf b "\t.type\t%s,%s" s ty
    | Label l -> bprintf b "%s:" l
-   | Comment s -> bprintf b "# %s" s);
+   | Comment s -> bprintf b "# %s" s
+   | Global s -> bprintf b "\t.globl\t%s" s);
   Buffer.add_char b '\n'
 ;;
 

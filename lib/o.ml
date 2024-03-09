@@ -55,6 +55,7 @@ module Data = Aether_data
 module Vec = Data.Vec
 module List1 = Data.List1
 module Entity = Aether_entity
+module Ppx_log_syntax = Logger.Ppx_log_syntax
 
 let ( |- ) x f =
   f x;
