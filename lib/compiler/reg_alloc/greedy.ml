@@ -107,11 +107,11 @@ let alloc_colors ~dict ~precolored ~interference =
   Map.iter precolored ~f:(fun reg -> Data.Enum_set.add ~enum used_registers reg);
   let color_of_name, max_color = color ~interference ~precolored in
   let alloc_of_color = ColorMap.create () in
-  (* put precolored registers in the allocation map *)
+  (* immediately set the colors of precolored registers *)
   Map.iteri precolored ~f:(fun ~key:name ~data:reg ->
     let color = Name.Table.find_exn color_of_name name in
     ColorMap.set alloc_of_color ~key:color ~data:(Alloc_reg.inreg reg);
-    todo ());
+    ());
   F.Iter.Infix.(
     Color.to_int Color.lowest -- Color.to_int max_color
     |> F.Iter.iter ~f:(fun color ->
@@ -140,6 +140,8 @@ let run ~dict ~precolored ~interference =
   in
   let alloc_of_name =
     Entity.Map.iteri color_of_name
+    (* make sure not to include precolored nodes in the allocation *)
+    |> F.Iter.filter ~f:(fun (name, _) -> not @@ Map.mem precolored name)
     |> F.Iter.map ~f:(fun (name, color) ->
       let alloc = ColorMap.find_exn alloc_of_color color in
       name, alloc)

@@ -111,7 +111,14 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      Cx.add cx @@ Test { src1 = to_op src1; src2 = to_op src2 }
    | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst = to_op dst; imm }
    | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst = to_op dst }
-   | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t)]);
+   | Call { name; reg_args; dst_reg; dst; _ } ->
+     List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create Q mach_reg, reg)
+     |> legalize_par_mov
+     |> List.iter ~f:(Cx.add cx);
+     (* TODO: not doing this correctly, need to par move arguments *)
+     Cx.add cx @@ Call { src = name };
+     Cx.add cx @@ Mov { dst = Reg dst; src = Reg (AReg.create Q dst_reg) }
+   | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
   ()
 ;;
 

@@ -14,6 +14,7 @@ val run : (unit -> 'a) -> ('a, Error.t) Result.t
 val with_span : Span.t -> (unit -> 'a) -> 'a
 val parse_error : Sexp.t -> 'a
 val atom : (string -> 'a) -> Cst.t -> 'a
+val string : Cst.t -> string
 val list : (Cst.t list -> 'a) -> Cst.t -> 'a
 val list_ref : (Cst.t list ref -> 'a) -> Cst.t -> 'a
 val item : Cst.t list ref -> (Cst.t -> 'a) -> 'a

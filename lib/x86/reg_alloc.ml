@@ -19,7 +19,7 @@ module Ra = Reg_alloc.Make (struct
 module Precolored : sig
   type t [@@deriving sexp_of]
 
-  val create : unit -> t
+  val create : Name.Id.t -> t
   val get_name : t -> Mach_reg.t -> Name.t
 
   (* after this is called none of the other functions should be called *)
@@ -32,10 +32,10 @@ end = struct
     }
   [@@deriving sexp_of]
 
-  let create () =
+  let create unique_name =
     { name_of_mach_reg = Hashtbl.create (module Mach_reg)
     ; mach_reg_of_name = Hashtbl.create (module Name)
-    ; unique_name = Name.Id.of_int 0
+    ; unique_name
     }
   ;;
 
@@ -72,6 +72,8 @@ let iter_pairs xs ~f =
 let add_block_edges ~interference ~precolored block live_out =
   let live_out = ref live_out in
   Block.iter_instrs_backward block ~f:(fun instr ->
+    let out_list = Set.to_list !live_out in
+    [%log.global.debug (out_list : VReg.t list) (instr : VReg.t Instr.t)];
     let defs = Instr.iter_defs instr |> F.Iter.to_list in
     (* ensure that multiple defs interfere with each other *)
     iter_pairs defs ~f:(fun (def1, def2) ->
@@ -90,9 +92,9 @@ let add_block_edges ~interference ~precolored block live_out =
     (* make sure we at least add every use/def in, because the register allocator uses the domain of interference as all nodes *)
     Instr.iter_regs instr
     |> F.Iter.iter ~f:(fun def -> Interference.add_node interference def.VReg.name);
-    Instr.mach_reg_defs instr (fun mach_reg ->
-      Interference.add_node interference (Precolored.get_name precolored mach_reg);
-      ());
+    (* don't add the mach regs, we want to add them lazily *)
+    (* this way we don't get bogus uses for precolored mach regs*)
+
     (* add interference edges *)
     Set.iter !live_out
     |> F.Iter.filter ~f:(fun live -> is_edge live)
@@ -101,10 +103,8 @@ let add_block_edges ~interference ~precolored block live_out =
       |> F.Iter.iter ~f:(fun def ->
         Interference.add_edge interference def.VReg.name live.VReg.name);
       Instr.mach_reg_defs instr (fun mach_reg ->
-        Interference.add_edge
-          interference
-          (Precolored.get_name precolored mach_reg)
-          live.name;
+        let name = Precolored.get_name precolored mach_reg in
+        Interference.add_edge interference name live.name;
         ());
       ());
     ();
@@ -126,16 +126,20 @@ let construct_fn (fn : _ Function.t) =
   Function.all_params fn
   |> iter_pairs ~f:(fun (param1, param2) ->
     Interference.add_edge interference param1.VReg.name param2.VReg.name);
-  let precolored = Precolored.create () in
+  let precolored = Precolored.create fn.unique_name in
   Cfg.Graph.iteri fn.graph ~f:(fun (label, block) ->
     let live_out = Cfg.Dataflow.Fact_base.find_exn live_out_facts label in
     add_block_edges ~interference ~precolored block live_out;
     ());
+  [%log.global.debug
+    (fn.name : string) (interference : Interference.t) (precolored : Precolored.t)];
   interference, Precolored.get_precolored precolored
 ;;
 
 let alloc_fn fn =
   let interference, precolored = construct_fn fn in
+  (* each precolored register will be marked as used in the allocation *)
+  (* though it will never be in the allocation map *)
   let allocation = Ra.Greedy.run ~precolored ~interference in
   allocation
 ;;
@@ -191,7 +195,7 @@ end = struct
     | Imm.Int i -> Imm.Int i
     | Stack (End i) -> Int (Stack_layout.end_offset stack i)
     | Stack (Local name) -> Int (Stack_layout.local_offset stack name)
-    | Stack (Start _) -> todo ()
+    | Stack (Start _) -> todo [%here]
   ;;
 
   let resolve_address stack address =
@@ -260,12 +264,32 @@ let run_function (fn : _ Function.t) =
       MReg.create Q reg, Stack_builder.fresh_stack_slot stack_builder "spill_callee_saved")
     |> F.Iter.to_list
   in
-  [%log.global.debug (allocation : Ra.Allocation.t)];
+  [%log.global.debug
+    (allocation : Ra.Allocation.t) (callee_saved : (MReg.t * Stack_slot.t) list)];
   let fn = Apply.apply_allocation_function ~allocation ~stack_builder fn in
   let fn = Remove_ssa.remove_ssa fn in
   let flat = Legalize.legalize_function fn in
   let flat = Spill_flat.lower_function stack_builder flat in
   let stack_layout = Stack_layout.create (Stack_builder.get_stack_instrs stack_builder) in
+  let flat =
+    let flat' = Vec.create ~size:(Vec.length flat + 10) () in
+    (* spill callee saved *)
+    List.iter callee_saved ~f:(fun (reg, slot) ->
+      Vec.push
+        flat'
+        (Flat.Line.Instr
+           (Flat.Instr.Mov { dst = Operand.stack_local Q slot; src = Operand.Reg reg }));
+      ());
+    Vec.append_into ~into:flat' flat;
+    (* reload callee saved *)
+    List.iter callee_saved ~f:(fun (reg, slot) ->
+      Vec.push
+        flat'
+        (Flat.Line.Instr
+           (Flat.Instr.Mov { dst = Operand.Reg reg; src = Operand.stack_local Q slot }));
+      ());
+    Vec.freeze flat'
+  in
   let flat = Resolve_stack.resolve_function stack_layout flat in
   let prologue = create_prologue stack_layout in
   let epilogue = create_epilogue stack_layout in
@@ -276,21 +300,7 @@ let run_function (fn : _ Function.t) =
   Vec.push flat' (Flat.Line.Global fn.name);
   Vec.push flat' (Flat.Line.Label fn.name);
   List.iter prologue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
-  (* spill callee saved *)
-  List.iter callee_saved ~f:(fun (reg, slot) ->
-    Vec.push
-      flat'
-      (Flat.Line.Instr
-         (Flat.Instr.Mov { dst = Operand.stack_local Q slot; src = Operand.Reg reg }));
-    ());
   Vec.append_into ~into:flat' flat;
-  (* reload callee saved *)
-  List.iter callee_saved ~f:(fun (reg, slot) ->
-    Vec.push
-      flat'
-      (Flat.Line.Instr
-         (Flat.Instr.Mov { dst = Operand.Reg reg; src = Operand.stack_local Q slot }));
-    ());
   List.iter epilogue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
   Vec.shrink_to_fit flat';
   Vec.freeze flat'

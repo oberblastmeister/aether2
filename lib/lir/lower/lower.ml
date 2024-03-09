@@ -20,7 +20,7 @@ module Context = struct
 
   let create (fn : Vir.Function.t) =
     let instrs = instr_fold fn.graph |> Vec.of_iter |> Vec.freeze in
-    let instr_of_value = Instr_of_value.create (Vec.to_iter instrs) in
+    let instr_of_value = Instr_of_value.create (Vec.iter instrs) in
     let color_of_index = Side_effects.color fn.graph in
     let use_states = Use_states.create fn instr_of_value in
     { instrs; instr_of_value; use_states; color_of_index }
@@ -47,7 +47,9 @@ and lower_value cx color value =
   | None -> Tir.Value.V value
   (* used once, possibly inline *)
   | Some (index, value_instr)
-    when [%equal: Use_states.state] (Use_states.find cx.use_states value) Once ->
+    when [%equal: Use_states.state option]
+           (Use_states.find cx.use_states value)
+           (Some Once) ->
     let value_instr_color = Side_effects.Color_of_index.get cx.color_of_index index in
     let can_inline =
       (not (Lir.Instr.has_side_effect value_instr))
@@ -69,7 +71,9 @@ let lower_block cx (block : Vir.Block.t) instr_index =
     List.filter_map block.body ~f:(fun instr ->
       let res =
         if F.Iter.exists (Lir.Instr.iter_defs instr) ~f:(fun def ->
-             [%equal: Use_states.state] (Use_states.find cx.use_states def) Once)
+             [%equal: Use_states.state option]
+               (Use_states.find cx.use_states def)
+               (Some Once))
         then
           (* this instruction will be inlined later, so don't duplicate it by lowering it again *)
           None

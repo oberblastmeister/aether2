@@ -31,7 +31,7 @@ let create stack_instrs =
       locals_size := !locals_size + size);
   let align size =
     assert (size % 8l = 0l);
-    if size % 16l = 8l then size + 8l else size
+    if size % 16l = 0l then size + 8l else size
   in
   { stack_size = align @@ (!locals_size + !end_size)
   ; end_offset = 0l

@@ -23,7 +23,7 @@ module Expr = struct
     | Call { ty; _ } | Bin { ty; _ } | Const { ty; _ } | Val { ty; _ } | Load { ty; _ } ->
       ty
     | Cmp _ -> U1
-    | Alloca _ -> todo ()
+    | Alloca _ -> todo [%here]
   ;;
 
   let iter_uses i ~f = iter f i

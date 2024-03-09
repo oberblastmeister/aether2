@@ -55,6 +55,13 @@ let parse_expr st =
             Parser.parse_error [%message "couldn't parse number" ~s]))
       in
       Expr.Const { ty; const }
+    | "call" ->
+      let ty = Parser.item xs parse_ty in
+      Parser.item xs
+      @@ Parser.list_ref (fun xs ->
+        let name = Parser.item xs (Parser.atom Fn.id) in
+        let args = Parser.rest !xs (parse_var st) in
+        Expr.Call { ty; name; args })
     | "cmp" ->
       let ty = Parser.item xs parse_ty in
       let op = Parser.item xs @@ Parser.atom parse_cmp_op in

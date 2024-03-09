@@ -20,6 +20,7 @@ let create unique_stack_slot =
 let fresh_stack_slot t s =
   let stack_slot = Stack_slot.create s t.unique_stack_slot in
   t.unique_stack_slot <- Stack_slot.Id.next t.unique_stack_slot;
+  t.stack_instrs <- ReserveLocal { stack_slot; size = 8l } :: t.stack_instrs;
   stack_slot
 ;;
 
@@ -29,7 +30,6 @@ let stack_slot_of_name t name =
   | None ->
     let stack_slot = fresh_stack_slot t name.name in
     Hashtbl.add_exn t.stack_slot_of_name ~key:name ~data:stack_slot;
-    t.stack_instrs <- ReserveLocal { stack_slot; size = 8l } :: t.stack_instrs;
     stack_slot
 ;;
 

@@ -24,12 +24,12 @@ module Cx = struct
   ;;
 end
 
-let lower_minstr cx minstr =
+let lower_instr cx instr =
   let module Set = Mach_reg_set in
   let module Enum_set = Data.Enum_set in
   let unused_registers =
     let set = Set.create () in
-    Flat.Instr.iter_regs minstr
+    Flat.Instr.iter_regs instr
     |> F.Iter.filter_map ~f:AReg.reg_val
     |> F.Iter.iter ~f:(fun reg -> Set.add set reg);
     Enum_set.negate set;
@@ -37,13 +37,21 @@ let lower_minstr cx minstr =
     Set.iter set |> F.Iter.to_list
   in
   let spilled =
-    Flat.Instr.iter_regs minstr
+    Flat.Instr.iter_regs instr
     |> F.Iter.filter_map ~f:(fun areg ->
       match areg with
       | AReg.Spilled { name; _ } -> Some name
       | _ -> None)
     |> F.Iter.to_list
   in
+  if not @@ List.is_empty spilled
+  then (
+    [%log.global.debug
+      "need to spill"
+        (instr : AReg.t Instr.t)
+        (unused_registers : Mach_reg.t list)
+        (spilled : Stack_slot.t list)];
+    ());
   assert (List.length spilled <= 9);
   let name_and_victim, remaining = List.zip_with_remainder spilled unused_registers in
   (match remaining with
@@ -60,7 +68,7 @@ let lower_minstr cx minstr =
     List.iter name_and_victim |> Hashtbl.of_iter (module Stack_slot)
   in
   (* move spilled uses to the victims *)
-  Flat.Instr.iter_uses minstr
+  Flat.Instr.iter_uses instr
   |> F.Iter.filter_map ~f:AReg.spilled_val
   |> F.Iter.iter ~f:(fun (`s s, `name spilled) ->
     let reg = Hashtbl.find_exn victim_of_spilled spilled in
@@ -68,7 +76,7 @@ let lower_minstr cx minstr =
     ());
   (* use the victims instead of the stack slots *)
   let minstr_with_victims =
-    Flat.Instr.map_regs minstr ~f:(fun areg ->
+    Flat.Instr.map_regs instr ~f:(fun areg ->
       match areg with
       | Spilled { s; name } ->
         MReg.create ~name:name.name s (Hashtbl.find_exn victim_of_spilled name)
@@ -76,7 +84,7 @@ let lower_minstr cx minstr =
   in
   Cx.add_instr cx minstr_with_victims;
   (* move defined victim registers to the stack slot *)
-  Flat.Instr.iter_defs minstr (fun def ->
+  Flat.Instr.iter_defs instr (fun def ->
     match def with
     | Spilled { s; name } ->
       let victim = Hashtbl.find_exn victim_of_spilled name in
@@ -98,7 +106,7 @@ let lower_jump = function
 
 (* | Jump.Ret _ -> raise_s [%message "jump must be legalized"] *)
 
-let lower_instr cx instr = lower_minstr cx instr
+let lower_instr cx instr = lower_instr cx instr
 
 (* let lower_block cx (block : _ Block.t) =
     (Block.iter_instrs_forward block) (lower_instr cx);

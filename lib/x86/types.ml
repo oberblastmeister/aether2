@@ -415,8 +415,8 @@ module Block = struct
     | Ret _ -> ()
   ;;
 
-  let iter_instrs_forward b = Vec.to_iter b.instrs
-  let iter_instrs_backward b = Vec.to_iter_rev b.instrs
+  let iter_instrs_forward b = Vec.iter b.instrs
+  let iter_instrs_backward b = Vec.iter_rev b.instrs
 end
 
 module Graph = struct

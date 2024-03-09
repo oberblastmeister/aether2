@@ -68,8 +68,8 @@ end = struct
     ;;
 
     let used_registers t = Data.Enum_set.iter ~enum:Register_enum.enum t.used_registers
-    let to_iter _ = todo ()
-    let to_spilled_iter _ = todo ()
+    let to_iter _ = todo [%here]
+    let to_spilled_iter _ = todo [%here]
   end
 
   module type Algorithm = sig

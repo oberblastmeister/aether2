@@ -35,6 +35,8 @@ let atom f = function
       parse_error [%message "expected atom" ~got:(l.items : Cst.t list)])
 ;;
 
+let string = atom Fn.id
+
 let list f = function
   | Cst.List x -> R.scope (const x.span) (fun () -> f x.items)
   | Cst.Atom x -> parse_error [%message "expected list" ~got:(x.value : string)]

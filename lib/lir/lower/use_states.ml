@@ -30,4 +30,4 @@ let create fn instr_of_value =
   use_states
 ;;
 
-let find = ValueMap.find_exn
+let find = ValueMap.find

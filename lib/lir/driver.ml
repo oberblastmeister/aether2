@@ -11,7 +11,7 @@ let compile_string ~link source =
   let asm = lir |> Lower.run |> Lir_x86.lower |> X86.Reg_alloc.run |> X86.Print.run in
   let name, out_channel = Filename_unix.open_temp_file "lir" "asm" in
   let _ = Io.Process.run_stdout "zig" [ "cc"; name ] in
-  todo ()
+  todo [%here]
 ;;
 
 let%expect_test _ =

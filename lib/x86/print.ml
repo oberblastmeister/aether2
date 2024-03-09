@@ -35,7 +35,6 @@ let string_of_mach_reg (s : Size.t) (reg : Mach_reg.t) =
      | R13 -> "r13"
      | R14 -> "r14"
      | R15 -> "r15")
-  | _ -> todo ()
 ;;
 
 let string_of_cond (cond : Cond.t) =
@@ -52,7 +51,7 @@ let print_mreg cx (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg mreg.s mreg.
 let print_imm cx imm =
   match imm with
   | Imm.Int i -> Cx.add cx @@ string_of_int @@ Int.of_int32_exn i
-  | _ -> todo ()
+  | imm -> raise_s [%message "could not print imm" (imm : Imm.t)]
 ;;
 
 let string_of_scale = function
@@ -72,7 +71,7 @@ let print_address cx (address : _ Address.t) =
     print_imm cx offset;
     (match base with
      | None -> ()
-     | Rip -> todo ()
+     | Rip -> todo [%here]
      | Reg r ->
        Cx.add cx " + ";
        print_mreg cx r;
@@ -89,7 +88,7 @@ let print_address cx (address : _ Address.t) =
 let print_operand cx (operand : _ Operand.t) =
   match operand with
   | Imm (Int i) -> Cx.add cx @@ string_of_int @@ Int.of_int32_exn i
-  | Imm _ -> todo ()
+  | Imm _ -> todo [%here]
   | Reg r -> print_mreg cx r
   | Mem mem ->
     Cx.add cx "[";
@@ -148,7 +147,8 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
       (fun b i -> Buffer.add_string b (Int64.to_string_hum i))
       imm
   | Ret -> bprintf b "\tret"
-  | _ -> raise_s [%message "could not print instr" (instr : MReg.t Flat.Instr.t)]
+  | Call { src } -> bprintf b "\tcall\t%s" src
+  | _ -> raise_s [%message "could not print instr" (instr : MReg.t Flat.Instr.t) [%here]]
 ;;
 
 let print_line b line =

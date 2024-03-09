@@ -9,4 +9,6 @@ type state =
 type t [@@deriving sexp_of]
 
 val create : Vir.Function.t -> Instr_of_value.t -> t
-val find : t -> Types.Value.t -> state
+
+(* will return none when the value isn't used*)
+val find : t -> Types.Value.t -> state option

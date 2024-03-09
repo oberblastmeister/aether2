@@ -17,9 +17,9 @@ end
 let color (graph : _ Cfg.Graph.t) =
   let cur_color = ref 0 in
   let colors = Vec.create () in
-  Cfg.Graph.iter graph (fun block ->
+  Cfg.Graph.iter graph ~f:(fun block ->
     incr cur_color;
-    Block.iter_instrs_forward block (fun instr ->
+    Block.iter_instrs_forward block ~f:(fun instr ->
       Vec.push colors !cur_color;
       if Some_instr.has_side_effect instr then incr cur_color));
   colors |> Vec.freeze

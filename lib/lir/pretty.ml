@@ -34,7 +34,7 @@ let pretty_expr cx =
       List
         [ (match op with
            | Add -> Atom "add"
-           | _ -> todo ())
+           | _ -> todo [%here])
         ; pretty_ty ty
         ; pretty_value v1
         ; pretty_value v2
@@ -79,7 +79,7 @@ let pretty_instr cx i =
   match i with
   | Instr.Assign { dst; expr } ->
     Pretty.(List [ Atom "set"; pretty_value dst; pretty_expr cx expr ])
-  | _ -> todo ()
+  | _ -> todo [%here]
 ;;
 
 let pretty_block cx (label : Label.t) (block : _ Block.t) =

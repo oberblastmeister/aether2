@@ -143,13 +143,13 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
          ; dst = vreg dst
          });
     ()
-  | Alloca _ -> todo ()
-  | Load _ -> todo ()
+  | Alloca _ -> todo [%here]
+  | Load _ -> todo [%here]
 
 and lower_instr cx instr =
   match instr with
   | Instr.Assign { dst; expr } -> lower_assign cx dst expr
-  | Store _ -> todo ()
+  | Store _ -> todo [%here]
 
 and lower_block_call cx block_call =
   { X86.Block_call.label = block_call.Block_call.label

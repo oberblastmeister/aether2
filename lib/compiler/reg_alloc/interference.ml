@@ -1,6 +1,7 @@
 open O
 open Utils.Instr_types
 
+(* TODO: perhaps use a node sort of thing with normal neighbors and precolored neighbors *)
 type t = (Name.t, Name.Set.t) Entity.Map.t [@@deriving sexp_of]
 
 let create () = Name.Table.create ()

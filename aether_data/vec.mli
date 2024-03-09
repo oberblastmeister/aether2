@@ -46,8 +46,6 @@ val of_list : 'a list -> ('a, [< _ perms ]) t
 val of_iter : 'a F.Iter.t -> ('a, [< _ perms ]) t
 val iter : ('a, [> read ]) t -> f:('a -> unit) -> unit
 val iter_rev : ('a, [> read ]) t -> f:('a -> unit) -> unit
-val to_iter : ('a, [> read ]) t -> 'a F.Iter.t
-val to_iter_rev : ('a, [> read ]) t -> 'a F.Iter.t
 val iteri : ('a, [> read ]) t -> f:(int -> 'a -> unit) -> unit
 val map : ('a, [> read_write ]) t -> f:('a -> 'a) -> unit
 val map_copy : ('a, [> read ]) t -> f:('a -> 'b) -> ('b, [< _ perms ]) t

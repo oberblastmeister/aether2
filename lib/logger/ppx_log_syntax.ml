@@ -21,7 +21,7 @@ module Global = struct
   type return_type = unit
 
   let default = ()
-  let would_log level = false
+  let would_log level = !Log.would_log
 
   let sexp ?level ?pos sexp =
     print_s

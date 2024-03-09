@@ -62,4 +62,4 @@ let ( |- ) x f =
   x
 ;;
 
-let todo () = failwith "TODO"
+let todo location = raise_s [%message "TODO" (location : Source_code_position.t)]

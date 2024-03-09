@@ -40,7 +40,7 @@ module Instr = struct
         { cond : Cond.t
         ; dst : 'r Op.t
         }
-    | Call of { src : 'r Op.t }
+    | Call of { src : string }
     | J of
         { cond : Cond.t
         ; src : string
@@ -71,8 +71,7 @@ module Instr = struct
       on_use src1;
       on_use src2
     | Set { dst; _ } -> on_def dst
-    | Call { src } -> on_use src
-    | J _ | Jmp _ | Ret -> ()
+    | Call _ | J _ | Jmp _ | Ret -> ()
   ;;
 
   let iter_op_uses i k = iter_operands ~on_use:k ~on_def:(Fn.const ()) i
@@ -94,7 +93,10 @@ module Instr = struct
   ;;
 
   let iter_regs i ~f =
-    iter_operands ~on_use:(fun op -> Op.iter_any_regs op ~f) ~on_def:(Fn.const ()) i
+    iter_operands
+      ~on_use:(fun op -> Op.iter_any_regs op ~f)
+      ~on_def:(fun op -> Op.iter_any_regs op ~f)
+      i
   ;;
 
   let map_regs i ~f = map f i
