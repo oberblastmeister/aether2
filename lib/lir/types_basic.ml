@@ -189,6 +189,29 @@ module Function = struct
   [@@deriving sexp_of, fields, map]
 end
 
+module Function_ty = struct
+  type t =
+    { params : Value.t list
+    ; return : Ty.t
+    }
+  [@@deriving sexp_of]
+end
+
+module Extern = struct
+  type t =
+    { name : string
+    ; ty : Function_ty.t
+    }
+  [@@deriving sexp_of]
+end
+
+module Decl = struct
+  type 'v t =
+    | Function of 'v Function.t
+    | Extern of Extern.t
+  [@@deriving sexp_of]
+end
+
 module Program = struct
   type 'v t = { functions : 'v Function.t list } [@@deriving sexp_of, fields, map]
 end

@@ -2,8 +2,11 @@ open! O
 module Lir = Types
 module Tir = Tir
 
-let blocks_fold graph = (Cfg.Graph.iter_on_labels (Lir.Graph.Dfs.preorder graph)) graph
-let instr_fold fn = (blocks_fold @> F.Fold.mapped snd @> Lir.Block.iter_instrs_forward) fn
+let iter_blocks graph = (Cfg.Graph.iter_on_labels (Lir.Graph.Dfs.preorder graph)) graph
+
+let iter_instrs fn =
+  (iter_blocks @> F.Fold.mapped snd @> Lir.Block.iter_instrs_forward) fn
+;;
 
 module Context = struct
   type t =
@@ -19,7 +22,7 @@ module Context = struct
   ;;
 
   let create (fn : Vir.Function.t) =
-    let instrs = instr_fold fn.graph |> Vec.of_iter |> Vec.freeze in
+    let instrs = iter_instrs fn.graph |> Vec.of_iter |> Vec.freeze in
     let instr_of_value = Instr_of_value.create (Vec.iter instrs) in
     let color_of_index = Side_effects.color fn.graph in
     let use_states = Use_states.create fn instr_of_value in
@@ -43,7 +46,7 @@ and lower_control_instr (cx : Context.t) (instr : Vir.Control_instr.t) instr_ind
 and lower_value cx color value =
   let data = Instr_of_value.find_data cx.instr_of_value value in
   match data with
-  (* can't inline, this isn't an actual Instr.t *)
+  (* can't inline, this isn't an single value Instr.t *)
   | None -> Tir.Value.V value
   (* used once, possibly inline *)
   | Some (index, value_instr)
@@ -91,7 +94,7 @@ let lower_fn (fn : Vir.Function.t) =
   let cx = Context.create fn in
   let instr_index = ref 0 in
   let blocks =
-    blocks_fold fn.graph
+    iter_blocks fn.graph
     |> F.Iter.map ~f:(fun (label, block) -> label, lower_block cx block instr_index)
     |> F.Iter.to_list
   in

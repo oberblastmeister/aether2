@@ -3,45 +3,79 @@ open Eio.Std
 open Aether2.O
 module Process = Eio.Process
 
-let main ~cwd ~process ~stdout =
-  Eio.Process.run ~cwd:Eio.Path.(cwd / "filetests/runtime") process [ "zig"; "build" ];
-  let asm =
-    Aether2.Lir.Driver.compile_string
-      {|
-    (define (entry) u64
-      (label (start)
-        (set one (const u64 1))
-        (set two (const u64 2))
-        (set x (call u64 (assert_u64 one two)))
-        (ret)
-      )
-    )
-    |}
-  in
+let compile_runtime ~cwd ~process =
+  Eio.Process.run ~cwd:Eio.Path.(cwd / "filetests/runtime") process [ "zig"; "build" ]
+;;
+
+let result_of_status = function
+  | `Exited 0 -> Ok ()
+  | `Exited n -> Error (`Exited n)
+  | `Signaled n -> Error (`Signaled n)
+;;
+
+let compile_single ~cwd ~process ~stdout path =
+  let@ sw f = Switch.run f in
+  let contents = Eio.Path.load Eio.Path.(cwd / path) in
+  let asm = Aether2.Lir.Driver.compile_string contents in
   let name, file = Filename_unix.open_temp_file "lir" ".s" in
   Out_channel.output_string file asm;
   Out_channel.close file;
   Eio.Flow.copy_string (asm ^ "\n") stdout;
-  let path =
-    Eio.Path.(cwd / "filetests/runtime/zig-out/lib/libruntime.a" |> native_exn)
-  in
-  Process.run process [ "zig"; "cc"; "-masm=intel"; name; path; "-o"; "lir_test" ];
-  Switch.run (fun sw ->
-    let proc = Process.spawn ~sw process [ "./lir_test" ] in
-    let status = Process.await proc in
-    (match status with
-     | `Exited 0 -> ()
-     | _ -> failwith "running failed");
-    ())
+  let runtime_path = Eio.Path.(cwd / "filetests/runtime/zig-out/lib/libruntime.a") in
+  (let stdout_buf = Buffer.create 10 in
+   let stderr_buf = Buffer.create 10 in
+   let proc =
+     Process.spawn
+       ~sw
+       ~stdout:(Eio.Flow.buffer_sink stdout_buf)
+       ~stderr:(Eio.Flow.buffer_sink stderr_buf)
+       process
+       [ "zig"; "cc"; name; Eio.Path.native_exn runtime_path ]
+   in
+   let status = Process.await proc |> result_of_status in
+   let stderr_contents = Buffer.contents stderr_buf in
+   let stdout_contents = Buffer.contents stdout_buf in
+   (match status with
+    | Ok () -> ()
+    | Error _ ->
+      Eio.Flow.copy_string ("failed to compile file " ^ path) stdout;
+      Eio.Flow.copy_string "stderr\n" stdout;
+      Eio.Flow.copy_string stderr_contents stdout;
+      ());
+   ());
+  let proc = Process.spawn ~sw process [ "./a.out" ] in
+  let status = Process.await proc in
+  (match status with
+   | `Exited 0 -> ()
+   | `Exited n -> print_s [%message "abnormal exit status" (n : int)]
+   | `Signaled n -> print_s [%message "process was killed by a signal" (n : int)]);
+  ()
+;;
+
+let run ~env (args : Args.t) =
+  let cwd = Eio.Stdenv.cwd env in
+  let process = Eio.Stdenv.process_mgr env in
+  let stdout = Eio.Stdenv.stdout env in
+  match args with
+  | Compile { files; _ } ->
+    compile_runtime ~cwd ~process;
+    List.iter files ~f:(fun file ->
+      compile_single ~cwd ~stdout ~process file;
+      ());
+    ()
+  | Test _ -> todo [%here]
+;;
+
+let main ~env =
+  match Args.main () with
+  | Ok (`Ok args) -> run ~env args
+  | Ok _ -> ()
+  | Error _ -> exit 1
 ;;
 
 (* build the zig runtime *)
 (* run each of the tests while linkinzig g it to the zig runtime *)
 let () =
-  Eio_main.run
-  @@ fun env ->
-  main
-    ~cwd:(Eio.Stdenv.cwd env)
-    ~stdout:(Eio.Stdenv.stdout env)
-    ~process:(Eio.Stdenv.process_mgr env)
+  let@ env = Eio_main.run in
+  main ~env
 ;;

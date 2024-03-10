@@ -215,11 +215,10 @@ end = struct
     | Mem mem -> Mem (Mem.map_addr mem ~f:(resolve_address stack))
   ;;
 
-  let resolve_minstr stack (minstr : _ Flat.Instr.t) =
+  let resolve_minstr stack (minstr : _ Flat.Instr.t) : _ Flat.Instr.t =
     let resolve_operand = resolve_operand stack in
     match minstr with
-    | Mov { dst; src } ->
-      Flat.Instr.Mov { dst = resolve_operand dst; src = resolve_operand src }
+    | Mov { dst; src } -> Mov { dst = resolve_operand dst; src = resolve_operand src }
     | MovAbs { dst; imm } -> MovAbs { dst = resolve_operand dst; imm }
     | Lea { dst; src } -> Lea { dst = resolve_operand dst; src = resolve_operand src }
     | Add { dst; src } -> Add { dst = resolve_operand dst; src = resolve_operand src }

@@ -86,7 +86,7 @@ and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
     let dst = vreg dst in
     Cx.add cx (MovAbs { dst = Reg dst; imm = const });
     Reg dst
-  | I { expr = Val { v; _ }; _ } -> lower_value_op_merge cx v
+  | I { dst = _; expr = Val { v; _ }; _ } -> lower_value_op_merge cx v
   | v -> lower_value_op cx v
 
 and lower_assign cx dst (expr : _ Expr.t) : unit =

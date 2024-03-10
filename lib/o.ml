@@ -62,4 +62,5 @@ let ( |- ) x f =
   x
 ;;
 
+let ( let@ ) f x = f x
 let todo location = raise_s [%message "TODO" (location : Source_code_position.t)]

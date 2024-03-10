@@ -1,6 +1,6 @@
 const std = @import("std");
 
-export fn assert_u64(x: u64, y: u64) void {
+export fn assert_eq_u64(x: u64, y: u64) void {
     if (x != y) {
         std.debug.panic("expected: {}, actual: {}\n", .{ x, y });
     }
@@ -14,4 +14,5 @@ extern fn entry() void;
 
 export fn main() void {
     entry();
+    std.process.exit(0);
 }
