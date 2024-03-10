@@ -15,8 +15,6 @@
    -log-source-position))
  (libraries
   core
-  core_unix.command_unix
-  fmt
   algaeff
   folds
   higher_kinded

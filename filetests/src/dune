@@ -5,4 +5,4 @@
   (:standard -warn-error -A))
  (preprocess
   (pps ppx_jane))
- (libraries core alcotest aether2 eio))
+ (libraries core alcotest aether2 eio eio_main))

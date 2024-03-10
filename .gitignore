@@ -2,3 +2,7 @@ _opam/
 _build/
 zig-cache/
 zig-out/
+a.out
+*.o
+test.s
+.gdb_history

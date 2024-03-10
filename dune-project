@@ -20,16 +20,25 @@
  (synopsis "A short synopsis")
  (description "A longer description")
  (depends
-   ocaml
-   dune
-   (core (= v0.16.2))
-   (core_bench (= v0.16.0))
-   (ppx_deriving (= 5.2.1))
-   (ppx_jane (= v0.16.0))
-   (alcotest (= 1.7.0))
-   (algaeff (= 2.0.0))
-   (higher_kinded (= v0.16.0))
-   (eio (= 0.15))
- )
+  ocaml
+  dune
+  (core
+   (= v0.16.2))
+  (core_bench
+   (= v0.16.0))
+  (ppx_deriving
+   (= 5.2.1))
+  (ppx_jane
+   (= v0.16.0))
+  (alcotest
+   (= 1.7.0))
+  (algaeff
+   (= 2.0.0))
+  (higher_kinded
+   (= v0.16.0))
+  (eio
+   (= 0.15))
+  (eio_main
+   (= 0.15)))
  (tags
   (topics "to describe" your project)))

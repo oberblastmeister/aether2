@@ -1,3 +1,0 @@
-    .global external
-external:
-    ret

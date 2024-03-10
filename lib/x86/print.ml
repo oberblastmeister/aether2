@@ -91,9 +91,11 @@ let print_operand cx (operand : _ Operand.t) =
   | Imm _ -> todo [%here]
   | Reg r -> print_mreg cx r
   | Mem mem ->
-    Cx.add cx "[";
+    (* Cx.add cx "[";
     print_address cx mem.addr;
-    Cx.add cx "]"
+    Cx.add cx "]" *)
+    (* need to add dword ptr and qword ptr stuff *)
+    todo [%here]
 ;;
 
 let print_operands cx operands =
@@ -124,7 +126,7 @@ let suffix (op : _ Flat.Op.t) =
 ;;
 
 let i1 b s x = bprintf b "\t%s\t%a" s op x
-let i2_s cx s x y = bprintf cx "\t%s%s\t%a, %a" s (suffix x) op x op y
+let i2_s cx s x y = bprintf cx "\t%s\t%a, %a" s op x op y
 
 let print_instr b (instr : MReg.t Flat.Instr.t) =
   match instr with
@@ -139,9 +141,8 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
   | MovAbs { dst; imm } ->
     bprintf
       b
-      "\t%s%s\t%a, %a"
+      "\t%s\t%a, %a"
       "movabs"
-      (suffix dst)
       op
       dst
       (fun b i -> Buffer.add_string b (Int64.to_string_hum i))
@@ -164,6 +165,7 @@ let print_line b line =
 
 let run program =
   let buffer = Buffer.create 1000 in
+  bprintf buffer "\t.intel_syntax\tnoprefix\n";
   Vec.iter program ~f:(fun line -> print_line buffer line);
   Buffer.contents buffer
 ;;

@@ -1,6 +1,6 @@
 open O
 
-let compile_string ~link source =
+let compile_string source =
   let lir =
     Parse.parse source
     |> Or_error.ok_exn
@@ -9,9 +9,7 @@ let compile_string ~link source =
     |> Ssa.convert_ssa
   in
   let asm = lir |> Lower.run |> Lir_x86.lower |> X86.Reg_alloc.run |> X86.Print.run in
-  let name, out_channel = Filename_unix.open_temp_file "lir" "asm" in
-  let _ = Io.Process.run_stdout "zig" [ "cc"; name ] in
-  todo [%here]
+  asm
 ;;
 
 let%expect_test _ =

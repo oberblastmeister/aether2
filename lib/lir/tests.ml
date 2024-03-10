@@ -261,35 +261,36 @@ let%test_module _ =
       print_string program;
       [%expect
         {|
+        	.intel_syntax	noprefix
         	.text
         	.type	pow,@function
         	.globl	pow
         pow:
-        	subq	rsp, 8
-        	movq	rax, rdi
-        	movq	rdi, rsi
+        	sub	rsp, 8
+        	mov	rax, rdi
+        	mov	rdi, rsi
         .Lstart.0:
-        	movabsq	rsi, 1
-        	movq	rdx, rsi
+        	movabs	rsi, 1
+        	mov	rdx, rsi
         	jmp .Lloop.1
         .Lloop.1:
-        	cmpq	rdi, 0
+        	cmp	rdi, 0
         	seta	rsi
-        	testq	rsi, rsi
+        	test	rsi, rsi
         	jne .Ldone.2
         	jmp .Lbody.3
         .Lbody.3:
-        	movq	r11, rdi
-        	addq	r11, 1
-        	movq	rdi, r11
-        	movq	r11, rdx
-        	addq	r11, rax
-        	movq	rsi, r11
-        	movq	rdx, rsi
+        	mov	r11, rdi
+        	add	r11, 1
+        	mov	rdi, r11
+        	mov	r11, rdx
+        	add	r11, rax
+        	mov	rsi, r11
+        	mov	rdx, rsi
         	jmp .Lloop.1
         .Ldone.2:
-        	movq	rax, rdx
-        	addq	rsp, 8
+        	mov	rax, rdx
+        	add	rsp, 8
         	ret |}]
     ;;
   end)
@@ -438,34 +439,35 @@ let%test_module _ =
         print_string program;
         [%expect
           {|
+        	.intel_syntax	noprefix
         	.text
         	.type	if,@function
         	.globl	if
         if:
-        	subq	rsp, 8
-        	movq	rax, rdi
+        	sub	rsp, 8
+        	mov	rax, rdi
         .Lstart.0:
-        	cmpq	rax, 9
+        	cmp	rax, 9
         	seta	rdi
-        	testq	rdi, rdi
+        	test	rdi, rdi
         	jne .Lthen.4
         	jmp .Lelse.5
         .Lelse.5:
-        	movq	r11, rax
-        	addq	r11, rsi
-        	movq	rax, r11
-        	movq	r11, 5
-        	addq	r11, rax
-        	movq	rax, r11
+        	mov	r11, rax
+        	add	r11, rsi
+        	mov	rax, r11
+        	mov	r11, 5
+        	add	r11, rax
+        	mov	rax, r11
         	jmp .Ldone.2
         .Lthen.4:
-        	movq	r11, 3
-        	addq	r11, rax
-        	movq	rax, r11
+        	mov	r11, 3
+        	add	r11, rax
+        	mov	rax, r11
         	jmp .Ldone.2
         .Ldone.2:
-        	movq	rax, rax
-        	addq	rsp, 8
+        	mov	rax, rax
+        	add	rsp, 8
         	ret |}])
     ;;
   end)
@@ -503,31 +505,32 @@ let%test_module _ =
         print_string program;
         [%expect
           {|
+        	.intel_syntax	noprefix
         	.text
         	.type	another,@function
         	.globl	another
         another:
-        	subq	rsp, 8
-        	movq	rax, rdi
-        	movq	rdi, rsi
+        	sub	rsp, 8
+        	mov	rax, rdi
+        	mov	rdi, rsi
         .Lstart.0:
-        	movabsq	rdi, 1
-        	movq	rax, rax
-        	addq	rsp, 8
+        	movabs	rdi, 1
+        	mov	rax, rax
+        	add	rsp, 8
         	ret
         	.type	fn,@function
         	.globl	fn
         fn:
-        	subq	rsp, 8
-        	movq	rax, rdi
+        	sub	rsp, 8
+        	mov	rax, rdi
         .Lstart.0:
-        	movq	r11, rax
-        	addq	r11, rsi
-        	movq	rdi, r11
-        	movq	rdi, rax
+        	mov	r11, rax
+        	add	r11, rsi
+        	mov	rdi, r11
+        	mov	rdi, rax
         	call	another
-        	movq	rax, rax
-        	addq	rsp, 8
+        	mov	rax, rax
+        	add	rsp, 8
         	ret |}])
     ;;
   end)

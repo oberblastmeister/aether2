@@ -20,6 +20,7 @@ depends: [
   "algaeff" {= "2.0.0"}
   "higher_kinded" {= "v0.16.0"}
   "eio" {= "0.15"}
+  "eio_main" {= "0.15"}
   "odoc" {with-doc}
 ]
 build: [
