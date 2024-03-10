@@ -59,6 +59,7 @@ let simplicial_elimination_ordering ~interference ~precolored =
 let color_with ~interference ~precolored ~ordering =
   let color_of_name = Name.Table.create () in
   let max_color = ref @@ Color.of_int 0 in
+  (* TODO: sort these based on the register order *)
   Map.iter_keys precolored ~f:(fun name ->
     Name.Table.set color_of_name ~key:name ~data:!max_color;
     max_color := Color.next !max_color;
@@ -104,18 +105,26 @@ let alloc_colors ~dict ~precolored ~interference =
   let enum = register.enum in
   let used_registers = Data.Enum_set.create ~enum () in
   (* immediately add all precolored registers to the used set *)
+  [%log.global.debug
+    "adding all precolored registers to used"
+      (Name.Map.sexp_of_t register.sexp_of precolored : Sexp.t)];
   Map.iter precolored ~f:(fun reg -> Data.Enum_set.add ~enum used_registers reg);
   let color_of_name, max_color = color ~interference ~precolored in
+  [%log.global.debug (color_of_name : Color.t Name.Table.t)];
   let alloc_of_color = ColorMap.create () in
   (* immediately set the colors of precolored registers *)
   Map.iteri precolored ~f:(fun ~key:name ~data:reg ->
     let color = Name.Table.find_exn color_of_name name in
     ColorMap.set alloc_of_color ~key:color ~data:(Alloc_reg.inreg reg);
     ());
+  [%log.global.debug
+    (ColorMap.sexp_of_t (Alloc_reg.sexp_of_t register.sexp_of) alloc_of_color : Sexp.t)];
   F.Iter.Infix.(
     Color.to_int Color.lowest -- Color.to_int max_color
+    |> F.Iter.map ~f:Color.of_int
+    |> F.Iter.filter ~f:(fun color -> not @@ ColorMap.mem alloc_of_color color)
+    (* make sure they aren't precolored *)
     |> F.Iter.iter ~f:(fun color ->
-      let color = Color.of_int color in
       let reg =
         F.Iter.(
           List.iter config.register_order
@@ -128,6 +137,8 @@ let alloc_colors ~dict ~precolored ~interference =
       in
       Option.iter reg ~f:(Data.Enum_set.add ~enum used_registers);
       ColorMap.set alloc_of_color ~key:color ~data:alloc_reg;
+      [%log.global.debug
+        "setting color" (color : Color.t) (Option.sexp_of_t register.sexp_of reg : Sexp.t)];
       ()));
   color_of_name, alloc_of_color, used_registers
 ;;

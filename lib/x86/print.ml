@@ -13,6 +13,11 @@ let suffix_of_size (s : Size.t) =
   | Q -> "q"
 ;;
 
+let print_pointer_size (s : Size.t) =
+  match s with
+  | Q -> "qword ptr"
+;;
+
 let print_size cx s = Cx.add cx @@ suffix_of_size s
 
 let string_of_mach_reg (s : Size.t) (reg : Mach_reg.t) =
@@ -85,18 +90,22 @@ let print_address cx (address : _ Address.t) =
        Cx.add cx @@ string_of_scale scale)
 ;;
 
-let print_operand cx (operand : _ Operand.t) =
+let print_operand b (operand : _ Operand.t) =
   match operand with
-  | Imm (Int i) -> Cx.add cx @@ string_of_int @@ Int.of_int32_exn i
+  | Imm (Int i) -> Cx.add b @@ string_of_int @@ Int.of_int32_exn i
   | Imm _ -> todo [%here]
-  | Reg r -> print_mreg cx r
+  | Reg r -> print_mreg b r
   | Mem mem ->
-    (* Cx.add cx "[";
+    bprintf b "%s [%a]" (print_pointer_size mem.size) print_address mem.addr;
+    ()
+;;
+
+(* Cx.add cx "[";
     print_address cx mem.addr;
     Cx.add cx "]" *)
-    (* need to add dword ptr and qword ptr stuff *)
-    todo [%here]
-;;
+
+(* need to add dword ptr and qword ptr stuff *)
+(* todo [%here] *)
 
 let print_operands cx operands =
   List1.of_list operands

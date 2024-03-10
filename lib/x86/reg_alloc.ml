@@ -96,6 +96,9 @@ let add_block_edges ~interference ~precolored block live_out =
     |> F.Iter.iter ~f:(fun def -> Interference.add_node interference def.VReg.name);
     (* don't add the mach regs, we want to add them lazily *)
     (* this way we don't get bogus uses for precolored mach regs*)
+    (* Instr.mach_reg_defs instr (fun mach_reg ->
+      let _ = Precolored.get_name precolored mach_reg in
+      ()); *)
 
     (* add interference edges *)
     Set.iter !live_out

@@ -405,16 +405,14 @@ let%test_module _ =
     ;;
 
     let%expect_test "liveness" =
-      Logger.Log.with_log false (fun () ->
-        let program =
-          Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower
-        in
-        let fn = List.hd_exn program.functions in
-        let live_in, live_out = X86.Dataflow.Liveness.run fn in
-        print_s
-          [%message
-            (live_in : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)
-              (live_out : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)]);
+      let@ () = Logger.Log.with_log false in
+      let program = Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower in
+      let fn = List.hd_exn program.functions in
+      let live_in, live_out = X86.Dataflow.Liveness.run fn in
+      print_s
+        [%message
+          (live_in : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)
+            (live_out : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)];
       [%expect
         {|
         ((live_in
@@ -427,18 +425,18 @@ let%test_module _ =
     ;;
 
     let%expect_test "print" =
-      Logger.Log.with_log false (fun () ->
-        let program =
-          Lazy.force if_lir
-          |> Ssa.convert_ssa
-          |> Lower.run
-          |> Lir_x86.lower
-          |> X86.Reg_alloc.run
-          |> X86.Print.run
-        in
-        print_string program;
-        [%expect
-          {|
+      let@ () = Logger.Log.with_log false in
+      let program =
+        Lazy.force if_lir
+        |> Ssa.convert_ssa
+        |> Lower.run
+        |> Lir_x86.lower
+        |> X86.Reg_alloc.run
+        |> X86.Print.run
+      in
+      print_string program;
+      [%expect
+        {|
         	.intel_syntax	noprefix
         	.text
         	.type	if,@function
@@ -468,7 +466,7 @@ let%test_module _ =
         .Ldone.2:
         	mov	rax, rax
         	add	rsp, 8
-        	ret |}])
+        	ret |}]
     ;;
   end)
 ;;
@@ -493,18 +491,18 @@ let%test_module _ =
     ;;
 
     let%expect_test _ =
-      Logger.Log.with_log false (fun () ->
-        let program =
-          Lazy.force fn_lir
-          |> Ssa.convert_ssa
-          |> Lower.run
-          |> Lir_x86.lower
-          |> X86.Reg_alloc.run
-          |> X86.Print.run
-        in
-        print_string program;
-        [%expect
-          {|
+      let@ () = Logger.Log.with_log false in
+      let program =
+        Lazy.force fn_lir
+        |> Ssa.convert_ssa
+        |> Lower.run
+        |> Lir_x86.lower
+        |> X86.Reg_alloc.run
+        |> X86.Print.run
+      in
+      print_string program;
+      [%expect
+        {|
         	.intel_syntax	noprefix
         	.text
         	.type	another,@function
@@ -531,7 +529,7 @@ let%test_module _ =
         	call	another
         	mov	rax, rax
         	add	rsp, 8
-        	ret |}])
+        	ret |}]
     ;;
   end)
 ;;

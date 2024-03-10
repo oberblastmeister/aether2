@@ -221,7 +221,6 @@ let%expect_test _ =
     {|
     ((functions
       (((name testing)
-        (params (((name first.0) (ty U64)) ((name second.1) (ty U64))))
         (graph
          ((entry first.0)
           (blocks
@@ -232,5 +231,8 @@ let%expect_test _ =
                  (expr (Bin (ty U64) (op Add) (v1 _) (v2 _))))))
               (exit (Ret ()))))))
           (exit first.0)))
-        (return_ty U64) (unique_label 1) (unique_name 4))))) |}]
+        (ty
+         ((params (((name first.0) (ty U64)) ((name second.1) (ty U64))))
+          (return U64)))
+        (unique_label 1) (unique_name 4))))) |}]
 ;;
