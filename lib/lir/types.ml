@@ -275,9 +275,8 @@ module Function = struct
 
   let thaw fn =
     { Mut_function.name = fn.name
-    ; params = fn.params
+    ; ty = fn.ty
     ; graph = fn.graph
-    ; return_ty = fn.return_ty
     ; unique_label = fn.unique_label
     ; unique_name = fn.unique_name
     }
@@ -285,9 +284,8 @@ module Function = struct
 
   let freeze fn =
     { name = fn.Mut_function.name
-    ; params = fn.params
+    ; ty = fn.ty
     ; graph = fn.graph
-    ; return_ty = fn.return_ty
     ; unique_label = fn.unique_label
     ; unique_name = fn.unique_name
     }

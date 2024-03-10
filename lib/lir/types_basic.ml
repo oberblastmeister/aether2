@@ -165,12 +165,19 @@ module Graph = struct
   let map f graph = (Cfg.Graph.map & F.Map.of_map Block.map) graph ~f
 end
 
+module Function_ty = struct
+  type t =
+    { params : Value.t list
+    ; return : Ty.t
+    }
+  [@@deriving sexp_of]
+end
+
 module Mut_function = struct
   type 'v t =
     { name : string
-    ; params : Value.t list
     ; mutable graph : 'v Graph.t
-    ; return_ty : Ty.t
+    ; ty : Function_ty.t
     ; mutable unique_label : Label.Id.t
     ; mutable unique_name : Name.Id.t
     }
@@ -180,21 +187,12 @@ end
 module Function = struct
   type 'v t =
     { name : string
-    ; params : Value.t list
     ; graph : 'v Graph.t
-    ; return_ty : Ty.t
+    ; ty : Function_ty.t
     ; unique_label : Label.Id.t
     ; unique_name : Name.Id.t
     }
   [@@deriving sexp_of, fields, map]
-end
-
-module Function_ty = struct
-  type t =
-    { params : Value.t list
-    ; return : Ty.t
-    }
-  [@@deriving sexp_of]
 end
 
 module Extern = struct

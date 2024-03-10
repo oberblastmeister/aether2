@@ -109,8 +109,8 @@ let pretty_function cx (fn : _ Function.t) =
     list
     @@ List.concat
          [ [ Atom "define"
-           ; List ([ Atom fn.name ] @ List.map ~f:pretty_value_typed fn.params)
-           ; pretty_ty fn.return_ty
+           ; List ([ Atom fn.name ] @ List.map ~f:pretty_value_typed fn.ty.params)
+           ; pretty_ty fn.ty.return
            ]
          ; [ Ann IndentLine ]
          ; pretty_graph cx fn.graph

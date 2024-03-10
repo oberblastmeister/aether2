@@ -179,11 +179,10 @@ let parse_function =
         let params = Parser.rest !xs (parse_value st) in
         name, params)
     in
-    let return_ty = Parser.item xs parse_ty in
+    let return = Parser.item xs parse_ty in
     let graph = parse_graph st !xs in
     ({ name
-     ; params
-     ; return_ty
+     ; ty = { params; return }
      ; graph
      ; unique_label = Intern_table.get_next_id st.label_intern
      ; unique_name = Intern_table.get_next_id st.name_intern

@@ -50,7 +50,7 @@ let check_all_temps_unique (fn : Value.t Function.t) =
                ~def:(def : Value.t)]);
     Hash_set.add defines def
   in
-  List.iter fn.params ~f:(check_define None None);
+  List.iter fn.ty.params ~f:(check_define None None);
   let fold =
     F.Fold.(
       Cfg.Graph.iteri @> ix (dup Block.iter_instrs_forward) @> ix2 Some_instr.iter_defs)
@@ -76,7 +76,7 @@ let validate_ssa_function (fn : Vir.Function.t) =
   in
   let errors : Error.t Stack.t = Stack.create () in
   let defined = Value.Hash_set.create () in
-  List.iter fn.params ~f:(fun param -> Hash_set.add defined param);
+  List.iter fn.ty.params ~f:(fun param -> Hash_set.add defined param);
   Vec.iter labels ~f:(fun label ->
     let block = Cfg.Graph.find_exn label fn.graph in
     F.Fold.iter Block.iter_instrs_forward block ~f:(fun (Some_instr.T instr as i) ->
@@ -154,9 +154,9 @@ end = struct
 
   let rename_function (fn : Vir.Function.t) =
     let st = new_state (Name.Id.of_int 0) in
-    let params = List.map ~f:(rename_def st) fn.params in
+    let params = List.map ~f:(rename_def st) fn.ty.params in
     let graph = rename_graph st fn.graph in
-    { fn with params; graph; unique_name = st.unique_name }
+    { fn with ty = { fn.ty with params }; graph; unique_name = st.unique_name }
   ;;
 end
 

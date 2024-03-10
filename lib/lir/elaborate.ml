@@ -32,7 +32,7 @@ let collect_types (fn : Name.t Function.t) =
         Map.update m param.name ~f:(function
           | None -> List1.singleton param.ty
           | Some at -> List1.(param.ty |: at)))
-      fn.params
+      fn.ty.params
   in
   let find_representative_ty name tys =
     if List1.all_equal [%equal: Ty.t] tys
