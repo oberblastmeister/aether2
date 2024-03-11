@@ -6,7 +6,7 @@ let compile_string source =
     |> Or_error.ok_exn
     |> Elaborate.elaborate
     |> Or_error.ok_exn
-    |> Ssa.convert_ssa
+    |> Ssa.convert
   in
   let asm = lir |> Lower.run |> Lir_x86.lower |> X86.Reg_alloc.run |> X86.Print.run in
   asm

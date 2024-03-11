@@ -6,6 +6,10 @@ end
 
 type 'k key_proxy = (module Key_type with type key = 'k)
 
+(* this is S' because we want the t to be equal to the abstract/private type which hasn't been defined yet *)
+(* we don't want to put it inside of the Intf because then it wouldn't be shared the implementation file *)
+(* so we just put it here *)
+(* make sure to substitute the t' whenever you define the abstract/private type *)
 module type S' = sig
   type key [@@deriving equal, compare, hash, sexp]
   type 'k t'
@@ -24,6 +28,7 @@ end
 module type Intf = sig
   type 'k t = private int [@@deriving equal, compare, hash, sexp]
 
+  (* this is the generic api *)
   val initial : 'k t
   val of_int : int -> 'k t
   val to_int : 'k t -> int

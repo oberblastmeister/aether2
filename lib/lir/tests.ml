@@ -74,7 +74,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "liveness ssa" =
-      let program = Lazy.force loop_lir |> Ssa.convert_ssa in
+      let program = Lazy.force loop_lir |> Ssa.convert in
       let fn = List.hd_exn program.functions in
       let live_in, live_out = Vir.Liveness.run fn.graph in
       print_s [%sexp (live_in : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
@@ -144,7 +144,7 @@ let%test_module _ =
       let program = Lazy.force loop_lir in
       let res =
         (Field.map Lir.Program.Fields.functions & List.map)
-          ~f:Ssa.convert_naive_ssa
+          ~f:Ssa.convert_naive
           program
       in
       print_endline @@ Pretty.pretty res;
@@ -168,7 +168,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "ssa" =
-      let program = Lazy.force loop_lir |> Ssa.convert_ssa in
+      let program = Lazy.force loop_lir |> Ssa.convert in
       print_endline @@ Pretty.pretty program;
       [%expect
         {|
@@ -190,7 +190,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "lower" =
-      let program = Lazy.force loop_lir |> Ssa.convert_ssa |> Lower.run in
+      let program = Lazy.force loop_lir |> Ssa.convert |> Lower.run in
       print_endline @@ Lower.Tir.pretty program;
       [%expect
         {|
@@ -207,7 +207,7 @@ let%test_module _ =
 
     let%expect_test "lower x86" =
       let program =
-        Lazy.force loop_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower
+        Lazy.force loop_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower
       in
       print_s @@ [%sexp_of: X86.Types.VReg.t X86.Types.Program.t] program;
       [%expect
@@ -252,7 +252,7 @@ let%test_module _ =
     let%expect_test "print" =
       let program =
         Lazy.force loop_lir
-        |> Ssa.convert_ssa
+        |> Ssa.convert
         |> Lower.run
         |> Lir_x86.lower
         |> X86.Reg_alloc.run
@@ -322,7 +322,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "ssa" =
-      let program = Lazy.force if_lir |> Ssa.convert_ssa in
+      let program = Lazy.force if_lir |> Ssa.convert in
       print_endline @@ Pretty.pretty program;
       ();
       [%expect
@@ -346,7 +346,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "lower" =
-      let program = Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run in
+      let program = Lazy.force if_lir |> Ssa.convert |> Lower.run in
       print_endline @@ Lower.Tir.pretty program;
       [%expect
         {|
@@ -362,7 +362,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "x86 lower" =
-      let program = Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower in
+      let program = Lazy.force if_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower in
       print_s @@ [%sexp_of: X86.Types.VReg.t X86.Types.Program.t] program;
       [%expect
         {|
@@ -406,7 +406,7 @@ let%test_module _ =
 
     let%expect_test "liveness" =
       let@ () = Logger.Log.with_log false in
-      let program = Lazy.force if_lir |> Ssa.convert_ssa |> Lower.run |> Lir_x86.lower in
+      let program = Lazy.force if_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower in
       let fn = List.hd_exn program.functions in
       let live_in, live_out = X86.Dataflow.Liveness.run fn in
       print_s
@@ -428,7 +428,7 @@ let%test_module _ =
       let@ () = Logger.Log.with_log false in
       let program =
         Lazy.force if_lir
-        |> Ssa.convert_ssa
+        |> Ssa.convert
         |> Lower.run
         |> Lir_x86.lower
         |> X86.Reg_alloc.run
@@ -494,7 +494,7 @@ let%test_module _ =
       let@ () = Logger.Log.with_log false in
       let program =
         Lazy.force fn_lir
-        |> Ssa.convert_ssa
+        |> Ssa.convert
         |> Lower.run
         |> Lir_x86.lower
         |> X86.Reg_alloc.run

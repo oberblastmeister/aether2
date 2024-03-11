@@ -38,6 +38,7 @@ let postorder ~start ~set graph =
   vec
 ;;
 
+type 'a bruh = 'a perms
 let reverse_postorder ~start ~set graph =
   let vec = postorder ~start ~set graph in
   Vec.rev_inplace vec;

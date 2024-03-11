@@ -9,6 +9,7 @@ module Option_array = struct
     val unsafe_is_some : 'a Option_array.t -> int -> bool
   end
 
+  (* TODO: inline not allowed on definitions, needs to be a function n *)
   module Safe_ops : Ops = struct
     let[@inline always] unsafe_get_some_assuming_some = Option_array.get_some_exn
     let[@inline always] unsafe_set_some = Option_array.set_some

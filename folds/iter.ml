@@ -180,6 +180,7 @@ module MList = struct
     make (l, 0)
   ;;
 end
+[@@warning "-32"]
 
 (* TODO: make this faster *)
 let to_array i = Array.of_list @@ to_list i

@@ -1,4 +1,4 @@
 open Vir
 
-val convert_naive_ssa : Function.t -> Function.t
-val convert_ssa : Program.t -> Program.t
+val convert_naive : Function.t -> Function.t
+val convert : Program.t -> Program.t

@@ -64,8 +64,8 @@ let check_all_temps_unique (fn : Value.t Function.t) =
 
 (* this is wrong, need to check that a use is dominated by a def,
    not that a def was defined in some preorder index above *)
-let validate_ssa_function (fn : Vir.Function.t) =
-  let open! Or_error.Let_syntax in
+let validate_function (fn : Vir.Function.t) =
+  let open Or_error.Let_syntax in
   Graph.validate fn.graph;
   let%bind () = check_all_temps_unique fn in
   let labels =
@@ -100,8 +100,8 @@ let validate_ssa_function (fn : Vir.Function.t) =
   |> Result.map_error ~f:(Error.tag_s ~tag:[%message "in function" (fn.name : string)])
 ;;
 
-let validate_ssa (prog : Vir.Program.t) =
-  List.iter prog.functions ~f:(fun fn -> validate_ssa_function fn |> Or_error.ok_exn)
+let validate (prog : Vir.Program.t) =
+  List.iter prog.functions ~f:(fun fn -> validate_function fn |> Or_error.ok_exn)
 ;;
 
 module Rename : sig
@@ -160,7 +160,7 @@ end = struct
   ;;
 end
 
-let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
+let convert_naive (fn : Vir.Function.t) : Vir.Function.t =
   let liveness, _ = Vir.Liveness.run fn.graph in
   let add_block_args_and_calls label (block : Vir.Block.t) =
     let new_entry_instr =
@@ -183,7 +183,7 @@ let convert_naive_ssa (fn : Vir.Function.t) : Vir.Function.t =
       fn
   in
   let renamed_function = Rename.rename_function function_with_block_args in
-  validate_ssa_function renamed_function |> Or_error.ok_exn;
+  validate_function renamed_function |> Or_error.ok_exn;
   renamed_function
 ;;
 
@@ -227,7 +227,7 @@ type value_id = Value.t Union_find.t
 
 let simplify_phis (phis : Value.t Phi.t list) =
   (* todo, only need to create a unification variable for each phi dest, not every value *)
-  (* some PhiValue s will not be actuall phi destinations, therefore cannot change *)
+  (* some PhiValues will not be actuall phi destinations, therefore cannot change *)
   let subst = Value.Hashtbl.create () in
   let phis_with_id : value_id Phi.t list =
     (List.map & Phi.map)
@@ -311,8 +311,8 @@ let subst_graph subst (graph : Vir.Graph.t) =
       block)
 ;;
 
-let convert_ssa_function (fn : Vir.Function.t) =
-  let fn = convert_naive_ssa fn in
+let convert_function (fn : Vir.Function.t) =
+  let fn = convert_naive fn in
   let phis = get_phis fn.graph in
   let subst, simplified_phis =
     Map.iter @> List.iter
@@ -324,10 +324,10 @@ let convert_ssa_function (fn : Vir.Function.t) =
   { fn with graph }
 ;;
 
-let convert_ssa (program : Vir.Program.t) =
+let convert (program : Vir.Program.t) =
   let program =
-    (Field.map Program.Fields.functions & List.map) ~f:convert_ssa_function program
+    (Field.map Program.Fields.functions & List.map) ~f:convert_function program
   in
-  validate_ssa program;
+  validate program;
   program
 ;;

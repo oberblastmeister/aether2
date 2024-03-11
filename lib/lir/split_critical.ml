@@ -8,7 +8,7 @@ let split pred (fn : Vir.Function.t) =
     @@ Graph.to_graph fn.graph
   in
   Function.with_mut fn (fun mut_fn ->
-    Cfg.Graph.iteri mut_fn.graph (fun (label, block) ->
+    Cfg.Graph.iteri mut_fn.graph ~f:(fun (label, block) ->
       if pred block
       then (
         let block_calls_count =

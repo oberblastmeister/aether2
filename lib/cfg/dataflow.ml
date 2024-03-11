@@ -130,7 +130,7 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
   while !changed do
     changed := false;
     Vec.iter labels ~f:(fun label ->
-      (* make sure that we're initializing all the facts*)
+      (* make sure that we're initializing all the facts *)
       if not (Label.Table.mem fact_base label)
       then Label.Table.set fact_base ~key:label ~data:transfer.empty;
       if not (Label.Table.mem other_facts_base label)
@@ -161,7 +161,6 @@ let run_block_transfer (transfer : _ Block_transfer.t) (graph : _ Graph.t) =
       (match maybe_new_facts with
        | Some new_fact ->
          changed := true;
-         (* the fact changed, so we need to add all labels that depend on the current label *)
          Label.Table.set fact_base ~key:label ~data:new_fact
        | None -> ());
       ());

@@ -1,4 +1,4 @@
-open Core
+open! Core
 open Eio.Std
 open Aether2.O
 module Process = Eio.Process
