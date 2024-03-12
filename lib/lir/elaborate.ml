@@ -95,8 +95,8 @@ u64
   [%expect
     {|
     pretty:
-    (define (testing (first.0 u64) (second.1 u64)) u64
-      (label (first.0 (arg.2 u64))
+    (define (testing [first.0 u64] [second.1 u64]) u64
+      (label (first.0 [arg.2 u64])
         (set x.3 (add u64 first.0 second.1))
         (ret)))
 

@@ -1,6 +1,23 @@
 open! O
 include Pretty_intf
 
+let atom x = Atom x
+let list xs = List (xs, Paren)
+let brack_list xs = List (xs, Brack)
+let brace_list xs = List (xs, Brace)
+
+let char_of_open_delim = function
+  | Delim.Paren -> '('
+  | Brack -> '['
+  | Brace -> '{'
+;;
+
+let char_of_close_delim = function
+  | Delim.Paren -> ')'
+  | Brack -> ']'
+  | Brace -> '}'
+;;
+
 let indent_increase = 2
 
 let add_newline buffer indent =
@@ -22,10 +39,10 @@ let print_to_buffer sexp =
   let buffer = Buffer.create 10 in
   let rec go indent = function
     | Atom s -> Buffer.add_string buffer s
-    | List items ->
-      Buffer.add_char buffer '(';
+    | List (items, delim) ->
+      Buffer.add_char buffer (char_of_open_delim delim);
       go_list indent items;
-      Buffer.add_char buffer ')'
+      Buffer.add_char buffer (char_of_close_delim delim)
     | Ann _ -> ()
   and go_list indent = function
     | Ann ann :: xs ->
@@ -50,17 +67,17 @@ let to_string sexp = print_to_buffer sexp |> Buffer.contents
 
 let%expect_test _ =
   let sexp =
-    List
+    list
       [ Atom "define"
-      ; List [ Atom "fun"; Atom "b"; Atom "c" ]
+      ; list [ Atom "fun"; Atom "b"; Atom "c" ]
       ; Ann IndentLine
-      ; List [ Atom "let"; Atom "x" ]
+      ; list [ Atom "let"; Atom "x" ]
       ; Ann Line
-      ; List [ Atom "let"; Atom "y" ]
+      ; list [ Atom "let"; Atom "y" ]
       ; Ann Line
-      ; List [ Atom "label"; Atom "block"; Ann IndentLine; List [ Atom "stuff" ] ]
+      ; list [ Atom "label"; Atom "block"; Ann IndentLine; list [ Atom "stuff" ] ]
       ; Ann Line
-      ; List [ Atom "label"; Atom "block2"; Ann IndentLine; List [ Atom "more_stuff" ] ]
+      ; list [ Atom "label"; Atom "block2"; Ann IndentLine; list [ Atom "more_stuff" ] ]
       ]
   in
   to_string sexp |> print_endline;

@@ -19,8 +19,12 @@ module Token = struct
   type t =
     | LParen
     | RParen
+    | LBrack
+    | RBrack
+    | LBrace
+    | RBrace
     | Atom of string
-  [@@deriving sexp]
+  [@@deriving sexp, compare, equal]
 end
 
 module SpannedToken = struct

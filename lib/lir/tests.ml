@@ -12,7 +12,7 @@ let%test_module _ =
     let loop_lir =
       make_lir
         {|
-(define (pow (b u64) (e u64)) u64
+(define (pow [b u64] [e u64]) u64
   (label (start)
     (set r (const u64 1))
     (jump (loop))
@@ -150,20 +150,20 @@ let%test_module _ =
       print_endline @@ Pretty.pretty res;
       [%expect
         {|
-    (define (pow (b.0 u64) (e.1 u64)) u64
+    (define (pow [b.0 u64] [e.1 u64]) u64
       (label (start.0)
         (set r.2 (const u64 1))
         (jump (loop.1 b.0 e.1 r.2)))
-      (label (loop.1 (b.9 u64) (e.10 u64) (r.11 u64))
+      (label (loop.1 [b.9 u64] [e.10 u64] [r.11 u64])
         (set z.12 (const u64 0))
         (set f.13 (cmp u64 gt e.10 z.12))
         (cond_jump f.13 (done.2 r.11) (body.3 b.9 e.10 r.11)))
-      (label (body.3 (b.3 u64) (e.4 u64) (r.5 u64))
+      (label (body.3 [b.3 u64] [e.4 u64] [r.5 u64])
         (set r.6 (add u64 r.5 b.3))
         (set one.7 (const u64 1))
         (set e.8 (add u64 e.4 one.7))
         (jump (loop.1 b.3 e.8 r.6)))
-      (label (done.2 (r.14 u64))
+      (label (done.2 [r.14 u64])
         (ret r.14))) |}]
     ;;
 
@@ -172,11 +172,11 @@ let%test_module _ =
       print_endline @@ Pretty.pretty program;
       [%expect
         {|
-    (define (pow (b.0 u64) (e.1 u64)) u64
+    (define (pow [b.0 u64] [e.1 u64]) u64
       (label (start.0)
         (set r.2 (const u64 1))
         (jump (loop.1 e.1 r.2)))
-      (label (loop.1 (e.10 u64) (r.11 u64))
+      (label (loop.1 [e.10 u64] [r.11 u64])
         (set z.12 (const u64 0))
         (set f.13 (cmp u64 gt e.10 z.12))
         (cond_jump f.13 (done.2) (body.3)))
@@ -194,10 +194,10 @@ let%test_module _ =
       print_endline @@ Lower.Tir.pretty program;
       [%expect
         {|
-    (define (pow (b.0 u64) (e.1 u64)) u64
+    (define (pow [b.0 u64] [e.1 u64]) u64
       (label (start.0)
         (jump (loop.1 e.1 (const u64 1))))
-      (label (loop.1 (e.10 u64) (r.11 u64))
+      (label (loop.1 [e.10 u64] [r.11 u64])
         (cond_jump (cmp u64 gt e.10 (const u64 0)) (done.2) (body.3)))
       (label (body.3)
         (jump (loop.1 (add u64 e.10 (const u64 1)) (add u64 r.11 b.0))))
@@ -299,7 +299,7 @@ let%test_module _ =
     let if_lir =
       make_lir
         {|
-  (define (if (x u64) (y u64)) u64
+  (define (if [x u64] [y u64]) u64
     (label (start)
       (set one (const u64 9))
       (set f (cmp u64 gt x one))
@@ -325,7 +325,7 @@ let%test_module _ =
       ();
       [%expect
         {|
-        (define (if (x.0 u64) (y.1 u64)) u64
+        (define (if [x.0 u64] [y.1 u64]) u64
           (label (start.0)
             (set one.2 (const u64 9))
             (set f.3 (cmp u64 gt x.0 one.2))
@@ -339,7 +339,7 @@ let%test_module _ =
             (set r.10 (const u64 3))
             (set r.11 (add u64 r.10 x.0))
             (jump (done.3 r.11)))
-          (label (done.3 (r.12 u64))
+          (label (done.3 [r.12 u64])
             (ret r.12))) |}]
     ;;
 
@@ -348,14 +348,14 @@ let%test_module _ =
       print_endline @@ Lower.Tir.pretty program;
       [%expect
         {|
-        (define (if (x.0 u64) (y.1 u64)) u64
+        (define (if [x.0 u64] [y.1 u64]) u64
           (label (start.0)
             (cond_jump (cmp u64 gt x.0 (const u64 9)) (then.1) (else.2)))
           (label (else.2)
             (jump (done.3 (add u64 (const u64 5) (add u64 x.0 y.1)))))
           (label (then.1)
             (jump (done.3 (add u64 (const u64 3) x.0))))
-          (label (done.3 (r.12 u64))
+          (label (done.3 [r.12 u64])
             (ret r.12))) |}]
     ;;
 
@@ -474,13 +474,13 @@ let%test_module _ =
     let fn_lir =
       make_lir
         {|
-  (define (another (x u64) (y u64)) u64
+  (define (another [x u64] [y u64]) u64
     (label (start)
       (set bruh (const u64 1))
       (ret x))
     )
 
-  (define (fn (x u64) (y u64)) u64
+  (define (fn [x u64] [y u64]) u64
     (label (start)
       (set bruh (add u64 x y))
       (set res (call u64 (another x y)))
@@ -539,8 +539,8 @@ let%expect_test "parse extern" =
   (extern (extern_function u64 u64) u64)
   
   (extern (another u64 u64) u64)
-
-  (define (testing (x u64) (y u64)) u64
+  
+  (define (testing [x u64] [y u64]) u64
     (label (start)
       (ret)))
   |}

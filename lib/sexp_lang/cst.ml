@@ -8,9 +8,18 @@ let take_while_from ~f ~pos s =
   go pos
 ;;
 
-let is_control_char c = Char.is_whitespace c || Char.equal c '(' || Char.equal c ')'
+let is_control_char c =
+  Char.(
+    is_whitespace c
+    || equal c '('
+    || equal c ')'
+    || equal c '['
+    || equal c ']'
+    || equal c '{'
+    || equal c '}')
+;;
 
-let tokenize s =
+let tokenize s : SpannedToken.t list =
   let rec go pos =
     if pos >= String.length s
     then []
@@ -18,8 +27,12 @@ let tokenize s =
       let c = s.[pos] in
       match c with
       | '(' ->
-        ({ span = Span.single pos; token = Token.LParen } : SpannedToken.t) :: go (pos + 1)
-      | ')' -> { span = Span.single pos; token = Token.RParen } :: go (pos + 1)
+        ({ span = Span.single pos; token = LParen } : SpannedToken.t) :: go (pos + 1)
+      | ')' -> { span = Span.single pos; token = RParen } :: go (pos + 1)
+      | '[' -> { span = Span.single pos; token = LBrack } :: go (pos + 1)
+      | ']' -> { span = Span.single pos; token = RBrack } :: go (pos + 1)
+      | '{' -> { span = Span.single pos; token = LBrace } :: go (pos + 1)
+      | '}' -> { span = Span.single pos; token = RBrace } :: go (pos + 1)
       | c when Char.is_whitespace c -> go (pos + 1)
       | _ ->
         let pos' = take_while_from ~pos ~f:(fun c -> not (is_control_char c)) s in
@@ -35,13 +48,16 @@ let%expect_test _ =
 ;;
 
 let%expect_test _ =
-  tokenize "( ( as          )" |> [%sexp_of: SpannedToken.t list] |> print_s;
+  tokenize "( ( as   [  ] ]        )" |> [%sexp_of: SpannedToken.t list] |> print_s;
   [%expect
     {|
     (((token LParen) (span ((start 0) (stop 1))))
      ((token LParen) (span ((start 2) (stop 3))))
      ((token (Atom as)) (span ((start 4) (stop 6))))
-     ((token RParen) (span ((start 16) (stop 17))))) |}]
+     ((token LBrack) (span ((start 9) (stop 10))))
+     ((token RBrack) (span ((start 12) (stop 13))))
+     ((token RBrack) (span ((start 14) (stop 15))))
+     ((token RParen) (span ((start 23) (stop 24))))) |}]
 ;;
 
 let error_preview_amount = 5
@@ -82,7 +98,7 @@ let parse_tokens ts =
     | [] -> Ok ([], [])
     | ({ token; _ } : SpannedToken.t) :: _ ->
       (match token with
-       | Token.RParen -> Ok ([], ts)
+       | Token.RParen | RBrack | RBrace -> Ok ([], ts)
        | _ ->
          let%bind x, ts = parse_one ts in
          let%bind xs, ts = parse_many ts in
@@ -92,16 +108,18 @@ let parse_tokens ts =
     | [] -> unexpected_eof [] ts
     | ({ span; token } : SpannedToken.t) :: ts ->
       (match token with
-       | Token.LParen -> parse_list span ts
-       | Token.Atom value -> Ok (Atom { span; value }, ts)
+       | LParen -> parse_list span Token.RParen ts
+       | LBrack -> parse_list span RBrack ts
+       | LBrace -> parse_list span RBrace ts
+       | Atom value -> Ok (Atom { span; value }, ts)
        | _ -> unexpected_token token ts)
-  and parse_list start_span ts =
+  and parse_list start_span close ts =
     let%bind xs, ts = parse_many ts in
     match ts with
-    | ({ span; token = Token.RParen } : SpannedToken.t) :: ts ->
+    | ({ span; token } : SpannedToken.t) :: ts when Token.equal token close ->
       Ok (List { span = Span.combine start_span span; items = xs }, ts)
-    | t :: _ -> expected_tokens [ RParen ] t ts
-    | [] -> unexpected_eof [ RParen ] ts
+    | t :: _ -> expected_tokens [ close ] t ts
+    | [] -> unexpected_eof [ close ] ts
   in
   let%bind xs, ts = parse_many ts in
   match ts with
@@ -152,4 +170,28 @@ let%expect_test _ =
             ((Atom (span ((start 42) (stop 45))) (value add))
              (Atom (span ((start 46) (stop 47))) (value x))
              (Atom (span ((start 48) (stop 49))) (value y))))))))))) |}]
+;;
+
+let%expect_test "parse" =
+  let tokens = tokenize {|
+  (define (testing [x u64] [y u64]) u64)
+  |} in
+  print_s [%sexp (tokens : SpannedToken.t list)];
+  [%expect
+    {|
+    (((token LParen) (span ((start 3) (stop 4))))
+     ((token (Atom define)) (span ((start 4) (stop 10))))
+     ((token LParen) (span ((start 11) (stop 12))))
+     ((token (Atom testing)) (span ((start 12) (stop 19))))
+     ((token LBrack) (span ((start 20) (stop 21))))
+     ((token (Atom x)) (span ((start 21) (stop 22))))
+     ((token (Atom u64)) (span ((start 23) (stop 26))))
+     ((token RBrack) (span ((start 26) (stop 27))))
+     ((token LBrack) (span ((start 28) (stop 29))))
+     ((token (Atom y)) (span ((start 29) (stop 30))))
+     ((token (Atom u64)) (span ((start 31) (stop 34))))
+     ((token RBrack) (span ((start 34) (stop 35))))
+     ((token RParen) (span ((start 35) (stop 36))))
+     ((token (Atom u64)) (span ((start 37) (stop 40))))
+     ((token RParen) (span ((start 40) (stop 41))))) |}]
 ;;

@@ -19,7 +19,7 @@ let pretty_ty = function
 ;;
 
 let pretty_value_typed (value : Value.t) =
-  Pretty.List [ pretty_name value.name; pretty_ty value.ty ]
+  Pretty.brack_list [ pretty_name value.name; pretty_ty value.ty ]
 ;;
 
 let cmp_op_to_string = function
@@ -31,7 +31,7 @@ let pretty_expr cx =
   function
   | Expr.Bin { ty; op; v1; v2 } ->
     Pretty.(
-      List
+      list
         [ (match op with
            | Add -> Atom "add"
            | _ -> todo [%here])
@@ -40,45 +40,45 @@ let pretty_expr cx =
         ; pretty_value v2
         ])
   | Expr.Const { ty; const } ->
-    Pretty.(List [ Atom "const"; pretty_ty ty; Atom (Int64.to_string_hum const) ])
+    Pretty.(list [ atom "const"; pretty_ty ty; Atom (Int64.to_string_hum const) ])
   | Expr.Cmp { ty; op; v1; v2 } ->
     Pretty.(
-      List
-        [ Atom "cmp"
+      list
+        [ atom "cmp"
         ; pretty_ty ty
         ; Atom (cmp_op_to_string op)
         ; pretty_value v1
         ; pretty_value v2
         ])
-  | Expr.Val { ty; v } -> Pretty.(List [ pretty_ty ty; pretty_value v ])
+  | Expr.Val { ty; v } -> Pretty.(list [ pretty_ty ty; pretty_value v ])
   | _ -> failwith "don't know how to print"
 ;;
 
 let pretty_block_call cx ({ label; args } : _ Block_call.t) =
   let pretty_value = cx.Context.pretty_value in
-  Pretty.(List (List.concat [ [ pretty_label label ]; List.map ~f:pretty_value args ]))
+  Pretty.(list (List.concat [ [ pretty_label label ]; List.map ~f:pretty_value args ]))
 ;;
 
 let pretty_instr_control cx i =
   let pretty_value = cx.Context.pretty_value in
   match i with
-  | Control_instr.Jump v -> Pretty.(List [ Atom "jump"; pretty_block_call cx v ])
+  | Control_instr.Jump v -> Pretty.(list [ Atom "jump"; pretty_block_call cx v ])
   | Control_instr.CondJump (v, j1, j2) ->
     Pretty.(
-      List
+      list
         [ Atom "cond_jump"
         ; pretty_value v
         ; pretty_block_call cx j1
         ; pretty_block_call cx j2
         ])
   | Control_instr.Ret v ->
-    Pretty.(List ([ Atom "ret" ] @ (Option.map ~f:pretty_value v |> Option.to_list)))
+    Pretty.(list ([ Atom "ret" ] @ (Option.map ~f:pretty_value v |> Option.to_list)))
 ;;
 
 let pretty_instr cx i =
   match i with
   | Instr.Assign { dst; expr } ->
-    Pretty.(List [ Atom "set"; pretty_value dst; pretty_expr cx expr ])
+    Pretty.(list [ Atom "set"; pretty_value dst; pretty_expr cx expr ])
   | _ -> todo [%here]
 ;;
 
@@ -87,7 +87,7 @@ let pretty_block cx (label : Label.t) (block : _ Block.t) =
     list
     @@ List.concat
          [ [ Atom "label"
-           ; List ([ pretty_label label ] @ List.map ~f:pretty_value_typed block.entry)
+           ; list ([ pretty_label label ] @ List.map ~f:pretty_value_typed block.entry)
            ; Ann IndentLine
            ]
          ; List.map ~f:(pretty_instr cx) block.body |> List_ext.end_with ~sep:(Ann Line)
@@ -109,7 +109,7 @@ let pretty_function cx (fn : _ Function.t) =
     list
     @@ List.concat
          [ [ Atom "define"
-           ; List ([ Atom fn.name ] @ List.map ~f:pretty_value_typed fn.ty.params)
+           ; list ([ Atom fn.name ] @ List.map ~f:pretty_value_typed fn.ty.params)
            ; pretty_ty fn.ty.return
            ]
          ; [ Ann IndentLine ]
