@@ -86,7 +86,7 @@ let pretty_block cx (label : Label.t) (block : _ Block.t) =
   Pretty.(
     list
     @@ List.concat
-         [ [ Atom "label"
+         [ [ Atom "block"
            ; list ([ pretty_label label ] @ List.map ~f:pretty_value_typed block.entry)
            ; Ann IndentLine
            ]

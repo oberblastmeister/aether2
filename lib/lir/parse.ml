@@ -123,7 +123,7 @@ let parse_instr st sexp =
 
 let parse_block st sexp =
   let@ xs = Parser.list_ref sexp in
-  Parser.item xs @@ parse_lit "label";
+  Parser.item xs @@ parse_lit "block";
   let label, args =
     let@ x = Parser.item xs in
     let@ xs = Parser.list_ref x in
@@ -242,7 +242,7 @@ let%expect_test _ =
   let s =
     {|
 (define (testing (first u64) (second u64)) u64
-    (label (first (arg u64))
+    (block (first (arg u64))
         (set x (add u64 first second))
         (ret)))
   |}

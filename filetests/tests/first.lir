@@ -1,5 +1,5 @@
 (define (another) u64
-  (label (start)
+  (block (start)
     (set one (const u64 1))
     (set two (const u64 2))
     (set res (call u64 (assert_eq_u64 one two)))
@@ -8,7 +8,7 @@
 )
 
 (define (entry) u64
-  (label (start)
+  (block (start)
     (set dummy (call u64 (another)))
     (ret)
   )

@@ -77,12 +77,12 @@ let%expect_test _ =
 (first u64)
 (second u64))
 u64
-(label (first (arg u64)) (set x (add u64 first second)) (ret))
-(label (second (arg u64)) (set x (add u64 first second)) (ret))
-(label (third (arg u64)) (set x (add u64 first second)) (ret))
+(block (first (arg u64)) (set x (add u64 first second)) (ret))
+(block (second (arg u64)) (set x (add u64 first second)) (ret))
+(block (third (arg u64)) (set x (add u64 first second)) (ret))
 )
 
-(define (another) u64 (label (start) (ret)))
+(define (another) u64 (block (start) (ret)))
   |}
   in
   let program = Parse.parse s |> Or_error.ok_exn in
@@ -96,11 +96,11 @@ u64
     {|
     pretty:
     (define (testing [first.0 u64] [second.1 u64]) u64
-      (label (first.0 [arg.2 u64])
+      (block (first.0 [arg.2 u64])
         (set x.3 (add u64 first.0 second.1))
         (ret)))
 
     (define (another) u64
-      (label (start.0)
+      (block (start.0)
         (ret))) |}]
 ;;

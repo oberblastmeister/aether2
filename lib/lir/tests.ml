@@ -13,22 +13,22 @@ let%test_module _ =
       make_lir
         {|
 (define (pow [b u64] [e u64]) u64
-  (label (start)
+  (block (start)
     (set r (const u64 1))
     (jump (loop))
     )
-  (label (loop)
+  (block (loop)
     (set z (const u64 0))
     (set f (cmp u64 gt e z))
     (cond_jump f (done) (body))
     )
-  (label (body)
+  (block (body)
     (set r (add u64 r b))
     (set one (const u64 1))
     (set e (add u64 e one))
     (jump (loop))
     )
-  (label (done)
+  (block (done)
     (ret r)
     )
   )
@@ -151,19 +151,19 @@ let%test_module _ =
       [%expect
         {|
     (define (pow [b.0 u64] [e.1 u64]) u64
-      (label (start.0)
+      (block (start.0)
         (set r.2 (const u64 1))
         (jump (loop.1 b.0 e.1 r.2)))
-      (label (loop.1 [b.9 u64] [e.10 u64] [r.11 u64])
+      (block (loop.1 [b.9 u64] [e.10 u64] [r.11 u64])
         (set z.12 (const u64 0))
         (set f.13 (cmp u64 gt e.10 z.12))
         (cond_jump f.13 (done.2 r.11) (body.3 b.9 e.10 r.11)))
-      (label (body.3 [b.3 u64] [e.4 u64] [r.5 u64])
+      (block (body.3 [b.3 u64] [e.4 u64] [r.5 u64])
         (set r.6 (add u64 r.5 b.3))
         (set one.7 (const u64 1))
         (set e.8 (add u64 e.4 one.7))
         (jump (loop.1 b.3 e.8 r.6)))
-      (label (done.2 [r.14 u64])
+      (block (done.2 [r.14 u64])
         (ret r.14))) |}]
     ;;
 
@@ -173,19 +173,19 @@ let%test_module _ =
       [%expect
         {|
     (define (pow [b.0 u64] [e.1 u64]) u64
-      (label (start.0)
+      (block (start.0)
         (set r.2 (const u64 1))
         (jump (loop.1 e.1 r.2)))
-      (label (loop.1 [e.10 u64] [r.11 u64])
+      (block (loop.1 [e.10 u64] [r.11 u64])
         (set z.12 (const u64 0))
         (set f.13 (cmp u64 gt e.10 z.12))
         (cond_jump f.13 (done.2) (body.3)))
-      (label (body.3)
+      (block (body.3)
         (set r.6 (add u64 r.11 b.0))
         (set one.7 (const u64 1))
         (set e.8 (add u64 e.10 one.7))
         (jump (loop.1 e.8 r.6)))
-      (label (done.2)
+      (block (done.2)
         (ret r.11))) |}]
     ;;
 
@@ -195,13 +195,13 @@ let%test_module _ =
       [%expect
         {|
     (define (pow [b.0 u64] [e.1 u64]) u64
-      (label (start.0)
+      (block (start.0)
         (jump (loop.1 e.1 (const u64 1))))
-      (label (loop.1 [e.10 u64] [r.11 u64])
+      (block (loop.1 [e.10 u64] [r.11 u64])
         (cond_jump (cmp u64 gt e.10 (const u64 0)) (done.2) (body.3)))
-      (label (body.3)
+      (block (body.3)
         (jump (loop.1 (add u64 e.10 (const u64 1)) (add u64 r.11 b.0))))
-      (label (done.2)
+      (block (done.2)
         (ret r.11))) |}]
     ;;
 
@@ -300,20 +300,20 @@ let%test_module _ =
       make_lir
         {|
   (define (if [x u64] [y u64]) u64
-    (label (start)
+    (block (start)
       (set one (const u64 9))
       (set f (cmp u64 gt x one))
       (cond_jump f (then) (else)))
-    (label (then)
+    (block (then)
       (set r (const u64 3))
       (set r (add u64 r x))
       (jump (done)))
-    (label (else)
+    (block (else)
       (set r (const u64 5))
       (set a (add u64 x y))
       (set r (add u64 r a))
       (jump (done)))
-    (label (done)
+    (block (done)
       (ret r))
   )
   |}
@@ -326,20 +326,20 @@ let%test_module _ =
       [%expect
         {|
         (define (if [x.0 u64] [y.1 u64]) u64
-          (label (start.0)
+          (block (start.0)
             (set one.2 (const u64 9))
             (set f.3 (cmp u64 gt x.0 one.2))
             (cond_jump f.3 (then.1) (else.2)))
-          (label (else.2)
+          (block (else.2)
             (set r.6 (const u64 5))
             (set a.7 (add u64 x.0 y.1))
             (set r.8 (add u64 r.6 a.7))
             (jump (done.3 r.8)))
-          (label (then.1)
+          (block (then.1)
             (set r.10 (const u64 3))
             (set r.11 (add u64 r.10 x.0))
             (jump (done.3 r.11)))
-          (label (done.3 [r.12 u64])
+          (block (done.3 [r.12 u64])
             (ret r.12))) |}]
     ;;
 
@@ -349,13 +349,13 @@ let%test_module _ =
       [%expect
         {|
         (define (if [x.0 u64] [y.1 u64]) u64
-          (label (start.0)
+          (block (start.0)
             (cond_jump (cmp u64 gt x.0 (const u64 9)) (then.1) (else.2)))
-          (label (else.2)
+          (block (else.2)
             (jump (done.3 (add u64 (const u64 5) (add u64 x.0 y.1)))))
-          (label (then.1)
+          (block (then.1)
             (jump (done.3 (add u64 (const u64 3) x.0))))
-          (label (done.3 [r.12 u64])
+          (block (done.3 [r.12 u64])
             (ret r.12))) |}]
     ;;
 
@@ -475,13 +475,13 @@ let%test_module _ =
       make_lir
         {|
   (define (another [x u64] [y u64]) u64
-    (label (start)
+    (block (start)
       (set bruh (const u64 1))
       (ret x))
     )
 
   (define (fn [x u64] [y u64]) u64
-    (label (start)
+    (block (start)
       (set bruh (add u64 x y))
       (set res (call u64 (another x y)))
       (ret)))
@@ -541,7 +541,7 @@ let%expect_test "parse extern" =
   (extern (another u64 u64) u64)
   
   (define (testing [x u64] [y u64]) u64
-    (label (start)
+    (block (start)
       (ret)))
   |}
   in
