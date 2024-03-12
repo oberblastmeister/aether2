@@ -62,8 +62,8 @@ let elaborate_function (fn : Name.t Function.t) : Value.t Function.t =
 let elaborate_single fn = run (fun () -> elaborate_function fn)
 
 let elaborate_program (program : Name.t Program.t) =
-  let new_functions = List.map ~f:elaborate_function program.functions in
-  { program with functions = new_functions }
+  let new_funcs = List.map ~f:elaborate_function program.funcs in
+  { program with funcs = new_funcs }
 ;;
 
 let elaborate (program : Name.t Program.t) : Value.t Program.t Or_error.t =
@@ -101,6 +101,6 @@ u64
         (ret)))
 
     (define (another) u64
-      (label (start.3)
+      (label (start.0)
         (ret))) |}]
 ;;

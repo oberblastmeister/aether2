@@ -167,6 +167,14 @@ end
 
 module Function_ty = struct
   type t =
+    { params : Ty.t list
+    ; return : Ty.t
+    }
+  [@@deriving sexp_of]
+end
+
+module Named_function_ty = struct
+  type t =
     { params : Value.t list
     ; return : Ty.t
     }
@@ -177,7 +185,7 @@ module Mut_function = struct
   type 'v t =
     { name : string
     ; mutable graph : 'v Graph.t
-    ; ty : Function_ty.t
+    ; ty : Named_function_ty.t
     ; mutable unique_label : Label.Id.t
     ; mutable unique_name : Name.Id.t
     }
@@ -188,7 +196,7 @@ module Function = struct
   type 'v t =
     { name : string
     ; graph : 'v Graph.t
-    ; ty : Function_ty.t
+    ; ty : Named_function_ty.t
     ; unique_label : Label.Id.t
     ; unique_name : Name.Id.t
     }
@@ -203,13 +211,10 @@ module Extern = struct
   [@@deriving sexp_of]
 end
 
-module Decl = struct
-  type 'v t =
-    | Function of 'v Function.t
-    | Extern of Extern.t
-  [@@deriving sexp_of]
-end
-
 module Program = struct
-  type 'v t = { functions : 'v Function.t list } [@@deriving sexp_of, fields, map]
+  type 'v t =
+    { funcs : 'v Function.t list
+    ; externs : Extern.t list
+    }
+  [@@deriving sexp_of, fields, map]
 end

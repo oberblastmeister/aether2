@@ -244,6 +244,18 @@ module Graph = struct
   ;;
 end
 
+module Function_ty = struct
+  include Function_ty
+end
+
+module Named_function_ty = struct
+  include Named_function_ty
+
+  let to_anon { params; return } =
+    Function_ty.{ params = List.map ~f:(fun { ty; _ } -> ty) params; return }
+  ;;
+end
+
 module Mut_function = struct
   include Mut_function
 
@@ -301,5 +313,5 @@ end
 module Program = struct
   include Program
 
-  let map_functions p ~f = { functions = f p.functions }
+  let map_functions p ~f = { p with funcs = f p.funcs }
 end

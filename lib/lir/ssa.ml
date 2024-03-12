@@ -101,7 +101,7 @@ let validate_function (fn : Vir.Function.t) =
 ;;
 
 let validate (prog : Vir.Program.t) =
-  List.iter prog.functions ~f:(fun fn -> validate_function fn |> Or_error.ok_exn)
+  List.iter prog.funcs ~f:(fun fn -> validate_function fn |> Or_error.ok_exn)
 ;;
 
 module Rename : sig
@@ -325,9 +325,7 @@ let convert_function (fn : Vir.Function.t) =
 ;;
 
 let convert (program : Vir.Program.t) =
-  let program =
-    (Field.map Program.Fields.functions & List.map) ~f:convert_function program
-  in
+  let program = (Field.map Program.Fields.funcs & List.map) ~f:convert_function program in
   validate program;
   program
 ;;

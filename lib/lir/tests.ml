@@ -1,9 +1,11 @@
 open! O
 module Lir = Ast
 
-let make_lir s =
-  lazy (s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn)
+let parse s =
+  s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn
 ;;
+
+let make_lir s = lazy (parse s)
 
 let%test_module _ =
   (module struct
@@ -34,7 +36,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "uses" =
-      let fn = List.hd_exn (Lazy.force loop_lir).functions in
+      let fn = List.hd_exn (Lazy.force loop_lir).funcs in
       let p =
         Lir.(
           F.Fold.of_fn Function.graph
@@ -54,7 +56,7 @@ let%test_module _ =
 
     let%expect_test "liveness" =
       let program = Lazy.force loop_lir in
-      let fn = List.hd_exn program.functions in
+      let fn = List.hd_exn program.funcs in
       let live_in, live_out = Vir.Liveness.run fn.graph in
       print_s [%sexp (live_in : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
       [%expect
@@ -75,7 +77,7 @@ let%test_module _ =
 
     let%expect_test "liveness ssa" =
       let program = Lazy.force loop_lir |> Ssa.convert in
-      let fn = List.hd_exn program.functions in
+      let fn = List.hd_exn program.funcs in
       let live_in, live_out = Vir.Liveness.run fn.graph in
       print_s [%sexp (live_in : Lir.Value.Set.t Cfg.Dataflow.Fact_base.t)];
       [%expect
@@ -131,7 +133,7 @@ let%test_module _ =
        ;; *)
 
     let%expect_test "idoms fast" =
-      let fn = List.hd_exn (Lazy.force loop_lir).functions in
+      let fn = List.hd_exn (Lazy.force loop_lir).funcs in
       let idoms = Lir.Graph.get_idoms fn.graph in
       print_s [%sexp (idoms : Cfg.Dominators.Idoms.t)];
       ();
@@ -143,9 +145,7 @@ let%test_module _ =
     let%expect_test "naive ssa" =
       let program = Lazy.force loop_lir in
       let res =
-        (Field.map Lir.Program.Fields.functions & List.map)
-          ~f:Ssa.convert_naive
-          program
+        (Field.map Lir.Program.Fields.funcs & List.map) ~f:Ssa.convert_naive program
       in
       print_endline @@ Pretty.pretty res;
       [%expect
@@ -206,9 +206,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "lower x86" =
-      let program =
-        Lazy.force loop_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower
-      in
+      let program = Lazy.force loop_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower in
       print_s @@ [%sexp_of: X86.Ast.VReg.t X86.Ast.Program.t] program;
       [%expect
         {|
@@ -331,17 +329,17 @@ let%test_module _ =
           (label (start.0)
             (set one.2 (const u64 9))
             (set f.3 (cmp u64 gt x.0 one.2))
-            (cond_jump f.3 (then.4) (else.5)))
-          (label (else.5)
+            (cond_jump f.3 (then.1) (else.2)))
+          (label (else.2)
             (set r.6 (const u64 5))
             (set a.7 (add u64 x.0 y.1))
             (set r.8 (add u64 r.6 a.7))
-            (jump (done.2 r.8)))
-          (label (then.4)
+            (jump (done.3 r.8)))
+          (label (then.1)
             (set r.10 (const u64 3))
             (set r.11 (add u64 r.10 x.0))
-            (jump (done.2 r.11)))
-          (label (done.2 (r.12 u64))
+            (jump (done.3 r.11)))
+          (label (done.3 (r.12 u64))
             (ret r.12))) |}]
     ;;
 
@@ -352,12 +350,12 @@ let%test_module _ =
         {|
         (define (if (x.0 u64) (y.1 u64)) u64
           (label (start.0)
-            (cond_jump (cmp u64 gt x.0 (const u64 9)) (then.4) (else.5)))
-          (label (else.5)
-            (jump (done.2 (add u64 (const u64 5) (add u64 x.0 y.1)))))
-          (label (then.4)
-            (jump (done.2 (add u64 (const u64 3) x.0))))
-          (label (done.2 (r.12 u64))
+            (cond_jump (cmp u64 gt x.0 (const u64 9)) (then.1) (else.2)))
+          (label (else.2)
+            (jump (done.3 (add u64 (const u64 5) (add u64 x.0 y.1)))))
+          (label (then.1)
+            (jump (done.3 (add u64 (const u64 3) x.0))))
+          (label (done.3 (r.12 u64))
             (ret r.12))) |}]
     ;;
 
@@ -371,18 +369,18 @@ let%test_module _ =
             (graph
              ((entry start.0)
               (blocks
-               ((done.2
+               ((done.3
                  ((instrs
                    ((Block_args (((s Q) (name r.12))))
                     (Ret ((Reg ((s Q) (name r.12)))))))))
-                (else.5
+                (else.2
                  ((instrs
                    ((Block_args ())
                     (Add (dst (Reg ((s Q) (name a.7))))
                      (src1 (Reg ((s Q) (name x.0)))) (src2 (Reg ((s Q) (name y.1)))))
                     (Add (dst (Reg ((s Q) (name r.8)))) (src1 (Imm (Int 5)))
                      (src2 (Reg ((s Q) (name a.7)))))
-                    (Jump ((label done.2) (args (((s Q) (name r.8))))))))))
+                    (Jump ((label done.3) (args (((s Q) (name r.8))))))))))
                 (start.0
                  ((instrs
                    ((Block_args ())
@@ -390,15 +388,15 @@ let%test_module _ =
                     (Set (cond A) (dst (Reg ((s Q) (name f.3)))))
                     (Test (src1 (Reg ((s Q) (name f.3))))
                      (src2 (Reg ((s Q) (name f.3)))))
-                    (CondJump (cond NE) (j1 ((label then.4) (args ())))
-                     (j2 ((label else.5) (args ()))))))))
-                (then.4
+                    (CondJump (cond NE) (j1 ((label then.1) (args ())))
+                     (j2 ((label else.2) (args ()))))))))
+                (then.1
                  ((instrs
                    ((Block_args ())
                     (Add (dst (Reg ((s Q) (name r.11)))) (src1 (Imm (Int 3)))
                      (src2 (Reg ((s Q) (name x.0)))))
-                    (Jump ((label done.2) (args (((s Q) (name r.11))))))))))))
-              (exit done.2)))
+                    (Jump ((label done.3) (args (((s Q) (name r.11))))))))))))
+              (exit done.3)))
             (params ((((s Q) (name x.0)) RDI) (((s Q) (name y.1)) RSI)))
             (stack_params ()) (unique_name 13) (unique_stack_slot 0)
             (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)) (stack_instrs ()))))) |}]
@@ -416,12 +414,12 @@ let%test_module _ =
       [%expect
         {|
         ((live_in
-          ((start.0 (((s Q) (name x.0)) ((s Q) (name y.1)))) (done.2 ())
-           (then.4 (((s Q) (name x.0))))
-           (else.5 (((s Q) (name x.0)) ((s Q) (name y.1))))))
+          ((start.0 (((s Q) (name x.0)) ((s Q) (name y.1))))
+           (then.1 (((s Q) (name x.0))))
+           (else.2 (((s Q) (name x.0)) ((s Q) (name y.1)))) (done.3 ())))
          (live_out
-          ((start.0 (((s Q) (name x.0)) ((s Q) (name y.1)))) (done.2 ()) (then.4 ())
-           (else.5 ())))) |}]
+          ((start.0 (((s Q) (name x.0)) ((s Q) (name y.1)))) (then.1 ()) (else.2 ())
+           (done.3 ())))) |}]
     ;;
 
     let%expect_test "print" =
@@ -448,22 +446,22 @@ let%test_module _ =
         	cmp	rax, 9
         	seta	rdi
         	test	rdi, rdi
-        	jne .Lthen.4
-        	jmp .Lelse.5
-        .Lelse.5:
+        	jne .Lthen.1
+        	jmp .Lelse.2
+        .Lelse.2:
         	mov	r11, rax
         	add	r11, rsi
         	mov	rax, r11
         	mov	r11, 5
         	add	r11, rax
         	mov	rax, r11
-        	jmp .Ldone.2
-        .Lthen.4:
+        	jmp .Ldone.3
+        .Lthen.1:
         	mov	r11, 3
         	add	r11, rax
         	mov	rax, r11
-        	jmp .Ldone.2
-        .Ldone.2:
+        	jmp .Ldone.3
+        .Ldone.3:
         	mov	rax, rax
         	add	rsp, 8
         	ret |}]
@@ -532,4 +530,34 @@ let%test_module _ =
         	ret |}]
     ;;
   end)
+;;
+
+let%expect_test "parse extern" =
+  let lir =
+    parse
+      {|
+  (extern (extern_function u64 u64) u64)
+  
+  (extern (another u64 u64) u64)
+
+  (define (testing (x u64) (y u64)) u64
+    (label (start)
+      (ret)))
+  |}
+  in
+  print_s [%sexp (lir : Ast.Value.t Ast.Program.t)];
+  [%expect
+    {|
+    ((funcs
+      (((name testing)
+        (graph
+         ((entry start.0)
+          (blocks ((start.0 ((entry ()) (body ()) (exit (Ret ()))))))
+          (exit start.0)))
+        (ty
+         ((params (((name x.0) (ty U64)) ((name y.1) (ty U64)))) (return U64)))
+        (unique_label 1) (unique_name 2))))
+     (externs
+      (((name extern_function) (ty ((params (U64 U64)) (return U64))))
+       ((name another) (ty ((params (U64 U64)) (return U64))))))) |}]
 ;;

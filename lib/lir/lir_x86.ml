@@ -210,6 +210,6 @@ let lower_function (fn : Tir.Function.t) =
 ;;
 
 let lower (prog : Tir.Program.t) =
-  let functions = List.map ~f:lower_function prog.functions in
+  let functions = List.map ~f:lower_function prog.funcs in
   { X86.Program.functions }
 ;;

@@ -37,12 +37,13 @@ let atom f = function
 
 let string = atom Fn.id
 
-let list f = function
+let list sexp f =
+  match sexp with
   | Cst.List x -> R.scope (const x.span) (fun () -> f x.items)
   | Cst.Atom x -> parse_error [%message "expected list" ~got:(x.value : string)]
 ;;
 
-let list_ref f = list (fun xs -> f (ref xs))
+let list_ref sexp f = list sexp (fun xs -> f (ref xs))
 
 let item list_ref f =
   match !list_ref with

@@ -118,7 +118,7 @@ let pretty_function cx (fn : _ Function.t) =
 ;;
 
 let pretty' cx (program : _ Program.t) =
-  program.functions
+  program.funcs
   |> List.map ~f:(pretty_function cx)
   |> List.map ~f:Pretty.to_string
   |> String.concat ~sep:"\n\n"
