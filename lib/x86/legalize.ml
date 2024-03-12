@@ -1,5 +1,5 @@
 open O
-open Types
+open Ast
 
 type context =
   { instrs : (AReg.t Flat.Line.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
@@ -45,7 +45,7 @@ let legalize_vinstr cx instr =
 let string_of_label label = ".L" ^ Entity.Name.to_dotted_string label
 
 let legalize_instr cx (instr : AReg.t Instr.t) =
-  let open Types_basic.Instr in
+  let open Ast_types.Instr in
   let force_register ~size o =
     let reg = AReg.InReg { s = size; name = Some "scratch"; reg = Mach_reg.R11 } in
     Cx.add cx @@ Mov { dst = Reg reg; src = to_op o };

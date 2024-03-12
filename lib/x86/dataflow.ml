@@ -1,5 +1,5 @@
 open O
-open Types
+open Ast
 
 let instr_to_block_transfer ?(sexp_of_reg = sexp_of_opaque) trans =
   Cfg.Dataflow.instr_to_block_transfer

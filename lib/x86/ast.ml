@@ -1,5 +1,5 @@
 open! O
-include Types_basic
+include Ast_types
 module Name = Utils.Instr_types.Name
 module Label = Utils.Instr_types.Label
 module Stack_slot = Utils.Instr_types.Stack_slot

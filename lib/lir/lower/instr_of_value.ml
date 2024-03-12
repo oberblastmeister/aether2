@@ -1,9 +1,9 @@
 open O
-open Types
+open Ast
 
 type t = (Value.t, int * Value.t Instr.t) Entity.Map.t
 
-open Types
+open Ast
 
 let create iter =
   let instr_of_value = ValueMap.create () in

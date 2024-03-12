@@ -1,10 +1,10 @@
 open O
-open Types
+open Ast
 module Tir = Lower.Tir
 
 module X86 = struct
   include X86
-  include X86.Types
+  include X86.Ast
 end
 
 module Context = struct

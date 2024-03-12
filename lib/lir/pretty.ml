@@ -1,5 +1,5 @@
 open! O
-open Types
+open Ast
 module Pretty = Sexp_lang.Pretty
 
 module Context = struct

@@ -1,6 +1,6 @@
 open O
 open Utils.Instr_types
-open Types
+open Ast
 
 type t =
   { stack_slot_of_mach_reg : (Mach_reg.t, Stack_slot.t) Hashtbl.t

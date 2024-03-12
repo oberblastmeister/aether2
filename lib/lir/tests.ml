@@ -1,5 +1,5 @@
 open! O
-module Lir = Types
+module Lir = Ast
 
 let make_lir s =
   lazy (s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn)
@@ -209,7 +209,7 @@ let%test_module _ =
       let program =
         Lazy.force loop_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower
       in
-      print_s @@ [%sexp_of: X86.Types.VReg.t X86.Types.Program.t] program;
+      print_s @@ [%sexp_of: X86.Ast.VReg.t X86.Ast.Program.t] program;
       [%expect
         {|
         ((functions
@@ -363,7 +363,7 @@ let%test_module _ =
 
     let%expect_test "x86 lower" =
       let program = Lazy.force if_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower in
-      print_s @@ [%sexp_of: X86.Types.VReg.t X86.Types.Program.t] program;
+      print_s @@ [%sexp_of: X86.Ast.VReg.t X86.Ast.Program.t] program;
       [%expect
         {|
         ((functions
@@ -411,8 +411,8 @@ let%test_module _ =
       let live_in, live_out = X86.Dataflow.Liveness.run fn in
       print_s
         [%message
-          (live_in : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)
-            (live_out : X86.Types.VReg.Set.t Cfg.Dataflow.Fact_base.t)];
+          (live_in : X86.Ast.VReg.Set.t Cfg.Dataflow.Fact_base.t)
+            (live_out : X86.Ast.VReg.Set.t Cfg.Dataflow.Fact_base.t)];
       [%expect
         {|
         ((live_in

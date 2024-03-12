@@ -1,5 +1,5 @@
 open O
-open Types
+open Ast
 open Utils.Instr_types
 
 type t =

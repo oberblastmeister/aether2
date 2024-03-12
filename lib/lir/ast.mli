@@ -1,5 +1,5 @@
 open! O
-include module type of Types_basic
+include module type of Ast_types
 module Name = Utils.Instr_types.Name
 module Label = Utils.Instr_types.Label
 module Control = Utils.Instr_types.Control

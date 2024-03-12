@@ -1,5 +1,5 @@
 open! O
-open Types
+open Ast
 module Parser = Sexp_lang.Parser
 module Intern_table = Entity.Intern_table
 

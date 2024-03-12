@@ -1,5 +1,5 @@
 open! O
-open Types
+open Ast
 
 module Color : sig
   type t [@@deriving sexp_of]

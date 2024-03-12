@@ -1,5 +1,5 @@
 open! O
-module Lir = Types
+module Lir = Ast
 
 module Instantiate (V : sig
     type t [@@deriving sexp_of]

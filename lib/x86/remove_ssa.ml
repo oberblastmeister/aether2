@@ -1,5 +1,5 @@
 open O
-open Types
+open Ast
 
 let map_last vec ~f =
   let vec = Vec.copy_exact ~size:(Vec.length vec + 1) vec in

@@ -1,4 +1,4 @@
-open Types
+open Ast
 
 (* val legalize_minstr
    :  'r MInstr.t

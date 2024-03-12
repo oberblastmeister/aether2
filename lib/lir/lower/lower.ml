@@ -1,5 +1,5 @@
 open! O
-module Lir = Types
+module Lir = Ast
 module Tir = Tir
 
 let iter_blocks graph = (Cfg.Graph.iter_on_labels (Lir.Graph.Dfs.preorder graph)) graph

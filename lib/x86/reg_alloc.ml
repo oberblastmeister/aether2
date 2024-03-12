@@ -1,5 +1,5 @@
 open! O
-open Types
+open Ast
 open Utils.Instr_types
 module Interference = Compiler.Reg_alloc.Interference
 module Reg_alloc = Compiler.Reg_alloc
@@ -322,8 +322,3 @@ let run program =
   Vec.freeze res_program
 ;;
 
-(*
-
-
-
-*)

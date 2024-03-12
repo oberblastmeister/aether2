@@ -2,7 +2,7 @@ open O
 
 type t
 
-open Types
+open Ast
 
 val create : Vir.Some_instr.t F.Iter.t -> t
 val find_data : t -> Value.t -> (int * Vir.Instr.t) option

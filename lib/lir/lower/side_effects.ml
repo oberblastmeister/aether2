@@ -1,5 +1,5 @@
 open! O
-open Types
+open Ast
 
 (* a color is an instruction index modulo pure operations *)
 module Color = struct

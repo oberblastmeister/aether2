@@ -1,8 +1,8 @@
 open O
 open Utils.Instr_types
-module Address = Types.Address
-module Op = Types.Operand
-module MReg = Types.MReg
+module Address = Ast.Address
+module Op = Ast.Operand
+module MReg = Ast.MReg
 
 module Instr = struct
   type 'r t =
@@ -82,7 +82,7 @@ module Instr = struct
       i
       ~on_use:(fun op -> Op.iter_any_regs op ~f)
       ~on_def:(function
-        | Mem m -> Types_basic.Mem.iter_regs m ~f
+        | Mem m -> Ast_types.Mem.iter_regs m ~f
         | _ -> ())
   ;;
 
