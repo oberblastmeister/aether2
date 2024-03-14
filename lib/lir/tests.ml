@@ -476,7 +476,7 @@ let%test_module _ =
       (ret x))
     )
 
-  (define (fn [x u64] [y u64]) u64
+  (define (fn [x u64] [y u64]) void
     (block (start)
       (set bruh (add u64 x y))
       (set res (call u64 (another x y)))
@@ -484,7 +484,7 @@ let%test_module _ =
     |}
     ;;
 
-    let%expect_test _ =
+    let%expect_test "simple function" =
       let@ () = Logger.Log.with_log false in
       let program =
         Lazy.force fn_lir
@@ -536,7 +536,7 @@ let%expect_test "parse extern" =
   
   (extern (another u64 u64) u64)
   
-  (define (testing [x u64] [y u64]) u64
+  (define (testing [x u64] [y u64]) void
     (block (start)
       (ret)))
   |}
@@ -551,7 +551,7 @@ let%expect_test "parse extern" =
           (blocks ((start.0 ((entry ()) (body ()) (exit (Ret ()))))))
           (exit start.0)))
         (ty
-         ((params (((name x.0) (ty U64)) ((name y.1) (ty U64)))) (return U64)))
+         ((params (((name x.0) (ty U64)) ((name y.1) (ty U64)))) (return Void)))
         (unique_label 1) (unique_name 2))))
      (externs
       (((name extern_function) (ty ((params (U64 U64)) (return U64))))

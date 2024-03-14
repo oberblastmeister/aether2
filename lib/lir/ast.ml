@@ -288,6 +288,8 @@ module Function = struct
   let map_graph fn ~f = { fn with graph = f fn.graph }
   (* let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn *)
 
+  let iter_blocks fn = Cfg.Graph.iter fn.graph
+
   let iter_instrs_forward fn =
     F.Fold.(Cfg.Graph.iter @> Block.iter_instrs_forward) fn.graph
   ;;

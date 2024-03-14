@@ -11,6 +11,7 @@ module Ty = struct
   type t =
     | U1
     | U64
+    | Void
   [@@deriving equal, compare, hash, sexp]
 end
 
@@ -70,6 +71,10 @@ end
 
 module Instr = struct
   type 'v t =
+    | VoidCall of
+        { name : string
+        ; args : 'v list
+        }
     | Assign of
         { dst : Value.t
         ; expr : 'v Expr.t

@@ -4,9 +4,6 @@ open Ast
 type context =
   { temps : Ty.t Name.Table.t
   ; func_tys : Function_ty.t String.Map.t
-      (* The current graph for the function. *)
-      (* May be a garbage value at initialization *)
-  ; graph : Value.t Graph.t
   }
 [@@deriving sexp_of]
 
@@ -29,11 +26,6 @@ let handle f =
   | x -> Ok x
 ;;
 
-let garbage_graph =
-  let garbage_label = Label.create "garbage_label" (Label.Id.of_int (-1)) in
-  Cfg.Graph.of_alist ~entry:garbage_label ~exit:garbage_label []
-;;
-
 let create_context (program : _ Program.t) =
   let func_tys = String.Map.empty in
   let func_tys =
@@ -51,7 +43,7 @@ let create_context (program : _ Program.t) =
         error [%message "duplicate function name" ~name:(extern.name : string)])
   in
   let temps = Name.Table.create () in
-  { temps; func_tys; graph = garbage_graph }
+  { temps; func_tys }
 ;;
 
 let check_ty_equal ty1 ty2 =
@@ -79,6 +71,7 @@ let check_expr cx (expr : Value.t Expr.t) =
     ()
   | Const { ty; const } ->
     (match ty with
+     | Void -> error [%message "cannot use const with unit" (const : int64)]
      | U1 when Int64.(const <= 1L) -> ()
      | U1 -> error [%message "U1 constant out of range" (const : int64)]
      | U64 -> ())
@@ -96,6 +89,9 @@ let check_expr cx (expr : Value.t Expr.t) =
       | Some func_ty -> func_ty
       | None -> error [%message "unknown function" (name : string)]
     in
+    (match ty with
+     | Void -> error [%message "cannot assign the result of function that returns void"]
+     | _ -> ());
     check_ty_equal ty func_ty.return;
     check_args func_ty.params args;
     ()
@@ -112,9 +108,9 @@ let check_instr cx (instr : _ Instr.t) =
   | _ -> todo [%here]
 ;;
 
-let check_block_call cx (j : _ Block_call.t) =
+let check_block_call cx (func : _ Function.t) (j : _ Block_call.t) =
   let block =
-    match Cfg.Graph.find j.label cx.graph with
+    match Cfg.Graph.find j.label func.graph with
     | Some block -> block
     | None -> error [%message "could not find block with label" (j.label : Label.t)]
   in
@@ -122,25 +118,35 @@ let check_block_call cx (j : _ Block_call.t) =
   ()
 ;;
 
-let check_control_instr cx (instr : _ Control_instr.t) =
-  Control_instr.iter_block_calls instr ~f:(check_block_call cx);
-  (* TODO: check that return can't return for void *)
-  match instr with
-  | Ret _ -> ()
-  | _ -> ()
+let check_control_instr cx (func : _ Function.t) (instr : _ Control_instr.t) =
+  Control_instr.iter_block_calls instr ~f:(fun j ->
+    if Label.equal j.label (Cfg.Graph.entry func.graph)
+    then error [%message "cannot jump to start label" ~label:(j.label : Label.t)];
+    check_block_call cx func j)
 ;;
 
-let check_some_instr cx instr =
-  match Some_instr.to_variant instr with
-  | Block_args _ -> ()
-  | Instr i -> check_instr cx i
-  | Control i -> check_control_instr cx i
+let check_block cx (func : _ Function.t) label (block : _ Block.t) =
+  let graph = func.graph in
+  List.iter block.body ~f:(check_instr cx);
+  if Label.equal (Cfg.Graph.exit graph) label
+  then (
+    match block.exit with
+    | Ret v ->
+      (match v, func.ty.return with
+       | None, Void -> ()
+       | None, ty -> error [%message "must return" (ty : Ty.t)]
+       | Some v, Void -> error [%message "cannot return anything" (v : Value.t)]
+       | Some _, _ty -> ())
+    | instr ->
+      error
+        [%message "the last block must have a return" (instr : Value.t Control_instr.t)]);
+  check_control_instr cx func block.exit;
+  ()
 ;;
 
 let check_func cx (func : _ Function.t) =
   Entity.Map.clear cx.temps;
-  let cx = { cx with graph = func.graph } in
-  Function.iter_instrs_forward func ~f:(check_some_instr cx);
+  Cfg.Graph.iteri func.graph ~f:(fun (label, block) -> check_block cx func label block);
   ()
 ;;
 
