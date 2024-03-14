@@ -11,10 +11,12 @@ type 'b t =
 
 module type Gen_S = Gen_S with type 'b t := 'b t
 
+(* TODO: change this to return option *)
 let of_alist ~entry ~exit blocks = { entry; blocks = Label.Map.of_alist_exn blocks; exit }
 let to_alist { blocks; _ } = Map.to_alist blocks
 let map_blocks graph ~f = { graph with blocks = f graph.blocks }
 let get_block_exn graph label = Map.find_exn graph.blocks label
+let find label graph = Map.find graph.blocks label
 let find_exn label graph = Map.find_exn graph.blocks label
 
 let set label block graph =

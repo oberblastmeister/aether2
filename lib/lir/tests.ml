@@ -1,11 +1,7 @@
 open! O
 module Lir = Ast
 
-let parse s =
-  s |> Parse.parse |> Or_error.ok_exn |> Elaborate.elaborate |> Or_error.ok_exn
-;;
-
-let make_lir s = lazy (parse s)
+let make_lir s = lazy (Driver.parse_string s)
 
 let%test_module _ =
   (module struct
@@ -534,7 +530,7 @@ let%test_module _ =
 
 let%expect_test "parse extern" =
   let lir =
-    parse
+    Driver.parse_string
       {|
   (extern (extern_function u64 u64) u64)
   

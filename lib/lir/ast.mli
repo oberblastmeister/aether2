@@ -44,6 +44,7 @@ module Some_instr : sig
   val iter_defs : (Value.t, 'v t) F.Fold.t
   val uses : 'v t -> 'v list
   val defs : 'v t -> Value.t list
+  val to_variant : 'v t -> 'v Variant_instr.t
   val has_side_effect : 'v t -> bool
 end
 
@@ -145,6 +146,12 @@ module Mut_function : sig
   val fresh_label : 'v t -> string -> Label.t
   val set_block : 'v t -> Label.t -> 'v Block.t -> unit
   val add_block_exn : 'v t -> Label.t -> 'v Block.t -> unit
+end
+
+module Named_function_ty : sig
+  include module type of Named_function_ty
+
+  val to_anon : t -> Function_ty.t
 end
 
 module Function : sig

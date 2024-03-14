@@ -171,6 +171,13 @@ module Some_instr = struct
     | T (Control _) | T (Block_args _) -> true
     | T (Instr i) -> Instr.has_side_effect i
   ;;
+
+  let to_variant (T instr) : _ Variant_instr.t =
+    match instr with
+    | Block_args a -> Block_args a
+    | Instr i -> Instr i
+    | Control i -> Control i
+  ;;
 end
 
 module Block = struct

@@ -39,6 +39,7 @@ module type Intf = sig
     -> 'b t
     -> Label.t Data.Graph.double
 
+  val find : Label.t -> 'b t -> 'b option
   val find_exn : Label.t -> 'b t -> 'b
   val set : Label.t -> 'b -> 'b t -> 'b t
   val set_blocks_alist : (Label.t * 'b) list -> _ t -> 'b t

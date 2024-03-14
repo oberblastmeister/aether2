@@ -173,6 +173,8 @@ module Function_ty = struct
   [@@deriving sexp_of]
 end
 
+(* This is used so we can retain the names
+   and pretty print the ir *)
 module Named_function_ty = struct
   type t =
     { params : Value.t list
@@ -211,6 +213,7 @@ module Extern = struct
   [@@deriving sexp_of]
 end
 
+(* TODO: make these map data structures *)
 module Program = struct
   type 'v t =
     { funcs : 'v Function.t list

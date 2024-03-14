@@ -29,6 +29,7 @@ let mem t k ~to_int =
 ;;
 
 let key_not_found t k = raise_s [%message "key not found" ~key:(t.sexp_of_key k : Sexp.t)]
+let clear t = Option_array.clear t.a
 
 let find_exn t k ~to_int =
   let i = to_int k in
@@ -74,41 +75,32 @@ let of_iter ?sexp_of_key ?size i ~to_int =
 let sexp_of_t f g t = to_list t |> List.sexp_of_t (Tuple2.sexp_of_t f g)
 let update t k ~to_int ~f = set t ~key:k ~data:(f (find t k ~to_int)) ~to_int
 
-module Make_gen (Arg : Gen_arg) = struct
-  open struct
-    let to_int = Arg.to_int
-  end
-
-  let create ?size () = create ?size ()
-  let find = find ~to_int
-  let find_exn = find_exn ~to_int
-  let set = set ~to_int
-  let mem = mem ~to_int
-  let update = update ~to_int
-  let of_list = of_list ~to_int
-  let of_iter ?size i = of_iter ~sexp_of_key:sexp_of_opaque ?size ~to_int i
-  let ( .![] ) = find_exn
-  let ( .?[] ) = find
-  let ( .![]<- ) t key data = set t ~key ~data
-end
+let add_exn t ~key ~data ~to_int =
+  if mem t key ~to_int
+  then raise_s [%message "key is already inside" (t.sexp_of_key key : Sexp.t)]
+  else set t ~key ~data ~to_int
+;;
 
 module Make (Arg : Arg) = struct
   type k = Arg.t
   type nonrec 'v t = (k, 'v) t
 
-  module Creators = struct
-    let create ?size () = create ~sexp_of_key:Arg.sexp_of_t ?size ()
-    let of_iter ?size = of_iter ~sexp_of_key:Arg.sexp_of_t ?size ~to_int:Arg.to_int
+  open struct
+    let to_int = Arg.to_int
   end
 
-  include Make_gen (struct
-      type ('a, 'b, 'c) t = Arg.t
-
-      let to_int = Arg.to_int
-    end)
-
-  include Creators
-
+  let create ?size () = create ~sexp_of_key:Arg.sexp_of_t ?size ()
+  let of_iter ?size = of_iter ~sexp_of_key:Arg.sexp_of_t ?size ~to_int:Arg.to_int
+  let find = find ~to_int
+  let find_exn = find_exn ~to_int
+  let set = set ~to_int
+  let add_exn = add_exn ~to_int
+  let mem = mem ~to_int
+  let update = update ~to_int
+  let of_list = of_list ~to_int
+  let ( .![] ) = find_exn
+  let ( .?[] ) = find
+  let ( .![]<- ) t key data = set t ~key ~data
   let sexp_of_t f = sexp_of_t Arg.sexp_of_t f
 end
 
