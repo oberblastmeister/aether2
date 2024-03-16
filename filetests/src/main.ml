@@ -3,6 +3,8 @@ open Eio.Std
 open Aether2.O
 module Process = Eio.Process
 
+let ( / ) = Eio.Path.( / )
+
 let compile_runtime ~cwd ~process =
   Eio.Process.run ~cwd:Eio.Path.(cwd / "filetests/runtime") process [ "zig"; "build" ]
 ;;
@@ -17,17 +19,15 @@ let test_header = {|
 (extern (assert_eq_u64 u64 u64) void)
 |}
 
-let compile_single ~cwd ~process ~stdout ~debug path =
-  let@ () = Aether2.Logger.with_log debug in
+let compile_single ~cwd ~process ~stdout ?(debug = false) ~lir_path ~asm_path ~out_path ()
+  =
+  let@ () = if debug then Aether2.Logger.with_log debug else fun f -> f () in
   let@ sw f = Switch.run f in
-  let contents = Eio.Path.load Eio.Path.(cwd / path) in
+  let contents = Eio.Path.load lir_path in
   let asm =
     Aether2.Lir.Driver.compile_string (test_header ^ contents) |> Or_error.ok_exn
   in
-  let name, file = Filename_unix.open_temp_file "lir" ".s" in
-  Out_channel.output_string file asm;
-  Out_channel.close file;
-  Eio.Flow.copy_string (asm ^ "\n") stdout;
+  Eio.Path.save ~create:(`Or_truncate 0o600) asm_path asm;
   let runtime_path = Eio.Path.(cwd / "filetests/runtime/zig-out/lib/libruntime.a") in
   (let stdout_buf = Buffer.create 10 in
    let stderr_buf = Buffer.create 10 in
@@ -37,7 +37,13 @@ let compile_single ~cwd ~process ~stdout ~debug path =
        ~stdout:(Eio.Flow.buffer_sink stdout_buf)
        ~stderr:(Eio.Flow.buffer_sink stderr_buf)
        process
-       [ "zig"; "cc"; name; Eio.Path.native_exn runtime_path ]
+       [ "zig"
+       ; "cc"
+       ; Eio.Path.native_exn asm_path
+       ; Eio.Path.native_exn runtime_path
+       ; "-o"
+       ; Eio.Path.native_exn out_path
+       ]
    in
    let status = Process.await proc |> result_of_status in
    let stderr_contents = Buffer.contents stderr_buf in
@@ -45,17 +51,46 @@ let compile_single ~cwd ~process ~stdout ~debug path =
    (match status with
     | Ok () -> ()
     | Error _ ->
-      Eio.Flow.copy_string ("failed to compile file " ^ path ^ "\n") stdout;
+      Eio.Flow.copy_string
+        ("failed to compile file " ^ Eio.Path.native_exn lir_path ^ "\n")
+        stdout;
       Eio.Flow.copy_string "stderr:\n" stdout;
       Eio.Flow.copy_string stderr_contents stdout;
       ());
    ());
-  let proc = Process.spawn ~sw process [ "./a.out" ] in
+  let proc = Process.spawn ~sw process [ Eio.Path.native_exn out_path ] in
   let status = Process.await proc in
   (match status with
    | `Exited 0 -> ()
-   | `Exited n -> print_s [%message "abnormal exit status" (n : int)]
-   | `Signaled n -> print_s [%message "process was killed by a signal" (n : int)]);
+   | `Exited n -> raise_s [%message "abnormal exit status" (n : int)]
+   | `Signaled n -> raise_s [%message "process was killed by a signal" (n : int)]);
+  ()
+;;
+
+let run_tests ~cwd ~process ~stdout =
+  let dir_path = "filetests/tests" in
+  let paths =
+    Eio.Path.read_dir Eio.Path.(cwd / dir_path)
+    |> List.filter ~f:(String.is_suffix ~suffix:".lir")
+    |> List.map ~f:(fun path ->
+      ( String.chop_suffix_exn path ~suffix:".lir"
+      , Eio.Path.native_exn @@ (cwd / dir_path / path) ))
+  in
+  let tests =
+    List.map paths ~f:(fun (name, path) ->
+      ( name
+      , [ Alcotest.test_case "run" `Quick (fun () ->
+            compile_single
+              ~cwd
+              ~process
+              ~stdout
+              ~lir_path:(cwd / path)
+              ~asm_path:(cwd / "filetests/out" / (name ^ ".s"))
+              ~out_path:(cwd / "filetests/out" / (name ^ ".exe"))
+              ())
+        ] ))
+  in
+  Alcotest.run "Aether2" tests;
   ()
 ;;
 
@@ -67,8 +102,25 @@ let run ~env (args : Args.t) =
   | Compile { common = { debug }; files; emit; _ } ->
     compile_runtime ~cwd ~process;
     List.iter files ~f:(fun file ->
+      if not @@ String.is_suffix ~suffix:".lir" file
+      then raise_s [%message "can only compile .lir files" (file : string)];
+      let name = Filename.basename file |> Filename.chop_extension in
       (match emit with
-       | None -> compile_single ~cwd ~stdout ~process ~debug file
+       | None ->
+         let dir_path = cwd / "lir-out" in
+         if not @@ Eio.Path.is_directory dir_path
+         then (
+           Eio.Path.mkdir ~perm:0o700 dir_path;
+           ());
+         compile_single
+           ~cwd
+           ~stdout
+           ~process
+           ~debug
+           ~lir_path:(cwd / file)
+           ~asm_path:(dir_path / (name ^ ".s"))
+           ~out_path:(dir_path / (name ^ ".exe"))
+           ()
        | Some emit ->
          let contents = Eio.Path.load Eio.Path.(cwd / file) in
          let asm =
@@ -79,7 +131,9 @@ let run ~env (args : Args.t) =
          ());
       ());
     ()
-  | Test _ -> todo [%here]
+  | Test _ ->
+    run_tests ~cwd ~process ~stdout;
+    ()
 ;;
 
 let main ~env =

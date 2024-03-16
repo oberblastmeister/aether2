@@ -2,6 +2,8 @@ _opam/
 _build/
 zig-cache/
 zig-out/
+lir-out/
+filetests/out/
 a.out
 *.o
 test.s
