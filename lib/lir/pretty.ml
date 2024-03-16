@@ -2,8 +2,10 @@ open! O
 open Ast
 module Pretty = Sexp_lang.Pretty
 
+type 'v context = { pretty_value : 'v -> Sexp_lang.Pretty.t }
+
 module Context = struct
-  type 'v t = { pretty_value : 'v -> Sexp_lang.Pretty.t }
+  type 'v t = 'v context
 
   let create ~pretty_value = { pretty_value }
 end
@@ -16,6 +18,7 @@ let pretty_value (value : Value.t) = pretty_name value.name
 let pretty_ty = function
   | Ty.U64 -> Pretty.(Atom "u64")
   | Ty.U1 -> Pretty.(Atom "u1")
+  | Void -> Atom "void"
 ;;
 
 let pretty_value_typed (value : Value.t) =
@@ -26,14 +29,23 @@ let cmp_op_to_string = function
   | Cmp_op.Gt -> "gt"
 ;;
 
+let pretty_call cx (call : _ Call.t) =
+  Pretty.(list @@ [ atom call.name ] @ List.map ~f:cx.pretty_value call.args)
+;;
+
+let pretty_call_with_ty cx ty call =
+  Pretty.(list [ atom "call"; pretty_ty ty; pretty_call cx call ])
+;;
+
 let pretty_expr cx =
-  let pretty_value = cx.Context.pretty_value in
+  let pretty_value = cx.pretty_value in
   function
   | Expr.Bin { ty; op; v1; v2 } ->
     Pretty.(
       list
         [ (match op with
            | Add -> Atom "add"
+           | Sub -> Atom "sub"
            | _ -> todo [%here])
         ; pretty_ty ty
         ; pretty_value v1
@@ -51,16 +63,17 @@ let pretty_expr cx =
         ; pretty_value v2
         ])
   | Expr.Val { ty; v } -> Pretty.(list [ pretty_ty ty; pretty_value v ])
+  | Call { ty; call } -> pretty_call_with_ty cx ty call
   | _ -> failwith "don't know how to print"
 ;;
 
 let pretty_block_call cx ({ label; args } : _ Block_call.t) =
-  let pretty_value = cx.Context.pretty_value in
+  let pretty_value = cx.pretty_value in
   Pretty.(list (List.concat [ [ pretty_label label ]; List.map ~f:pretty_value args ]))
 ;;
 
 let pretty_instr_control cx i =
-  let pretty_value = cx.Context.pretty_value in
+  let pretty_value = cx.pretty_value in
   match i with
   | Control_instr.Jump v -> Pretty.(list [ Atom "jump"; pretty_block_call cx v ])
   | Control_instr.CondJump (v, j1, j2) ->
@@ -79,6 +92,7 @@ let pretty_instr cx i =
   match i with
   | Instr.Assign { dst; expr } ->
     Pretty.(list [ Atom "set"; pretty_value dst; pretty_expr cx expr ])
+  | VoidCall call -> pretty_call_with_ty cx Void call
   | _ -> todo [%here]
 ;;
 
@@ -124,4 +138,4 @@ let pretty' cx (program : _ Program.t) =
   |> String.concat ~sep:"\n\n"
 ;;
 
-let pretty program = pretty' { Context.pretty_value } program
+let pretty program = pretty' { pretty_value } program

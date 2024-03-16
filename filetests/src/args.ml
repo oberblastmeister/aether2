@@ -1,12 +1,18 @@
 open Core
 open Cmdliner
 
+type common = { debug : bool } [@@deriving sexp_of]
+
 type t =
   | Compile of
       { files : string list
       ; quiet : bool
+      ; common : common
       }
-  | Test of { options : unit }
+  | Test of
+      { common : common
+      ; options : unit
+      }
 [@@deriving sexp_of]
 
 module Syntax = struct
@@ -21,10 +27,19 @@ open Syntax
 
 let sdocs = Manpage.s_common_options
 
+let common_term =
+  let+ debug =
+    let doc = "turn on debug logging" in
+    Arg.(value & flag & info [ "debug" ] ~doc)
+  in
+  { debug }
+;;
+
 let compile_term =
-  let+ files = Arg.(value & (pos_all file) [] & info [] ~docv:"FILE or DIR")
+  let+ common = common_term
+  and+ files = Arg.(value & (pos_all file) [] & info [] ~docv:"FILE or DIR")
   and+ quiet = Arg.(value & flag & info [ "q"; "quiet" ] ~doc:"Suppress all output") in
-  Compile { files; quiet }
+  Compile { common; files; quiet }
 ;;
 
 let compile_cmd =
@@ -34,8 +49,9 @@ let compile_cmd =
 ;;
 
 let test_term =
-  let+ options = pure () in
-  Test { options }
+  let+ common = common_term
+  and+ options = pure () in
+  Test { common; options }
 ;;
 
 let test_cmd =

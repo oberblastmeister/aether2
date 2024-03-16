@@ -55,6 +55,21 @@ let check_args params args =
   ()
 ;;
 
+let check_call cx is_void (ty : Ty.t) Call.{ name; args } =
+  let func_ty =
+    match Map.find cx.func_tys name with
+    | Some func_ty -> func_ty
+    | None -> error [%message "unknown function" (name : string)]
+  in
+  (match is_void, ty with
+   | false, Void ->
+     error [%message "cannot assign the result of function that returns void"]
+   | _ -> ());
+  check_ty_equal ty func_ty.return;
+  check_args func_ty.params args;
+  ()
+;;
+
 let check_expr cx (expr : Value.t Expr.t) =
   match expr with
   | Bin { ty; v1; v2; _ } ->
@@ -75,17 +90,8 @@ let check_expr cx (expr : Value.t Expr.t) =
     check_ty_equal ty v.ty;
     ()
   | Alloca _ -> ()
-  | Call { ty; name; args } ->
-    let func_ty =
-      match Map.find cx.func_tys name with
-      | Some func_ty -> func_ty
-      | None -> error [%message "unknown function" (name : string)]
-    in
-    (match ty with
-     | Void -> error [%message "cannot assign the result of function that returns void"]
-     | _ -> ());
-    check_ty_equal ty func_ty.return;
-    check_args func_ty.params args;
+  | Call { ty; call } ->
+    check_call cx false ty call;
     ()
   | _ -> todo [%here]
 ;;
@@ -98,6 +104,7 @@ let check_instr cx (instr : _ Instr.t) =
     check_ty_equal dst.ty ty;
     check_expr cx expr;
     ()
+  | VoidCall call -> check_call cx true Void call
   | _ -> todo [%here]
 ;;
 

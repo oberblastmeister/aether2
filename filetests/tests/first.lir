@@ -1,15 +1,15 @@
-(define (another) u64
+(define (another) void
   (block (start)
     (set one (const u64 1))
     (set two (const u64 2))
-    (set res (call u64 (assert_eq_u64 one two)))
+    (call void (assert_eq_u64 one two))
     (ret)
   )
 )
 
-(define (entry) u64
+(define (entry) void
   (block (start)
-    (set dummy (call u64 (another)))
+    (call void (another))
     (ret)
   )
 )

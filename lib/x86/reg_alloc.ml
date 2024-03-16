@@ -94,12 +94,11 @@ let add_block_edges ~interference ~precolored block live_out =
     (* make sure we at least add every use/def in, because the register allocator uses the domain of interference as all nodes *)
     Instr.iter_regs instr
     |> F.Iter.iter ~f:(fun def -> Interference.add_node interference def.VReg.name);
-
     (* don't add the mach regs, we want to add them lazily *)
     (* this way we don't get bogus uses for precolored mach regs*)
     (* Instr.mach_reg_defs instr (fun mach_reg ->
-      let _ = Precolored.get_name precolored mach_reg in
-      ()); *)
+       let _ = Precolored.get_name precolored mach_reg in
+       ()); *)
 
     (* add interference edges *)
     Set.iter !live_out
@@ -258,7 +257,7 @@ let create_epilogue stack_layout =
   ]
 ;;
 
-let run_function (fn : _ Function.t) =
+let run_function ~func_index (fn : _ Function.t) =
   let stack_builder = Stack_builder.create fn.unique_stack_slot in
   let allocation = alloc_fn fn in
   let callee_saved =
@@ -273,7 +272,7 @@ let run_function (fn : _ Function.t) =
     (allocation : Ra.Allocation.t) (callee_saved : (MReg.t * Stack_slot.t) list)];
   let fn = Apply.apply_allocation_function ~allocation ~stack_builder fn in
   let fn = Remove_ssa.remove_ssa fn in
-  let flat = Legalize.legalize_function fn in
+  let flat = Legalize.legalize_function ~func_index fn in
   let flat = Spill_flat.lower_function stack_builder flat in
   let stack_layout = Stack_layout.create (Stack_builder.get_stack_instrs stack_builder) in
   let flat =
@@ -307,18 +306,16 @@ let run_function (fn : _ Function.t) =
   List.iter prologue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
   Vec.append_into ~into:flat' flat;
   List.iter epilogue ~f:(fun instr -> Vec.push flat' (Flat.Line.Instr instr));
-  Vec.shrink_to_fit flat';
   Vec.freeze flat'
 ;;
 
-let run program =
+let run (program : _ Program.t) =
   let res_program = Vec.create () in
   Vec.push res_program Flat.Line.SectionText;
-  Program.iter_functions program ~f:(fun fn ->
-    let flat = run_function fn in
+  List.iteri program.functions ~f:(fun func_index fn ->
+    let flat = run_function ~func_index fn in
     Vec.append_into ~into:res_program flat;
     ());
   Vec.shrink_to_fit res_program;
   Vec.freeze res_program
 ;;
-

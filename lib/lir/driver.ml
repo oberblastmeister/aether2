@@ -11,6 +11,7 @@ let parse_string source =
 let convert_ssa lir =
   let open Or_error.Let_syntax in
   let lir = Ssa.convert lir in
+  [%log.global.debug (Pretty.pretty lir : string)];
   let%bind () = Check_ssa.check lir in
   Ok lir
 ;;

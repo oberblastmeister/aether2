@@ -3,12 +3,21 @@ open Ast
 
 type context =
   { instrs : (AReg.t Flat.Line.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
+  ; func_index : int
   }
 
 module Cx = struct
-  let create () = { instrs = Vec.create () }
+  let create func_index = { instrs = Vec.create (); func_index }
   let add cx i = Vec.push cx.instrs (Instr i)
-  let add_label cx label = Vec.push cx.instrs (Label label)
+
+  let add_label cx (label : Label.t) =
+    Vec.push cx.instrs (Comment [%string "label: %{label.name}"]);
+    Vec.push
+      cx.instrs
+      (Label
+         [%string
+           ".L%{string_of_int (Label.Id.to_int label.id)}%{string_of_int cx.func_index}"])
+  ;;
 end
 
 let to_op = function
@@ -42,7 +51,9 @@ let legalize_vinstr cx instr =
   | _ -> ()
 ;;
 
-let string_of_label label = ".L" ^ Entity.Name.to_dotted_string label
+let string_of_label (label : Label.t) =
+  ".L" ^ label.name ^ string_of_int (Label.Id.to_int label.id)
+;;
 
 let legalize_instr cx (instr : AReg.t Instr.t) =
   let open Ast_types.Instr in
@@ -138,12 +149,12 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
 ;;
 
 let legalize_block cx label (block : _ Block.t) =
-  Cx.add_label cx (string_of_label label);
+  Cx.add_label cx label;
   Block.iter_instrs_forward block |> F.Iter.iter ~f:(legalize_instr cx)
 ;;
 
-let legalize_function (fn : _ Function.t) =
-  let cx = Cx.create () in
+let legalize_function ~func_index (fn : _ Function.t) =
+  let cx = Cx.create func_index in
   let param_movs =
     legalize_par_mov
       ((List.map & Tuple2.map_snd) ~f:(fun reg -> AReg.of_mreg reg) fn.params)

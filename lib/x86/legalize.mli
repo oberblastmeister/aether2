@@ -6,4 +6,5 @@ open Ast
    -> force_register:(size:Size.t -> 'r Operand.t -> 'r)
    -> 'r MInstr.t *)
 
-val legalize_function : AReg.t Function.t -> AReg.t Flat.Program.t
+(* func index is used for the local labels produced *)
+val legalize_function : func_index:int -> AReg.t Function.t -> AReg.t Flat.Program.t

@@ -134,8 +134,7 @@ let%test_module _ =
       let idoms = Lir.Graph.get_idoms fn.graph in
       print_s [%sexp (idoms : Cfg.Dominators.Idoms.t)];
       ();
-      [%expect
-        {|
+      [%expect {|
     ((loop.1 start.0) (done.2 loop.1) (body.3 loop.1)) |}]
     ;;
 
@@ -264,17 +263,20 @@ let%test_module _ =
         	sub	rsp, 8
         	mov	rax, rdi
         	mov	rdi, rsi
-        .Lstart.0:
+        # label: start
+        .L00:
         	movabs	rsi, 1
         	mov	rdx, rsi
-        	jmp .Lloop.1
-        .Lloop.1:
+        	jmp .Lloop1
+        # label: loop
+        .L10:
         	cmp	rdi, 0
         	seta	rsi
         	test	rsi, rsi
-        	jne .Ldone.2
-        	jmp .Lbody.3
-        .Lbody.3:
+        	jne .Ldone2
+        	jmp .Lbody3
+        # label: body
+        .L30:
         	mov	r11, rdi
         	add	r11, 1
         	mov	rdi, r11
@@ -282,8 +284,9 @@ let%test_module _ =
         	add	r11, rax
         	mov	rsi, r11
         	mov	rdx, rsi
-        	jmp .Lloop.1
-        .Ldone.2:
+        	jmp .Lloop1
+        # label: done
+        .L20:
         	mov	rax, rdx
         	add	rsp, 8
         	ret |}]
@@ -400,7 +403,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "liveness" =
-      let@ () = Logger.Log.with_log false in
+      let@ () = Logger.with_log false in
       let program = Lazy.force if_lir |> Ssa.convert |> Lower.run |> Lir_x86.lower in
       let fn = List.hd_exn program.functions in
       let live_in, live_out = X86.Dataflow.Liveness.run fn in
@@ -420,7 +423,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "print" =
-      let@ () = Logger.Log.with_log false in
+      let@ () = Logger.with_log false in
       let program =
         Lazy.force if_lir
         |> Ssa.convert
@@ -439,26 +442,30 @@ let%test_module _ =
         if:
         	sub	rsp, 8
         	mov	rax, rdi
-        .Lstart.0:
+        # label: start
+        .L00:
         	cmp	rax, 9
         	seta	rdi
         	test	rdi, rdi
-        	jne .Lthen.1
-        	jmp .Lelse.2
-        .Lelse.2:
+        	jne .Lthen1
+        	jmp .Lelse2
+        # label: else
+        .L20:
         	mov	r11, rax
         	add	r11, rsi
         	mov	rax, r11
         	mov	r11, 5
         	add	r11, rax
         	mov	rax, r11
-        	jmp .Ldone.3
-        .Lthen.1:
+        	jmp .Ldone3
+        # label: then
+        .L10:
         	mov	r11, 3
         	add	r11, rax
         	mov	rax, r11
-        	jmp .Ldone.3
-        .Ldone.3:
+        	jmp .Ldone3
+        # label: done
+        .L30:
         	mov	rax, rax
         	add	rsp, 8
         	ret |}]
@@ -486,7 +493,7 @@ let%test_module _ =
     ;;
 
     let%expect_test "simple function" =
-      let@ () = Logger.Log.with_log false in
+      let@ () = Logger.with_log false in
       let program =
         Lazy.force fn_lir
         |> Ssa.convert
@@ -506,7 +513,8 @@ let%test_module _ =
         	sub	rsp, 8
         	mov	rax, rdi
         	mov	rdi, rsi
-        .Lstart.0:
+        # label: start
+        .L00:
         	movabs	rdi, 1
         	mov	rax, rax
         	add	rsp, 8
@@ -516,7 +524,8 @@ let%test_module _ =
         fn:
         	sub	rsp, 8
         	mov	rax, rdi
-        .Lstart.0:
+        # label: start
+        .L01:
         	mov	r11, rax
         	add	r11, rsi
         	mov	rdi, r11

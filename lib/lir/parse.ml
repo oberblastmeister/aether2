@@ -42,7 +42,7 @@ let parse_call st sexp =
   let@ xs = Parser.list_ref sexp in
   let name = Parser.item xs (Parser.atom Fn.id) in
   let args = Parser.rest !xs (parse_var st) in
-  name, args
+  Call.{ name; args }
 ;;
 
 let parse_expr st sexp =
@@ -66,8 +66,8 @@ let parse_expr st sexp =
   | "call" ->
     let ty = Parser.item xs parse_ty in
     let@ call = Parser.item xs in
-    let name, args = parse_call st call in
-    Expr.Call { ty; name; args }
+    let call = parse_call st call in
+    Expr.Call { ty; call }
   | "cmp" ->
     let ty = Parser.item xs parse_ty in
     let op = Parser.item xs @@ Parser.atom parse_cmp_op in
@@ -116,8 +116,8 @@ let parse_instr st sexp =
   | "call" ->
     let _ = Parser.item xs (parse_lit "void") in
     let@ call = Parser.item xs in
-    let name, args = parse_call st call in
-    Some_instr.T (Instr (VoidCall { name; args }))
+    let call = parse_call st call in
+    Some_instr.T (Instr (VoidCall call))
   | "ret" ->
     let v = Parser.optional_item !xs (parse_var st) in
     instr_c (Control_instr.Ret v)

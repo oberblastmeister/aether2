@@ -34,6 +34,14 @@ module Bin_op = struct
   [@@deriving sexp]
 end
 
+module Call = struct
+  type 'v t =
+    { name : string
+    ; args : 'v list
+    }
+  [@@deriving sexp_of, fold, map, iter]
+end
+
 module Expr = struct
   type 'v t =
     | Bin of
@@ -63,18 +71,14 @@ module Expr = struct
         }
     | Call of
         { ty : Ty.t
-        ; name : string
-        ; args : 'v list
+        ; call : 'v Call.t
         }
-  [@@deriving sexp, fold, map, iter]
+  [@@deriving sexp_of, fold, map, iter]
 end
 
 module Instr = struct
   type 'v t =
-    | VoidCall of
-        { name : string
-        ; args : 'v list
-        }
+    | VoidCall of 'v Call.t
     | Assign of
         { dst : Value.t
         ; expr : 'v Expr.t
@@ -83,7 +87,7 @@ module Instr = struct
         { ty : Ty.t
         ; pointer : 'v
         }
-  [@@deriving sexp, fold, map, iter]
+  [@@deriving sexp_of, fold, map, iter]
 end
 
 module Block_call = struct
@@ -91,7 +95,7 @@ module Block_call = struct
     { label : Label.t
     ; args : 'v list
     }
-  [@@deriving sexp, fields, fold, map, iter]
+  [@@deriving sexp_of, fields, fold, map, iter]
 end
 
 module Block_args = struct
@@ -103,7 +107,7 @@ module Control_instr = struct
     | Jump of 'v Block_call.t
     | CondJump of ('v * 'v Block_call.t * 'v Block_call.t)
     | Ret of 'v option
-  [@@deriving sexp, fold, map, iter]
+  [@@deriving sexp_of, fold, map, iter]
 end
 
 module Generic_instr = struct

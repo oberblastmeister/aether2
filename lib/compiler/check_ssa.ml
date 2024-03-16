@@ -49,10 +49,10 @@ module Make (Config : Config) = struct
     let rec go scope label =
       let block = Graph.find_block_exn graph label in
       let scope =
-        let mut_scope = ref scope in
+        let scope = ref scope in
         Block.iter_instrs_forward block ~f:(fun instr ->
           Instr.iter_uses instr ~f:(fun use ->
-            if not @@ Set.mem scope use
+            if not @@ Set.mem !scope use
             then (
               Stack.push
                 errors
@@ -62,12 +62,12 @@ module Make (Config : Config) = struct
                        ~instr:(instr : Instr.t)
                        ~use:(use : Name.t)
                        ~label:(label : Label.t)
-                       ~scope:(scope : Name.Set.t)]);
+                       ~scope:(!scope : Name.Set.t)]);
               ());
             ());
-          Instr.iter_defs instr ~f:(fun def -> mut_scope := Set.add !mut_scope def);
+          Instr.iter_defs instr ~f:(fun def -> scope := Set.add !scope def);
           ());
-        !mut_scope
+        !scope
       in
       let children = Dominators.Domtree.children domtree label in
       List.iter children ~f:(go scope);

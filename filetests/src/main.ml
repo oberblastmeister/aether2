@@ -13,10 +13,17 @@ let result_of_status = function
   | `Signaled n -> Error (`Signaled n)
 ;;
 
-let compile_single ~cwd ~process ~stdout path =
+let test_header = {|
+(extern (assert_eq_u64 u64 u64) void)
+|}
+
+let compile_single ~cwd ~process ~stdout ~debug path =
+  let@ () = Aether2.Logger.with_log debug in
   let@ sw f = Switch.run f in
   let contents = Eio.Path.load Eio.Path.(cwd / path) in
-  let asm = Aether2.Lir.Driver.compile_string contents |> Or_error.ok_exn in
+  let asm =
+    Aether2.Lir.Driver.compile_string (test_header ^ contents) |> Or_error.ok_exn
+  in
   let name, file = Filename_unix.open_temp_file "lir" ".s" in
   Out_channel.output_string file asm;
   Out_channel.close file;
@@ -38,8 +45,8 @@ let compile_single ~cwd ~process ~stdout path =
    (match status with
     | Ok () -> ()
     | Error _ ->
-      Eio.Flow.copy_string ("failed to compile file " ^ path) stdout;
-      Eio.Flow.copy_string "stderr\n" stdout;
+      Eio.Flow.copy_string ("failed to compile file " ^ path ^ "\n") stdout;
+      Eio.Flow.copy_string "stderr:\n" stdout;
       Eio.Flow.copy_string stderr_contents stdout;
       ());
    ());
@@ -57,10 +64,10 @@ let run ~env (args : Args.t) =
   let process = Eio.Stdenv.process_mgr env in
   let stdout = Eio.Stdenv.stdout env in
   match args with
-  | Compile { files; _ } ->
+  | Compile { common = { debug }; files; _ } ->
     compile_runtime ~cwd ~process;
     List.iter files ~f:(fun file ->
-      compile_single ~cwd ~stdout ~process file;
+      compile_single ~cwd ~stdout ~process ~debug file;
       ());
     ()
   | Test _ -> todo [%here]

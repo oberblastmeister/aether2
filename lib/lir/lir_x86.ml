@@ -89,9 +89,10 @@ and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
     Cx.add cx (MovAbs { dst = Reg dst; imm = const });
     Reg dst
   | I { dst = _; expr = Val { v; _ }; _ } -> lower_value_op_merge cx v
+  (* we can't merge it *)
   | v -> lower_value_op cx v
 
-and lower_call cx name args dst =
+and lower_call cx Call.{ name; args } dst =
   let args = List.map ~f:(lower_value cx) args in
   let args_with_reg, stack_args = categorize_args args in
   List.iter stack_args
@@ -141,8 +142,8 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
     let dst = vreg dst in
     let src = lower_value_op_merge cx v in
     Cx.add cx (Mov { dst = X86.Operand.Reg dst; src })
-  | Call { name; args; _ } ->
-    lower_call cx name args (Some (vreg dst, X86.Mach_reg.ret));
+  | Call { call; _ } ->
+    lower_call cx call (Some (vreg dst, X86.Mach_reg.ret));
     ()
   | Alloca _ -> todo [%here]
   | Load _ -> todo [%here]
@@ -150,7 +151,7 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
 and lower_instr cx instr =
   match instr with
   | Instr.Assign { dst; expr } -> lower_assign cx dst expr
-  | VoidCall { name; args; _ } -> lower_call cx name args None
+  | VoidCall call -> lower_call cx call None
   | Store _ -> todo [%here]
 
 and lower_block_call cx block_call =

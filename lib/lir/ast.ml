@@ -16,6 +16,12 @@ end
 
 module ValueMap = Entity.Map.Make (Value)
 
+module Call = struct
+  include Call
+
+  let map_uses c ~f = map f c
+end
+
 module Expr = struct
   include Expr
 
@@ -42,13 +48,14 @@ module Instr = struct
   let map_defs i ~f =
     match i with
     | Assign { dst; expr } -> Assign { dst = f dst; expr }
+    | VoidCall _ -> i
     | Store _ -> i
   ;;
 
   let iter_defs i ~f =
     match i with
     | Assign { dst; _ } -> f dst
-    | Store _ -> ()
+    | VoidCall _ | Store _ -> ()
   ;;
 
   let iter_uses i ~f = iter f i
