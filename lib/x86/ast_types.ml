@@ -274,8 +274,7 @@ module Instr = struct
         { name : string
         ; reg_args : (Mach_reg.t * 'r) list
         ; defines : Mach_reg.t list (* caller saved registers*)
-        ; dst_reg : Mach_reg.t
-        ; dst : 'r
+        ; dst : ('r * Mach_reg.t) option
         }
     | Jump of 'r Jump.t
     | Virt of 'r VInstr.t

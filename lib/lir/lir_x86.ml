@@ -33,6 +33,7 @@ module Cx = Context
 let ty_to_size = function
   | Ty.U1 -> X86.Size.Q
   | Ty.U64 -> X86.Size.Q
+  | Void -> raise_s [%message "void has no size"]
 ;;
 
 let value_size v = ty_to_size v.Value.ty
@@ -42,6 +43,7 @@ let cmp_op_to_cond ty op =
   | Ty.U1 | Ty.U64 ->
     (match op with
      | Cmp_op.Gt -> X86.Cond.A)
+  | Void -> raise_s [%message "cannot use void with cond"]
 ;;
 
 let vreg (v : Value.t) = X86.VReg.create (ty_to_size v.ty) v.name
@@ -89,6 +91,28 @@ and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
   | I { dst = _; expr = Val { v; _ }; _ } -> lower_value_op_merge cx v
   | v -> lower_value_op cx v
 
+and lower_call cx name args dst =
+  let args = List.map ~f:(lower_value cx) args in
+  let args_with_reg, stack_args = categorize_args args in
+  List.iter stack_args
+  |> F.Iter.enumerate
+  |> F.Iter.iter ~f:(fun (i, arg) ->
+    Cx.add cx
+    @@ Mov
+         { dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
+         ; src = Reg (vreg arg)
+         };
+    ());
+  Cx.add
+    cx
+    (Call
+       { name
+       ; reg_args = List.map ~f:(fun (x, y) -> y, vreg x) args_with_reg
+       ; defines = X86.Mach_reg.caller_saved_without_r11
+       ; dst
+       });
+  ()
+
 and lower_assign cx dst (expr : _ Expr.t) : unit =
   match expr with
   | Bin { op; v1; v2; _ } ->
@@ -118,30 +142,7 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
     let src = lower_value_op_merge cx v in
     Cx.add cx (Mov { dst = X86.Operand.Reg dst; src })
   | Call { name; args; _ } ->
-    let args = List.map ~f:(lower_value cx) args in
-    let args_with_reg, stack_args = categorize_args args in
-    (* List.iter args_with_reg ~f:(fun (arg, reg) ->
-      let dst = precolored (fresh_value cx arg) reg in
-      Cx.add cx (MInstr.Mov { s = ty_to_size arg.ty; dst; src = Reg (vreg arg) });
-      ()); *)
-    List.iter stack_args
-    |> F.Iter.enumerate
-    |> F.Iter.iter ~f:(fun (i, arg) ->
-      Cx.add cx
-      @@ Mov
-           { dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
-           ; src = Reg (vreg arg)
-           };
-      ());
-    Cx.add
-      cx
-      (Call
-         { name
-         ; reg_args = List.map ~f:(fun (x, y) -> y, vreg x) args_with_reg
-         ; defines = X86.Mach_reg.caller_saved_without_r11
-         ; dst_reg = X86.Mach_reg.ret
-         ; dst = vreg dst
-         });
+    lower_call cx name args (Some (vreg dst, X86.Mach_reg.ret));
     ()
   | Alloca _ -> todo [%here]
   | Load _ -> todo [%here]
@@ -149,6 +150,7 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
 and lower_instr cx instr =
   match instr with
   | Instr.Assign { dst; expr } -> lower_assign cx dst expr
+  | VoidCall { name; args; _ } -> lower_call cx name args None
   | Store _ -> todo [%here]
 
 and lower_block_call cx block_call =

@@ -239,7 +239,8 @@ module Instr = struct
     | Pop { dst; _ } -> on_def @@ O.Reg dst
     | Call { reg_args; dst; _ } ->
       List.iter reg_args ~f:(fun (_, arg) -> on_use (Reg arg));
-      on_def (Reg dst)
+      Option.iter dst ~f:(fun (dst, _) -> on_def (Reg dst));
+      ()
     | Jump jump -> Jump.iter_uses jump (fun reg -> on_use (Reg reg))
     | Virt vinstr ->
       VInstr.iter_uses vinstr ~f:(fun reg -> on_use (Reg reg));
