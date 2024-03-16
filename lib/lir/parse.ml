@@ -45,6 +45,13 @@ let parse_call st sexp =
   Call.{ name; args }
 ;;
 
+let parse_bin op st xs =
+  let ty = Parser.item xs parse_ty in
+  let v1 = Parser.item xs (parse_var st) in
+  let v2 = Parser.item xs (parse_var st) in
+  Expr.Bin { ty; op; v1; v2 }
+;;
+
 let parse_expr st sexp =
   let@ xs = Parser.list_ref sexp in
   let name = Parser.item xs parse_ident in
@@ -74,11 +81,8 @@ let parse_expr st sexp =
     let v1 = Parser.item xs (parse_var st) in
     let v2 = Parser.item xs (parse_var st) in
     Expr.Cmp { ty; op; v1; v2 }
-  | "add" ->
-    let ty = Parser.item xs parse_ty in
-    let v1 = Parser.item xs (parse_var st) in
-    let v2 = Parser.item xs (parse_var st) in
-    Expr.Bin { ty; op = Add; v1; v2 }
+  | "add" -> parse_bin Add st xs
+  | "sub" -> parse_bin Sub st xs
   | _ -> Parser.parse_error [%message "unknown op" ~name]
 ;;
 

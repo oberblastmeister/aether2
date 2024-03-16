@@ -108,6 +108,20 @@ module Dfs = struct
     @@ to_graph ~jumps graph
   ;;
 
+  let iteri_reverse_postorder_start_end ~jumps graph ~f =
+    if Label.equal graph.entry graph.exit
+    then f (graph.entry, get_block_exn graph graph.entry)
+    else (
+      let labels = reverse_postorder ~jumps graph in
+      (* guaranteed to have start be first, so we don't need to worry about that *)
+      iter_on_labels labels graph
+      (* not guaranteed to put exit last, so we will skip it first *)
+      |> F.Iter.filter ~f:(fun (label, _) -> not @@ Label.equal label graph.exit)
+      |> F.Iter.iter ~f;
+      f (graph.exit, get_block_exn graph graph.exit);
+      ())
+  ;;
+
   let preorder ~jumps graph =
     Data.Graph.Dfs.preorder
       ~start:[ graph.entry ]
@@ -124,6 +138,10 @@ module Make_gen (Block : Block_gen) = struct
   let get_idoms g = get_idoms ~jumps g
 
   module Dfs = struct
+    let iteri_reverse_postorder_start_end g =
+      Dfs.iteri_reverse_postorder_start_end ~jumps g
+    ;;
+
     let reverse_postorder g = Dfs.reverse_postorder ~jumps g
     let preorder g = Dfs.preorder ~jumps g
   end

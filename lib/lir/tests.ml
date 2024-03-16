@@ -227,9 +227,9 @@ let%test_module _ =
                  ((instrs
                    ((Block_args (((s Q) (name e.10)) ((s Q) (name r.11))))
                     (Cmp (src1 (Reg ((s Q) (name e.10)))) (src2 (Imm (Int 0))))
-                    (Set (cond A) (dst (Reg ((s Q) (name f.13)))))
-                    (Test (src1 (Reg ((s Q) (name f.13))))
-                     (src2 (Reg ((s Q) (name f.13)))))
+                    (Set (cond A) (dst (Reg ((s B) (name f.13)))))
+                    (Test (src1 (Reg ((s B) (name f.13))))
+                     (src2 (Reg ((s B) (name f.13)))))
                     (CondJump (cond NE) (j1 ((label done.2) (args ())))
                      (j2 ((label body.3) (args ()))))))))
                 (start.0
@@ -267,16 +267,16 @@ let%test_module _ =
         .L00:
         	movabs	rsi, 1
         	mov	rdx, rsi
-        	jmp .Lloop1
+        	jmp .L01
         # label: loop
-        .L10:
+        .L01:
         	cmp	rdi, 0
-        	seta	rsi
-        	test	rsi, rsi
-        	jne .Ldone2
-        	jmp .Lbody3
+        	seta	sil
+        	test	sil, sil
+        	jne .L02
+        	jmp .L03
         # label: body
-        .L30:
+        .L03:
         	mov	r11, rdi
         	add	r11, 1
         	mov	rdi, r11
@@ -284,9 +284,9 @@ let%test_module _ =
         	add	r11, rax
         	mov	rsi, r11
         	mov	rdx, rsi
-        	jmp .Lloop1
+        	jmp .L01
         # label: done
-        .L20:
+        .L02:
         	mov	rax, rdx
         	add	rsp, 8
         	ret |}]
@@ -385,9 +385,9 @@ let%test_module _ =
                  ((instrs
                    ((Block_args ())
                     (Cmp (src1 (Reg ((s Q) (name x.0)))) (src2 (Imm (Int 9))))
-                    (Set (cond A) (dst (Reg ((s Q) (name f.3)))))
-                    (Test (src1 (Reg ((s Q) (name f.3))))
-                     (src2 (Reg ((s Q) (name f.3)))))
+                    (Set (cond A) (dst (Reg ((s B) (name f.3)))))
+                    (Test (src1 (Reg ((s B) (name f.3))))
+                     (src2 (Reg ((s B) (name f.3)))))
                     (CondJump (cond NE) (j1 ((label then.1) (args ())))
                      (j2 ((label else.2) (args ()))))))))
                 (then.1
@@ -445,27 +445,27 @@ let%test_module _ =
         # label: start
         .L00:
         	cmp	rax, 9
-        	seta	rdi
-        	test	rdi, rdi
-        	jne .Lthen1
-        	jmp .Lelse2
+        	seta	dil
+        	test	dil, dil
+        	jne .L01
+        	jmp .L02
         # label: else
-        .L20:
+        .L02:
         	mov	r11, rax
         	add	r11, rsi
         	mov	rax, r11
         	mov	r11, 5
         	add	r11, rax
         	mov	rax, r11
-        	jmp .Ldone3
+        	jmp .L03
         # label: then
-        .L10:
+        .L01:
         	mov	r11, 3
         	add	r11, rax
         	mov	rax, r11
-        	jmp .Ldone3
+        	jmp .L03
         # label: done
-        .L30:
+        .L03:
         	mov	rax, rax
         	add	rsp, 8
         	ret |}]
@@ -525,7 +525,7 @@ let%test_module _ =
         	sub	rsp, 8
         	mov	rax, rdi
         # label: start
-        .L01:
+        .L10:
         	mov	r11, rax
         	add	r11, rsi
         	mov	rdi, r11

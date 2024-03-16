@@ -31,7 +31,7 @@ end
 module Cx = Context
 
 let ty_to_size = function
-  | Ty.U1 -> X86.Size.Q
+  | Ty.U1 -> X86.Size.B
   | Ty.U64 -> X86.Size.Q
   | Void -> raise_s [%message "void has no size"]
 ;;
@@ -100,7 +100,7 @@ and lower_call cx Call.{ name; args } dst =
   |> F.Iter.iter ~f:(fun (i, arg) ->
     Cx.add cx
     @@ Mov
-         { dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
+         { dst = X86.Operand.stack_off_end Q Int32.(of_int_exn i * 8l)
          ; src = Reg (vreg arg)
          };
     ());
@@ -123,7 +123,11 @@ and lower_assign cx dst (expr : _ Expr.t) : unit =
        let src2 = lower_value_op_merge cx v2 in
        let dst = vreg dst in
        Cx.add cx (Add { dst = X86.Operand.Reg dst; src1; src2 })
-     | _ -> failwith "can't handle op yet")
+     | Sub ->
+       let src1 = lower_value_op_merge cx v1 in
+       let src2 = lower_value_op_merge cx v2 in
+       let dst = vreg dst in
+       Cx.add cx (Sub { dst = X86.Operand.Reg dst; src1; src2 }))
   | Const { ty = Ty.U64; const } ->
     let dst = vreg dst in
     Cx.add cx (MovAbs { dst = X86.Operand.Reg dst; imm = const })

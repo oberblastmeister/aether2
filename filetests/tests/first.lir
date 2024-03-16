@@ -1,15 +1,19 @@
-(define (another) void
+(define (another [param1 u64] [param2 u64]) void
   (block (start)
     (set one (const u64 1))
     (set two (const u64 1))
     (call void (assert_eq_u64 one two))
+    (call void (print_u64 param1))
+    (call void (print_u64 param2))
     (ret)
   )
 )
 
 (define (entry) void
   (block (start)
-    (call void (another))
+    (set bruh1 (const u64 124))
+    (set bruh2 (const u64 14))
+    (call void (another bruh1 bruh2))
     (ret)
   )
 )

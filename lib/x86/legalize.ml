@@ -10,13 +10,14 @@ module Cx = struct
   let create func_index = { instrs = Vec.create (); func_index }
   let add cx i = Vec.push cx.instrs (Instr i)
 
+  let string_of_label cx (label : Label.t) =
+    [%string
+      ".L%{string_of_int cx.func_index}%{string_of_int (Label.Id.to_int label.id)}"]
+  ;;
+
   let add_label cx (label : Label.t) =
     Vec.push cx.instrs (Comment [%string "label: %{label.name}"]);
-    Vec.push
-      cx.instrs
-      (Label
-         [%string
-           ".L%{string_of_int (Label.Id.to_int label.id)}%{string_of_int cx.func_index}"])
+    Vec.push cx.instrs (Label (string_of_label cx label))
   ;;
 end
 
@@ -49,10 +50,6 @@ let legalize_vinstr cx instr =
     List.iter res ~f:(Cx.add cx);
     ()
   | _ -> ()
-;;
-
-let string_of_label (label : Label.t) =
-  ".L" ^ label.name ^ string_of_int (Label.Id.to_int label.id)
 ;;
 
 let legalize_instr cx (instr : AReg.t Instr.t) =
@@ -112,14 +109,18 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
   in
   (match instr with
    | Instr.Virt instr -> legalize_vinstr cx instr
-   | Jump (Jump j) -> Cx.add cx @@ Jmp { src = string_of_label j.label }
+   | Jump (Jump j) -> Cx.add cx @@ Jmp { src = Cx.string_of_label cx j.label }
    | Jump (CondJump { cond; j1; j2 }) ->
-     Cx.add cx @@ J { cond; src = string_of_label j1.label };
-     Cx.add cx @@ Jmp { src = string_of_label j2.label };
+     Cx.add cx @@ J { cond; src = Cx.string_of_label cx j1.label };
+     Cx.add cx @@ Jmp { src = Cx.string_of_label cx j2.label };
      ()
-   | Jump (Ret (Some src)) -> Cx.add cx @@ Mov { dst = Reg (AReg.create Q RAX); src }
-   | Jump (Ret None) -> ()
+   | Jump (Ret src) ->
+     (match src with
+      | Some src -> Cx.add cx @@ Mov { dst = Reg (AReg.create Q RAX); src }
+      | None -> ());
+     ()
    | Add { dst; src1; src2; _ } -> legal3 dst src1 src2 Flat.Instr.add
+   | Sub { dst; src1; src2; _ } -> legal3 dst src1 src2 Flat.Instr.sub
    | Mov { dst; src } ->
      let src = legal_mem dst src in
      Cx.add cx @@ Mov { dst; src }
@@ -178,10 +179,8 @@ let legalize_function ~func_index (fn : _ Function.t) =
                }
          ; src = Reg param
          });
-  Cfg.Graph.iter_on_labels
-    (Graph.Dfs.reverse_postorder fn.graph)
-    fn.graph
-    ~f:(fun (label, block) -> legalize_block cx label block);
-  Vec.shrink_to_fit cx.instrs;
+  (* we need the first and last block to be at the end so we can patch it with a prologue and epilogue *)
+  Graph.Dfs.iteri_reverse_postorder_start_end fn.graph
+  |> F.Iter.iter ~f:(fun (label, block) -> legalize_block cx label block);
   Vec.freeze cx.instrs
 ;;

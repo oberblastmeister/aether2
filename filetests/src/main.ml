@@ -15,9 +15,24 @@ let result_of_status = function
   | `Signaled n -> Error (`Signaled n)
 ;;
 
-let test_header = {|
+let test_header =
+  {|
 (extern (assert_eq_u64 u64 u64) void)
+
+(extern (print_u64 u64) void)
 |}
+;;
+
+let run_file ~process path =
+  let@ sw f = Switch.run f in
+  let proc = Process.spawn ~sw process [ Eio.Path.native_exn path ] in
+  let status = Process.await proc in
+  (match status with
+   | `Exited 0 -> ()
+   | `Exited n -> raise_s [%message "abnormal exit status" (n : int)]
+   | `Signaled n -> raise_s [%message "process was killed by a signal" (n : int)]);
+  ()
+;;
 
 let compile_single ~cwd ~process ~stdout ?(debug = false) ~lir_path ~asm_path ~out_path ()
   =
@@ -29,41 +44,34 @@ let compile_single ~cwd ~process ~stdout ?(debug = false) ~lir_path ~asm_path ~o
   in
   Eio.Path.save ~create:(`Or_truncate 0o600) asm_path asm;
   let runtime_path = Eio.Path.(cwd / "filetests/runtime/zig-out/lib/libruntime.a") in
-  (let stdout_buf = Buffer.create 10 in
-   let stderr_buf = Buffer.create 10 in
-   let proc =
-     Process.spawn
-       ~sw
-       ~stdout:(Eio.Flow.buffer_sink stdout_buf)
-       ~stderr:(Eio.Flow.buffer_sink stderr_buf)
-       process
-       [ "zig"
-       ; "cc"
-       ; Eio.Path.native_exn asm_path
-       ; Eio.Path.native_exn runtime_path
-       ; "-o"
-       ; Eio.Path.native_exn out_path
-       ]
-   in
-   let status = Process.await proc |> result_of_status in
-   let stderr_contents = Buffer.contents stderr_buf in
-   let _stdout_contents = Buffer.contents stdout_buf in
-   (match status with
-    | Ok () -> ()
-    | Error _ ->
-      Eio.Flow.copy_string
-        ("failed to compile file " ^ Eio.Path.native_exn lir_path ^ "\n")
-        stdout;
-      Eio.Flow.copy_string "stderr:\n" stdout;
-      Eio.Flow.copy_string stderr_contents stdout;
-      ());
-   ());
-  let proc = Process.spawn ~sw process [ Eio.Path.native_exn out_path ] in
-  let status = Process.await proc in
+  let stdout_buf = Buffer.create 10 in
+  let stderr_buf = Buffer.create 10 in
+  let proc =
+    Process.spawn
+      ~sw
+      ~stdout:(Eio.Flow.buffer_sink stdout_buf)
+      ~stderr:(Eio.Flow.buffer_sink stderr_buf)
+      process
+      [ "zig"
+      ; "cc"
+      ; Eio.Path.native_exn asm_path
+      ; Eio.Path.native_exn runtime_path
+      ; "-o"
+      ; Eio.Path.native_exn out_path
+      ]
+  in
+  let status = Process.await proc |> result_of_status in
+  let stderr_contents = Buffer.contents stderr_buf in
+  let _stdout_contents = Buffer.contents stdout_buf in
   (match status with
-   | `Exited 0 -> ()
-   | `Exited n -> raise_s [%message "abnormal exit status" (n : int)]
-   | `Signaled n -> raise_s [%message "process was killed by a signal" (n : int)]);
+   | Ok () -> ()
+   | Error _ ->
+     Eio.Flow.copy_string
+       ("failed to compile file " ^ Eio.Path.native_exn lir_path ^ "\n")
+       stdout;
+     Eio.Flow.copy_string "stderr:\n" stdout;
+     Eio.Flow.copy_string stderr_contents stdout;
+     ());
   ()
 ;;
 
@@ -80,14 +88,18 @@ let run_tests ~cwd ~process ~stdout =
     List.map paths ~f:(fun (name, path) ->
       ( name
       , [ Alcotest.test_case "run" `Quick (fun () ->
+            let asm_path = cwd / "filetests/out" / (name ^ ".s") in
+            let out_path = cwd / "filetests/out" / (name ^ ".exe") in
             compile_single
               ~cwd
               ~process
               ~stdout
               ~lir_path:(cwd / path)
-              ~asm_path:(cwd / "filetests/out" / (name ^ ".s"))
-              ~out_path:(cwd / "filetests/out" / (name ^ ".exe"))
-              ())
+              ~asm_path
+              ~out_path
+              ();
+            run_file ~process out_path;
+            ())
         ] ))
   in
   Alcotest.run "Aether2" tests;

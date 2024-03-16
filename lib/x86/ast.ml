@@ -81,7 +81,9 @@ module Address = struct
     ;;
   end
 
-  let stack_local name = Imm { offset = Stack (Local name); scale = One }
+  let stack_offset imm = Complex { base = Rsp; index = None; offset = Stack imm }
+  let stack_off_end i = stack_offset (End i)
+  let stack_local name = stack_offset (Local name)
   let base base = Complex { base; index = None; offset = Int 0l }
 
   let index_scale index scale =
@@ -109,12 +111,8 @@ end
 module Operand = struct
   include Operand
 
-  (* let type_of o = match o with
-     | Reg _ -> _
-     | Imm _ -> *)
-
   let imm i = Imm (Imm.Int i)
-  let stack_off_end i = Imm (Imm.Stack (Stack_off.End i))
+  let stack_off_end s i = Operand.mem s (Address.stack_off_end i)
   let stack_local s name = Operand.mem s (Address.stack_local name)
   let vreg s name = Reg (VReg.create s name)
   let precolored s name = Reg (VReg.precolored s name)
@@ -223,7 +221,7 @@ module Instr = struct
       on_def @@ O.Reg dst;
       on_def @@ O.Reg dst;
       Address.iter_regs src ~f:(fun reg -> on_use (O.Reg reg))
-    | Add { dst; src1; src2 } ->
+    | Sub { dst; src1; src2 } | Add { dst; src1; src2 } ->
       on_def dst;
       on_use src1;
       on_use src2
@@ -313,6 +311,7 @@ module Instr = struct
     | Mov _
     | Lea _
     | Add _
+    | Sub _
     | Push _
     | Pop _
     | MovAbs _

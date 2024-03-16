@@ -11,35 +11,60 @@ end
 let suffix_of_size (s : Size.t) =
   match s with
   | Q -> "q"
+  | B -> "b"
 ;;
 
-let print_pointer_size (s : Size.t) =
+let prefix_of_size (s : Size.t) =
   match s with
   | Q -> "qword ptr"
+  | B -> "byte ptr"
+  (* dword ptr *)
+  (* word ptr *)
 ;;
 
 let print_size cx s = Cx.add cx @@ suffix_of_size s
 
-let string_of_mach_reg (s : Size.t) (reg : Mach_reg.t) =
-  match s with
-  | Q ->
-    (match reg with
-     | RAX -> "rax"
-     | RCX -> "rcx"
-     | RDX -> "rdx"
-     | RBX -> "rbx"
-     | RSP -> "rsp"
-     | RBP -> "rbp"
-     | RSI -> "rsi"
-     | RDI -> "rdi"
-     | R8 -> "r8"
-     | R9 -> "r9"
-     | R10 -> "r10"
-     | R11 -> "r11"
-     | R12 -> "r12"
-     | R13 -> "r13"
-     | R14 -> "r14"
-     | R15 -> "r15")
+let string_of_mach_reg8l = function
+  | Mach_reg.RAX -> "al"
+  | RBX -> "bl"
+  | RCX -> "cl"
+  | RDX -> "dl"
+  | RSP -> "spl"
+  | RBP -> "bpl"
+  | RSI -> "sil"
+  | RDI -> "dil"
+  | R8 -> "r8b"
+  | R9 -> "r9b"
+  | R10 -> "r10b"
+  | R11 -> "r11b"
+  | R12 -> "r12b"
+  | R13 -> "r13b"
+  | R14 -> "r14b"
+  | R15 -> "r15b"
+;;
+
+let string_of_mach_reg64 = function
+  | Mach_reg.RAX -> "rax"
+  | RCX -> "rcx"
+  | RDX -> "rdx"
+  | RBX -> "rbx"
+  | RSP -> "rsp"
+  | RBP -> "rbp"
+  | RSI -> "rsi"
+  | RDI -> "rdi"
+  | R8 -> "r8"
+  | R9 -> "r9"
+  | R10 -> "r10"
+  | R11 -> "r11"
+  | R12 -> "r12"
+  | R13 -> "r13"
+  | R14 -> "r14"
+  | R15 -> "r15"
+;;
+
+let string_of_mach_reg = function
+  | Size.Q -> string_of_mach_reg64
+  | B -> string_of_mach_reg8l
 ;;
 
 let string_of_cond (cond : Cond.t) =
@@ -76,6 +101,10 @@ let print_address cx (address : _ Address.t) =
     print_imm cx offset;
     (match base with
      | None -> ()
+     | Rsp ->
+       Cx.add cx " + ";
+       print_mreg cx (MReg.create Q RSP);
+       ()
      | Rip -> todo [%here]
      | Reg r ->
        Cx.add cx " + ";
@@ -96,7 +125,7 @@ let print_operand b (operand : _ Operand.t) =
   | Imm _ -> todo [%here]
   | Reg r -> print_mreg b r
   | Mem mem ->
-    bprintf b "%s [%a]" (print_pointer_size mem.size) print_address mem.addr;
+    bprintf b "%s [%a]" (prefix_of_size mem.size) print_address mem.addr;
     ()
 ;;
 
@@ -116,13 +145,6 @@ let print_operands cx operands =
       print_operand cx o;
       ());
     ())
-;;
-
-let print_instr cx name s =
-  Cx.add cx "add";
-  print_size cx s;
-  Cx.space cx;
-  ()
 ;;
 
 let op = print_operand

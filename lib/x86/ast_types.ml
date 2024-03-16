@@ -3,7 +3,10 @@ open! O
 open Utils.Instr_types
 
 module Size = struct
-  type t = Q [@@deriving equal, compare, hash, sexp]
+  type t =
+    | Q
+    | B
+  [@@deriving equal, compare, hash, sexp]
 end
 
 module Ty = struct
@@ -99,6 +102,7 @@ module Address = struct
       | None
       | Reg of 'r
       | Rip
+      | Rsp
     [@@deriving sexp_of, variants, map, fold, iter]
   end
 
@@ -248,6 +252,11 @@ module Instr = struct
         ; src : 'r Address.t
         }
     | Add of
+        { dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    | Sub of
         { dst : 'r Operand.t
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t

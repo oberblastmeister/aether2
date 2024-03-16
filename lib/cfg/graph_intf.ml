@@ -17,6 +17,7 @@ module type Gen_S = sig
   val get_idoms : 'a block t -> Dominators.Idoms.t
 
   module Dfs : sig
+    val iteri_reverse_postorder_start_end : 'b block t -> (Label.t * 'b block) F.Iter.t
     val reverse_postorder : 'a block t -> (Label.t, read_write) Vec.t
     val preorder : 'a block t -> (Label.t, read_write) Vec.t
   end
