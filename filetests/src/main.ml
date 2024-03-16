@@ -41,7 +41,7 @@ let compile_single ~cwd ~process ~stdout ~debug path =
    in
    let status = Process.await proc |> result_of_status in
    let stderr_contents = Buffer.contents stderr_buf in
-   let stdout_contents = Buffer.contents stdout_buf in
+   let _stdout_contents = Buffer.contents stdout_buf in
    (match status with
     | Ok () -> ()
     | Error _ ->
@@ -64,10 +64,19 @@ let run ~env (args : Args.t) =
   let process = Eio.Stdenv.process_mgr env in
   let stdout = Eio.Stdenv.stdout env in
   match args with
-  | Compile { common = { debug }; files; _ } ->
+  | Compile { common = { debug }; files; emit; _ } ->
     compile_runtime ~cwd ~process;
     List.iter files ~f:(fun file ->
-      compile_single ~cwd ~stdout ~process ~debug file;
+      (match emit with
+       | None -> compile_single ~cwd ~stdout ~process ~debug file
+       | Some emit ->
+         let contents = Eio.Path.load Eio.Path.(cwd / file) in
+         let asm =
+           Aether2.Lir.Driver.compile_string ~emit (test_header ^ contents)
+           |> Or_error.ok_exn
+         in
+         Eio.Flow.copy_string (asm ^ "\n") stdout;
+         ());
       ());
     ()
   | Test _ -> todo [%here]

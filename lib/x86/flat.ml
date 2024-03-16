@@ -117,6 +117,7 @@ module Instr = struct
 end
 
 module Line = struct
+  (* allow comments in instructions so we don't interfere with peephole optimization *)
   type 'r t =
     | Instr of 'r Instr.t
     | Label of string

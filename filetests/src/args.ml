@@ -7,6 +7,7 @@ type t =
   | Compile of
       { files : string list
       ; quiet : bool
+      ; emit : Aether2.Lir.Driver.emit option
       ; common : common
       }
   | Test of
@@ -14,6 +15,8 @@ type t =
       ; options : unit
       }
 [@@deriving sexp_of]
+
+type emit = Aether2.Lir.Driver.emit
 
 module Syntax = struct
   let pure = Term.const
@@ -24,6 +27,22 @@ module Syntax = struct
 end
 
 open Syntax
+
+let emit_conv =
+  Arg.conv
+    ( (function
+        | "lir" -> Ok (Some (Lir : emit))
+        | "x86" -> Ok (Some X86)
+        | "asm" -> Ok (Some Asm)
+        | _ -> Error (`Msg "invalid emit"))
+    , fun fmt emit ->
+        match emit with
+        | None -> Format.fprintf fmt "none"
+        | Some emit ->
+          Format.fprintf fmt "%s"
+          @@ Sexp.to_string_hum
+          @@ Aether2.Lir.Driver.sexp_of_emit emit )
+;;
 
 let sdocs = Manpage.s_common_options
 
@@ -38,8 +57,11 @@ let common_term =
 let compile_term =
   let+ common = common_term
   and+ files = Arg.(value & (pos_all file) [] & info [] ~docv:"FILE or DIR")
-  and+ quiet = Arg.(value & flag & info [ "q"; "quiet" ] ~doc:"Suppress all output") in
-  Compile { common; files; quiet }
+  and+ quiet = Arg.(value & flag & info [ "q"; "quiet" ] ~doc:"Suppress all output")
+  and+ emit =
+    Arg.(value & opt ~vopt:(Some (Asm : emit)) emit_conv None & info [ "emit" ])
+  in
+  Compile { common; files; quiet; emit }
 ;;
 
 let compile_cmd =

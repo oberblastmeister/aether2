@@ -1,7 +1,7 @@
 (define (another) void
   (block (start)
     (set one (const u64 1))
-    (set two (const u64 2))
+    (set two (const u64 1))
     (call void (assert_eq_u64 one two))
     (ret)
   )
