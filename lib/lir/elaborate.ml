@@ -1,3 +1,5 @@
+(* resolve the types of names *)
+(* also makes sure that names referred to are defined *)
 open! O
 open Ast
 

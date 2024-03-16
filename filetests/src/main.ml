@@ -16,7 +16,7 @@ let result_of_status = function
 let compile_single ~cwd ~process ~stdout path =
   let@ sw f = Switch.run f in
   let contents = Eio.Path.load Eio.Path.(cwd / path) in
-  let asm = Aether2.Lir.Driver.compile_string contents in
+  let asm = Aether2.Lir.Driver.compile_string contents |> Or_error.ok_exn in
   let name, file = Filename_unix.open_temp_file "lir" ".s" in
   Out_channel.output_string file asm;
   Out_channel.close file;

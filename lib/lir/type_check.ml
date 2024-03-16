@@ -1,28 +1,21 @@
 open O
 open Ast
 
-type context =
-  { temps : Ty.t Name.Table.t
-  ; func_tys : Function_ty.t String.Map.t
-  }
-[@@deriving sexp_of]
+(* we don't need to put temps in here because they are already handled by the elaboration phase *)
+type context = { func_tys : Function_ty.t String.Map.t } [@@deriving sexp_of]
 
-type error = [ `LirTypeCheckError of Sexp.t ] [@@deriving sexp_of]
+exception Exn of Error.t
 
-exception Exn of Sexp.t
+let error e = raise_notrace (Exn (Error.t_of_sexp e))
 
-let error e = raise_notrace (Exn e)
-
-type more_errors =
-  [ `More
-  | error
-  ]
-
-let testing : [ `Another ] = `Another
+let with_tag tag f =
+  try f () with
+  | Exn e -> raise_notrace (Exn (Error.tag_s e ~tag))
+;;
 
 let handle f =
   match f () with
-  | exception Exn e -> Error (`LirTypeCheckError e)
+  | exception Exn e -> Error e
   | x -> Ok x
 ;;
 
@@ -42,8 +35,7 @@ let create_context (program : _ Program.t) =
       | `Duplicate ->
         error [%message "duplicate function name" ~name:(extern.name : string)])
   in
-  let temps = Name.Table.create () in
-  { temps; func_tys }
+  { func_tys }
 ;;
 
 let check_ty_equal ty1 ty2 =
@@ -99,6 +91,7 @@ let check_expr cx (expr : Value.t Expr.t) =
 ;;
 
 let check_instr cx (instr : _ Instr.t) =
+  let@ () = with_tag [%message (instr : Value.t Instr.t)] in
   match instr with
   | Assign { dst; expr } ->
     let ty = Expr.get_ty expr in
@@ -119,6 +112,7 @@ let check_block_call cx (func : _ Function.t) (j : _ Block_call.t) =
 ;;
 
 let check_control_instr cx (func : _ Function.t) (instr : _ Control_instr.t) =
+  let@ () = with_tag [%message (instr : Value.t Control_instr.t)] in
   Control_instr.iter_block_calls instr ~f:(fun j ->
     if Label.equal j.label (Cfg.Graph.entry func.graph)
     then error [%message "cannot jump to start label" ~label:(j.label : Label.t)];
@@ -126,6 +120,7 @@ let check_control_instr cx (func : _ Function.t) (instr : _ Control_instr.t) =
 ;;
 
 let check_block cx (func : _ Function.t) label (block : _ Block.t) =
+  let@ () = with_tag [%message (label : Label.t)] in
   let graph = func.graph in
   List.iter block.body ~f:(check_instr cx);
   if Label.equal (Cfg.Graph.exit graph) label
@@ -145,7 +140,7 @@ let check_block cx (func : _ Function.t) label (block : _ Block.t) =
 ;;
 
 let check_func cx (func : _ Function.t) =
-  Entity.Map.clear cx.temps;
+  let@ () = with_tag [%message (func.name : string)] in
   Cfg.Graph.iteri func.graph ~f:(fun (label, block) -> check_block cx func label block);
   ()
 ;;
@@ -156,4 +151,4 @@ let check_program program =
   ()
 ;;
 
-let run program = (handle (fun () -> check_program program) :> (_, [> error ]) result)
+let run program = handle (fun () -> check_program program)

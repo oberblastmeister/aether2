@@ -1,5 +1,7 @@
 open Core
 
+(* TODO: make this a functor *)
+
 type 'k t =
   { mutable id : 'k Id.t
   ; id_of_string : 'k Id.t String.Table.t

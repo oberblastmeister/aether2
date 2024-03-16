@@ -23,6 +23,11 @@ let find t k ~to_int =
   if i >= size t then None else Option.map ~f:snd @@ OA.get t.a @@ i
 ;;
 
+let remove t k ~to_int =
+  let i = to_int k in
+  if i < size t then OA.set_none t.a i
+;;
+
 let mem t k ~to_int =
   let i = to_int k in
   i < size t && OA.is_some t.a i
@@ -75,6 +80,15 @@ let of_iter ?sexp_of_key ?size i ~to_int =
 let sexp_of_t f g t = to_list t |> List.sexp_of_t (Tuple2.sexp_of_t f g)
 let update t k ~to_int ~f = set t ~key:k ~data:(f (find t k ~to_int)) ~to_int
 
+let of_iter_accum ?sexp_of_key ?size ~to_int i ~init ~f =
+  let t = create ?size ?sexp_of_key () in
+  F.Iter.iter i ~f:(fun (k, v) ->
+    update t k ~to_int ~f:(function
+      | None -> f init v
+      | Some acc -> f acc v));
+  t
+;;
+
 let add_exn t ~key ~data ~to_int =
   if mem t key ~to_int
   then raise_s [%message "key is already inside" (t.sexp_of_key key : Sexp.t)]
@@ -87,11 +101,14 @@ module Make (Arg : Arg) = struct
 
   open struct
     let to_int = Arg.to_int
+    let sexp_of_key = Arg.sexp_of_t
   end
 
-  let create ?size () = create ~sexp_of_key:Arg.sexp_of_t ?size ()
-  let of_iter ?size = of_iter ~sexp_of_key:Arg.sexp_of_t ?size ~to_int:Arg.to_int
+  let create ?size () = create ~sexp_of_key ?size ()
+  let of_iter ?size = of_iter ~sexp_of_key ?size ~to_int
+  let of_iter_accum ?size i ~init ~f = of_iter_accum ~sexp_of_key ?size ~to_int ~init ~f i
   let find = find ~to_int
+  let remove = remove ~to_int
   let find_exn = find_exn ~to_int
   let set = set ~to_int
   let add_exn = add_exn ~to_int

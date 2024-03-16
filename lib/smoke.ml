@@ -188,22 +188,35 @@ module Test1 = struct
 end
 
 (* module Test1 = struct
-  module Existential (M : sig end) : sig
-    type t
-  end = struct
-    type t = int
-  end
+   module Existential (M : sig end) : sig
+   type t
+   end = struct
+   type t = int
+   end
 
-  module type Another = sig
-    type t = Existential(Empty1).t
-  end
-  module M1 = Existential (Empty1)
-  module M2 = Existential (Empty2)
-  module M3 = Existential (Empty1)
+   module type Another = sig
+   type t = Existential(Empty1).t
+   end
+   module M1 = Existential (Empty1)
+   module M2 = Existential (Empty2)
+   module M3 = Existential (Empty1)
 
-  (* let f (x : M1.t) =
-    let (y : M1.t) = x in
-    let (z : M3.t) = y in
-    ()
-  ;; *)
-end *)
+   (* let f (x : M1.t) =
+   let (y : M1.t) = x in
+   let (z : M3.t) = y in
+   ()
+   ;; *)
+   end *)
+
+type 'a vlist =
+  [ `Nil
+  | `Cons of 'a * 'a vlist
+  ]
+
+let open_vlist l = (l : 'a vlist :> [> 'a vlist ])
+
+type another = [ `Another ]
+
+let another : another = `Another
+let open_another another = (another : another :> [> another ] as 'a)
+let open_ref_another another = (another : another list :> [> another ] list)

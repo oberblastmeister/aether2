@@ -13,6 +13,7 @@ module type S = sig
 
   val create : ?size:int -> unit -> 'v t
   val find : 'v t -> k -> 'v option
+  val remove : 'v t -> k -> unit
   val find_exn : 'v t -> k -> 'v
   val set : 'v t -> key:k -> data:'v -> unit
   val add_exn : 'v t -> key:k -> data:'v -> unit
@@ -20,6 +21,14 @@ module type S = sig
   val update : 'v t -> k -> f:('v option -> 'v) -> unit
   val of_list : (k * 'v) list -> 'v t
   val of_iter : ?size:int -> (k * 'v) F.Iter.t -> 'v t
+
+  val of_iter_accum
+    :  ?size:int
+    -> (k * 'v) F.Iter.t
+    -> init:'acc
+    -> f:('acc -> 'v -> 'acc)
+    -> 'acc t
+
   val ( .![] ) : 'v t -> k -> 'v
   val ( .?[] ) : 'v t -> k -> 'v option
   val ( .![]<- ) : 'v t -> k -> 'v -> unit

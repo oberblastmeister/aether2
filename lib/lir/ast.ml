@@ -33,7 +33,7 @@ module Instr = struct
   include Instr
 
   let has_side_effect = function
-    | Store _ | Assign { expr = Call _ | Alloca _ | Load _; _ } -> true
+    | Store _ | Assign { expr = Call _ | Alloca _ | Load _; _ } | VoidCall _ -> true
     | Assign { expr = Bin _ | Const _ | Cmp _ | Val _; _ } -> false
   ;;
 

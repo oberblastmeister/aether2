@@ -29,81 +29,6 @@ module Phi = struct
   let map x ~f = map f x
 end
 
-let or_error_of_list = function
-  | [] -> Ok ()
-  | _ :: _ as es -> Error.of_list es |> Error
-;;
-
-let check_all_temps_unique (fn : Value.t Function.t) =
-  let errors : Error.t Stack.t = Stack.create () in
-  let defines : Value.Hash_set.t = Value.Hash_set.create () in
-  let check_define label instr def =
-    if Hash_set.mem defines def
-    then
-      Stack.push
-        errors
-        (Error.t_of_sexp
-           [%message
-             "a temporary was defined more than once"
-               ~label:(label : Label.t option)
-               ~instr:(instr : Value.t Some_instr.t option)
-               ~def:(def : Value.t)]);
-    Hash_set.add defines def
-  in
-  List.iter fn.ty.params ~f:(check_define None None);
-  let fold =
-    F.Fold.(
-      Cfg.Graph.iteri @> ix (dup Block.iter_instrs_forward) @> ix2 Some_instr.iter_defs)
-  in
-  F.Fold.iter
-    fold
-    ~f:(fun (label, (i, def)) -> check_define (Some label) (Some i) def)
-    fn.graph;
-  Stack.to_list errors |> or_error_of_list
-;;
-
-(* this is wrong, need to check that a use is dominated by a def,
-   not that a def was defined in some preorder index above *)
-let validate_function (fn : Vir.Function.t) =
-  let open Or_error.Let_syntax in
-  Graph.validate fn.graph;
-  let%bind () = check_all_temps_unique fn in
-  let labels =
-    Data.Graph.Dfs.preorder
-      ~start:[ Cfg.Graph.entry fn.graph ]
-      ~set:(Data.Constructors.some_hashset (module Label))
-      (fn.graph |> Graph.to_graph)
-  in
-  let errors : Error.t Stack.t = Stack.create () in
-  let defined = Value.Hash_set.create () in
-  List.iter fn.ty.params ~f:(fun param -> Hash_set.add defined param);
-  Vec.iter labels ~f:(fun label ->
-    let block = Cfg.Graph.find_exn label fn.graph in
-    F.Fold.iter Block.iter_instrs_forward block ~f:(fun (Some_instr.T instr as i) ->
-      let uses = Generic_instr.uses instr in
-      List.iter uses ~f:(fun use ->
-        if not @@ Hash_set.mem defined use
-        then
-          Stack.push
-            errors
-            (Error.t_of_sexp
-               [%message
-                 "a use was not dominated by a define"
-                   ~instr:(i : Vir.Some_instr.t)
-                   ~use:(use : Value.t)
-                   ~label:(label : Label.t)
-                   ~defines:(defined : Value.Hash_set.t)]));
-      let defs = Generic_instr.defs instr in
-      List.iter defs ~f:(fun def -> Hash_set.add defined def)));
-  Stack.to_list errors
-  |> or_error_of_list
-  |> Result.map_error ~f:(Error.tag_s ~tag:[%message "in function" (fn.name : string)])
-;;
-
-let validate (prog : Vir.Program.t) =
-  List.iter prog.funcs ~f:(fun fn -> validate_function fn |> Or_error.ok_exn)
-;;
-
 module Rename : sig
   val rename_function : Vir.Function.t -> Vir.Function.t
 end = struct
@@ -183,7 +108,6 @@ let convert_naive (fn : Vir.Function.t) : Vir.Function.t =
       fn
   in
   let renamed_function = Rename.rename_function function_with_block_args in
-  validate_function renamed_function |> Or_error.ok_exn;
   renamed_function
 ;;
 
@@ -326,6 +250,5 @@ let convert_function (fn : Vir.Function.t) =
 
 let convert (program : Vir.Program.t) =
   let program = (Field.map Program.Fields.funcs & List.map) ~f:convert_function program in
-  validate program;
   program
 ;;

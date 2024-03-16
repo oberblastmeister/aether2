@@ -1,7 +1,8 @@
 open! O
 module Lir = Ast
 
-let make_lir s = lazy (Driver.parse_string s)
+let parse s = Driver.parse_string s |> Or_error.ok_exn
+let make_lir s = lazy (parse s)
 
 let%test_module _ =
   (module struct
@@ -135,7 +136,7 @@ let%test_module _ =
       ();
       [%expect
         {|
-    ((start.0 start.0) (loop.1 start.0) (done.2 loop.1) (body.3 loop.1)) |}]
+    ((loop.1 start.0) (done.2 loop.1) (body.3 loop.1)) |}]
     ;;
 
     let%expect_test "naive ssa" =
@@ -530,7 +531,7 @@ let%test_module _ =
 
 let%expect_test "parse extern" =
   let lir =
-    Driver.parse_string
+    parse
       {|
   (extern (extern_function u64 u64) u64)
   
@@ -557,3 +558,16 @@ let%expect_test "parse extern" =
       (((name extern_function) (ty ((params (U64 U64)) (return U64))))
        ((name another) (ty ((params (U64 U64)) (return U64))))))) |}]
 ;;
+
+(* let%expect_test "type check" =
+  let lir =
+    parse
+      {|
+  (define (first [x u64] [y u64]) u64
+    (block (start)
+      (ret))
+  )
+  |}
+  in
+  ()
+;; *)
