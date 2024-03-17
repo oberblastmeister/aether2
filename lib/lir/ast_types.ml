@@ -1,3 +1,6 @@
+(* TODO: use ir trees where expressions can be recursive *)
+(* effectful statements cannot be inside subexpressions *)
+(* unless in instruction selection when it is deemed okay*)
 open! O
 open Utils.Instr_types
 
