@@ -37,21 +37,13 @@ module Bin_op = struct
   [@@deriving sexp]
 end
 
-module Call = struct
-  type 'v t =
-    { name : string
-    ; args : 'v list
-    }
-  [@@deriving sexp_of, fold, map, iter]
-end
-
 module Expr = struct
   type 'v t =
     | Bin of
         { ty : Ty.t
         ; op : Bin_op.t
-        ; v1 : 'v
-        ; v2 : 'v
+        ; v1 : 'v t
+        ; v2 : 'v t
         }
     | Const of
         { ty : Ty.t
@@ -60,18 +52,28 @@ module Expr = struct
     | Cmp of
         { ty : Ty.t
         ; op : Cmp_op.t
-        ; v1 : 'v
-        ; v2 : 'v
+        ; v1 : 'v t
+        ; v2 : 'v t
         }
-    | Val of
-        { ty : Ty.t
-        ; v : 'v
-        }
-    | Alloca of { ty : Ty.t }
+    | Val of 'v
+  [@@deriving sexp_of, fold, map, iter]
+end
+
+module Call = struct
+  type 'v t =
+    { name : string
+    ; args : 'v Expr.t list
+    }
+  [@@deriving sexp_of, fold, map, iter]
+end
+
+module Impure_expr = struct
+  type 'v t =
     | Load of
         { ty : Ty.t
-        ; v : 'v
+        ; v : 'v Expr.t
         }
+    | Alloca of { ty : Ty.t }
     | Call of
         { ty : Ty.t
         ; call : 'v Call.t
@@ -79,12 +81,21 @@ module Expr = struct
   [@@deriving sexp_of, fold, map, iter]
 end
 
+(* (set [x u64] (call (another)))*)
 module Instr = struct
   type 'v t =
     | VoidCall of 'v Call.t
+    | AssignVal of
+        { dst : Value.t
+        ; src : Value.t
+        }
     | Assign of
         { dst : Value.t
         ; expr : 'v Expr.t
+        }
+    | ImpureAssign of
+        { dst : Value.t
+        ; expr : 'v Impure_expr.t
         }
     | Store of
         { ty : Ty.t
@@ -96,7 +107,7 @@ end
 module Block_call = struct
   type 'v t =
     { label : Label.t
-    ; args : 'v list
+    ; args : 'v Expr.t list
     }
   [@@deriving sexp_of, fields, fold, map, iter]
 end
