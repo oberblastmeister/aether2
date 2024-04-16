@@ -43,15 +43,15 @@ let check_ty_equal ty1 ty2 =
   then error [%message "type mismatch" (ty1 : Ty.t) (ty2 : Ty.t)]
 ;;
 
-let check_args params args =
+let check_args params (args : Value.t Expr.t list) =
   let args, excess_args = List.zip_with_remainder params args in
   (match excess_args with
    | None -> ()
    | Some (First needed_args) ->
      error [%message "not enough arguments" (needed_args : Ty.t list)]
    | Some (Second excess_args) ->
-     error [%message "too many arguments" (excess_args : Value.t list)]);
-  List.iter args ~f:(fun (ty, arg) -> check_ty_equal ty arg.ty);
+     error [%message "too many arguments" (excess_args : Value.t Expr.t list)]);
+  List.iter args ~f:(fun (ty, arg) -> check_ty_equal ty (Expr.get_ty arg));
   ()
 ;;
 
@@ -70,11 +70,13 @@ let check_call cx is_void (ty : Ty.t) Call.{ name; args } =
   ()
 ;;
 
-let check_expr cx (expr : Value.t Expr.t) =
+let rec check_expr cx (expr : Value.t Expr.t) =
   match expr with
   | Bin { ty; v1; v2; _ } ->
-    check_ty_equal ty v1.ty;
-    check_ty_equal ty v2.ty;
+    check_ty_equal ty (Expr.get_ty v1);
+    check_ty_equal ty (Expr.get_ty v2);
+    check_expr cx v1;
+    check_expr cx v2;
     ()
   | Const { ty; const } ->
     (match ty with
@@ -83,12 +85,17 @@ let check_expr cx (expr : Value.t Expr.t) =
      | U1 -> error [%message "U1 constant out of range" (const : int64)]
      | U64 -> ())
   | Cmp { ty; v1; v2; _ } ->
-    check_ty_equal ty v1.ty;
-    check_ty_equal ty v2.ty;
+    check_ty_equal ty (Expr.get_ty v1);
+    check_ty_equal ty (Expr.get_ty v2);
+    check_expr cx v1;
+    check_expr cx v2;
     ()
-  | Val { ty; v } ->
-    check_ty_equal ty v.ty;
-    ()
+  | Val v -> ()
+  | _ -> todo [%here]
+;;
+
+let check_impure_expr cx (expr : _ Impure_expr.t) =
+  match expr with
   | Alloca _ -> ()
   | Call { ty; call } ->
     check_call cx false ty call;
@@ -99,6 +106,11 @@ let check_expr cx (expr : Value.t Expr.t) =
 let check_instr cx (instr : _ Instr.t) =
   let@ () = with_tag [%message (instr : Value.t Instr.t)] in
   match instr with
+  | ImpureAssign { dst; expr } ->
+    let ty = Impure_expr.get_ty expr in
+    check_ty_equal dst.ty ty;
+    check_impure_expr cx expr;
+    ()
   | Assign { dst; expr } ->
     let ty = Expr.get_ty expr in
     check_ty_equal dst.ty ty;
@@ -137,7 +149,7 @@ let check_block cx (func : _ Function.t) label (block : _ Block.t) =
       (match v, func.ty.return with
        | None, Void -> ()
        | None, ty -> error [%message "must return" (ty : Ty.t)]
-       | Some v, Void -> error [%message "cannot return anything" (v : Value.t)]
+       | Some v, Void -> error [%message "cannot return anything" (v : Value.t Expr.t)]
        | Some _, _ty -> ())
     | instr ->
       error

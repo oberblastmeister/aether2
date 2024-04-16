@@ -85,10 +85,6 @@ end
 module Instr = struct
   type 'v t =
     | VoidCall of 'v Call.t
-    | AssignVal of
-        { dst : Value.t
-        ; src : Value.t
-        }
     | Assign of
         { dst : Value.t
         ; expr : 'v Expr.t
@@ -119,8 +115,8 @@ end
 module Control_instr = struct
   type 'v t =
     | Jump of 'v Block_call.t
-    | CondJump of ('v * 'v Block_call.t * 'v Block_call.t)
-    | Ret of 'v option
+    | CondJump of ('v Expr.t * 'v Block_call.t * 'v Block_call.t)
+    | Ret of 'v Expr.t option
   [@@deriving sexp_of, fold, map, iter]
 end
 

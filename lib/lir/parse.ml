@@ -22,6 +22,7 @@ let parse_ty =
     | _ -> Parser.parse_error [%message "unknown type"])
 ;;
 
+let parse_label st = Parser.atom (fun s -> Intern_table.name_of_string st.label_intern s)
 let parse_var st = Parser.atom (fun s -> Intern_table.name_of_string st.name_intern s)
 
 let parse_value st sexp =
@@ -38,68 +39,67 @@ let parse_cmp_op = function
   | s -> Parser.parse_error [%message "unknown cmp op" ~op:s]
 ;;
 
-let parse_call st sexp =
-  let@ xs = Parser.list_ref sexp in
-  let name = Parser.item xs (Parser.atom Fn.id) in
-  let args = Parser.rest !xs (parse_var st) in
-  Call.{ name; args }
-;;
-
-let parse_bin op st xs =
-  let ty = Parser.item xs parse_ty in
-  let v1 = Parser.item xs (parse_var st) in
-  let v2 = Parser.item xs (parse_var st) in
-  Expr.Bin { ty; op; v1; v2 }
-;;
-
-let parse_expr st sexp =
-  let@ xs = Parser.list_ref sexp in
-  let name = Parser.item xs parse_ident in
-  match name with
-  | "val" ->
-    let ty = Parser.item xs parse_ty in
-    let v = Parser.item xs (parse_var st) in
-    Expr.Val { ty; v }
-  | "const" ->
-    let ty = Parser.item xs parse_ty in
-    let const =
-      Parser.item xs
-      @@ Parser.atom (fun s ->
-        Int64.of_string_opt s
-        |> Option.value_or_thunk ~default:(fun () ->
-          Parser.parse_error [%message "couldn't parse number" ~s]))
-    in
-    Expr.Const { ty; const }
-  | "call" ->
+let rec parse_expr st sexp =
+  match sexp with
+  | Sexp_lang.Cst.Atom s -> Expr.Val (Intern_table.name_of_string st.name_intern s.value)
+  | List list ->
+    let xs = ref list.items in
+    let name = Parser.item xs parse_ident in
+    (match name with
+     (* | "val" ->
+       let ty = Parser.item xs parse_ty in
+       let v = Parser.item xs (parse_var st) in
+       Expr.Val { v } *)
+     | "const" ->
+       let ty = Parser.item xs parse_ty in
+       let const =
+         Parser.item xs
+         @@ Parser.atom (fun s ->
+           Int64.of_string_opt s
+           |> Option.value_or_thunk ~default:(fun () ->
+             Parser.parse_error [%message "couldn't parse number" ~s]))
+       in
+       Expr.Const { ty; const }
+     (* | "call" ->
     let ty = Parser.item xs parse_ty in
     let@ call = Parser.item xs in
     let call = parse_call st call in
-    Expr.Call { ty; call }
-  | "cmp" ->
-    let ty = Parser.item xs parse_ty in
-    let op = Parser.item xs @@ Parser.atom parse_cmp_op in
-    let v1 = Parser.item xs (parse_var st) in
-    let v2 = Parser.item xs (parse_var st) in
-    Expr.Cmp { ty; op; v1; v2 }
-  | "add" -> parse_bin Add st xs
-  | "sub" -> parse_bin Sub st xs
-  | _ -> Parser.parse_error [%message "unknown op" ~name]
+    Expr.Call { ty; call } *)
+     | "cmp" ->
+       let ty = Parser.item xs parse_ty in
+       let op = Parser.item xs @@ Parser.atom parse_cmp_op in
+       let v1 = Parser.item xs (parse_expr st) in
+       let v2 = Parser.item xs (parse_expr st) in
+       Expr.Cmp { ty; op; v1; v2 }
+     | "add" -> parse_bin Bin_op.Add st xs
+     | "sub" -> parse_bin Sub st xs
+     | _ -> Parser.parse_error [%message "unknown op" ~name])
+
+and parse_bin op st xs =
+  let ty = Parser.item xs parse_ty in
+  let v1 = Parser.item xs (parse_expr st) in
+  let v2 = Parser.item xs (parse_expr st) in
+  Expr.Bin { ty; op; v1; v2 }
+
+and parse_block_call st sexp =
+  let@ xs = Parser.list_ref sexp in
+  let label = Parser.item xs (parse_label st) in
+  let args = Parser.rest !xs (parse_expr st) in
+  ({ label; args } : _ Block_call.t)
 ;;
 
-let parse_label st = Parser.atom (fun s -> Intern_table.name_of_string st.label_intern s)
+let parse_call st sexp =
+  let@ xs = Parser.list_ref sexp in
+  let name = Parser.item xs (Parser.atom Fn.id) in
+  let args = Parser.rest !xs (parse_expr st) in
+  Call.{ name; args }
+;;
 
 let parse_lit s =
   Parser.atom (fun s' ->
     if [%equal: string] s s'
     then ()
     else Parser.parse_error [%message "expected literal" ~s ~got:s'])
-;;
-
-let parse_block_call st sexp =
-  let@ xs = Parser.list_ref sexp in
-  let label = Parser.item xs (parse_label st) in
-  let args = Parser.rest !xs (parse_var st) in
-  ({ label; args } : _ Block_call.t)
 ;;
 
 let parse_instr st sexp =
@@ -114,8 +114,9 @@ let parse_instr st sexp =
   match instr_name with
   | "set" ->
     let name = Parser.item xs (parse_var st) in
+    (* TODO: handle single values here *)
     let expr = Parser.item xs (parse_expr st) in
-    let ty = Expr.get_ty expr in
+    let ty = Expr.get_ty_exn expr in
     instr_o { Value.name; ty } expr
   | "call" ->
     let _ = Parser.item xs (parse_lit "void") in
@@ -123,13 +124,13 @@ let parse_instr st sexp =
     let call = parse_call st call in
     Some_instr.T (Instr (VoidCall call))
   | "ret" ->
-    let v = Parser.optional_item !xs (parse_var st) in
+    let v = Parser.optional_item !xs (parse_expr st) in
     instr_c (Control_instr.Ret v)
   | "jump" ->
     let j = Parser.item xs (parse_block_call st) in
     instr_c (Control_instr.Jump j)
   | "cond_jump" ->
-    let v = Parser.item xs (parse_var st) in
+    let v = Parser.item xs (parse_expr st) in
     let j1 = Parser.item xs (parse_block_call st) in
     let j2 = Parser.item xs (parse_block_call st) in
     instr_c (Control_instr.CondJump (v, j1, j2))

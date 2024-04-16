@@ -29,15 +29,7 @@ let cmp_op_to_string = function
   | Cmp_op.Gt -> "gt"
 ;;
 
-let pretty_call cx (call : _ Call.t) =
-  Pretty.(list @@ [ atom call.name ] @ List.map ~f:cx.pretty_value call.args)
-;;
-
-let pretty_call_with_ty cx ty call =
-  Pretty.(list [ atom "call"; pretty_ty ty; pretty_call cx call ])
-;;
-
-let pretty_expr cx =
+let rec pretty_expr cx =
   let pretty_value = cx.pretty_value in
   function
   | Expr.Bin { ty; op; v1; v2 } ->
@@ -48,8 +40,8 @@ let pretty_expr cx =
            | Sub -> Atom "sub"
            | _ -> todo [%here])
         ; pretty_ty ty
-        ; pretty_value v1
-        ; pretty_value v2
+        ; pretty_expr cx v1
+        ; pretty_expr cx v2
         ])
   | Expr.Const { ty; const } ->
     Pretty.(list [ atom "const"; pretty_ty ty; Atom (Int64.to_string_hum const) ])
@@ -59,33 +51,38 @@ let pretty_expr cx =
         [ atom "cmp"
         ; pretty_ty ty
         ; Atom (cmp_op_to_string op)
-        ; pretty_value v1
-        ; pretty_value v2
+        ; pretty_expr cx v1
+        ; pretty_expr cx v2
         ])
-  | Expr.Val { ty; v } -> Pretty.(list [ pretty_ty ty; pretty_value v ])
-  | Call { ty; call } -> pretty_call_with_ty cx ty call
-  | _ -> failwith "don't know how to print"
+  | Expr.Val v -> pretty_value v
 ;;
 
 let pretty_block_call cx ({ label; args } : _ Block_call.t) =
-  let pretty_value = cx.pretty_value in
-  Pretty.(list (List.concat [ [ pretty_label label ]; List.map ~f:pretty_value args ]))
+  Pretty.(
+    list (List.concat [ [ pretty_label label ]; List.map ~f:(pretty_expr cx) args ]))
+;;
+
+let pretty_call cx (call : _ Call.t) =
+  Pretty.(list @@ [ atom call.name ] @ List.map ~f:(pretty_expr cx) call.args)
+;;
+
+let pretty_call_with_ty cx ty call =
+  Pretty.(list [ atom "call"; pretty_ty ty; pretty_call cx call ])
 ;;
 
 let pretty_instr_control cx i =
-  let pretty_value = cx.pretty_value in
   match i with
   | Control_instr.Jump v -> Pretty.(list [ Atom "jump"; pretty_block_call cx v ])
   | Control_instr.CondJump (v, j1, j2) ->
     Pretty.(
       list
         [ Atom "cond_jump"
-        ; pretty_value v
+        ; pretty_expr cx v
         ; pretty_block_call cx j1
         ; pretty_block_call cx j2
         ])
   | Control_instr.Ret v ->
-    Pretty.(list ([ Atom "ret" ] @ (Option.map ~f:pretty_value v |> Option.to_list)))
+    Pretty.(list ([ Atom "ret" ] @ (Option.map ~f:(pretty_expr cx) v |> Option.to_list)))
 ;;
 
 let pretty_instr cx i =

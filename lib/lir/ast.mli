@@ -32,8 +32,17 @@ end
 module Expr : sig
   include module type of Expr
 
-  val get_ty : 'v t -> Ty.t
+  val get_val_exn : 'v t -> 'v
+  val get_ty_with : ('v -> Ty.t) -> 'v t -> Ty.t
+  val get_ty : Value.t t -> Ty.t
+  val get_ty_exn : 'v t -> Ty.t
   val iter_uses : ('v, 'v t) F.Fold.t
+end
+
+module Impure_expr : sig
+  include module type of Impure_expr
+
+  val get_ty : 'v t -> Ty.t
 end
 
 module Some_instr : sig

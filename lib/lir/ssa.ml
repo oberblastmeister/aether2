@@ -97,7 +97,10 @@ let convert_naive (fn : Vir.Function.t) : Vir.Function.t =
       block.exit
       |> Control_instr.map_block_calls ~f:(fun block_call ->
         { block_call with
-          args = Cfg.Dataflow.Fact_base.find_exn liveness block_call.label |> Set.to_list
+          args =
+            Cfg.Dataflow.Fact_base.find_exn liveness block_call.label
+            |> Set.to_list
+            |> List.map ~f:(fun v -> Expr.Val v)
         })
     in
     { block with entry = new_entry_instr; exit = new_exit_instr }
@@ -136,7 +139,10 @@ let get_phis (graph : Vir.Graph.t) =
             res
             |> List.map ~f:(fun (phi, value) ->
               let phi_value : _ PhiValue.t =
-                { flowed_from_label = label; dest = phi.dest; value }
+                { flowed_from_label = label
+                ; dest = phi.dest
+                ; value = Expr.get_val_exn value
+                }
               in
               { phi with flow_values = phi_value :: phi.flow_values })
           | _ -> raise_s [%message "called with more args then the block has"]
@@ -219,7 +225,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
             in
             flow_value.value)
         in
-        { block_call with args = call_args })
+        { block_call with args = call_args |> List.map ~f:(fun v -> Expr.Val v) })
     in
     { block with entry; exit })
 ;;

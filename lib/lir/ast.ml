@@ -25,22 +25,40 @@ end
 module Expr = struct
   include Expr
 
-  let get_ty = function
-    | Call { ty; _ } | Bin { ty; _ } | Const { ty; _ } | Val { ty; _ } | Load { ty; _ } ->
-      ty
+  let get_ty_with f = function
+    | Bin { ty; _ } | Const { ty; _ } -> ty
+    | Val v -> f v
     | Cmp _ -> U1
-    | Alloca _ -> todo [%here]
+  ;;
+
+  let get_ty = get_ty_with (fun v -> v.Value.ty)
+
+  let get_ty_exn v =
+    get_ty_with (fun _ -> raise_s [%message "expected non-value expression"]) v
+  ;;
+
+  let get_val_exn = function
+    | Val v -> v
+    | e -> raise_s [%message "expected value expression" ~got:(e : _ Expr.t)]
   ;;
 
   let iter_uses i ~f = iter f i
+end
+
+module Impure_expr = struct
+  include Impure_expr
+
+  let get_ty = function
+    | Load { ty; _ } | Alloca { ty; _ } | Call { ty; _ } -> ty
+  ;;
 end
 
 module Instr = struct
   include Instr
 
   let has_side_effect = function
-    | Store _ | Assign { expr = Call _ | Alloca _ | Load _; _ } | VoidCall _ -> true
-    | Assign { expr = Bin _ | Const _ | Cmp _ | Val _; _ } -> false
+    | VoidCall _ | ImpureAssign _ | Store _ -> true
+    | Assign _ -> false
   ;;
 
   let map_uses i ~f = map f i
