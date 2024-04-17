@@ -1,5 +1,7 @@
 open! O
 
+type 'a t = Cst.t -> 'a
+
 module Pos = struct
   type t = int [@@deriving equal, compare, sexp]
 end
@@ -8,14 +10,14 @@ module R = Algaeff.Reader.Make (Span)
 
 module Error = struct
   type t =
-    { span : Span.t
-    ; message : Sexp.t
-    }
+    | Single of
+        { span : Span.t
+        ; message : Sexp.t
+        }
+    | List of t list
   [@@deriving equal, compare, sexp]
 
-  let to_error { span; message } =
-    Error.create_s [%sexp "parse error", (span : Span.t), (message : Sexp.t)]
-  ;;
+  let to_error t = Error.create_s [%sexp "parse error", (t : t)]
 end
 
 exception Error of Error.t
@@ -26,7 +28,7 @@ let run f =
 ;;
 
 let with_span (span : Span.t) f = R.scope (const span) f
-let parse_error message = raise (Error { span = R.read (); message })
+let parse_error message = raise (Error (Single { span = R.read (); message }))
 
 let atom f = function
   | Cst.Atom s -> with_span s.span (fun () -> f s.value)
@@ -62,3 +64,18 @@ let optional_item list f =
 ;;
 
 let rest xs f = List.map xs ~f
+
+module Syntax = struct
+  let ( <$> ) f p sexp = f (p sexp)
+
+  let ( <|> ) p1 p2 sexp =
+    match p1 sexp with
+    | exception Error e1 ->
+      (match p2 sexp with
+       | exception Error e2 -> raise (Error (List [ e1; e2 ]))
+       | x -> x)
+    | x -> x
+  ;;
+end
+
+let either p1 p2 sexp = Syntax.(Either.first <$> p1 <|> (Either.second <$> p2)) sexp

@@ -140,7 +140,9 @@ let get_phis (graph : Vir.Graph.t) =
             |> List.map ~f:(fun (phi, value) ->
               let phi_value : _ PhiValue.t =
                 { flowed_from_label = label
-                ; dest = phi.dest
+                ; dest =
+                    phi.dest
+                    (* This exception is okay because we created this expression and know it is a Val *)
                 ; value = Expr.get_val_exn value
                 }
               in
@@ -225,7 +227,12 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
             in
             flow_value.value)
         in
-        { block_call with args = call_args |> List.map ~f:(fun v -> Expr.Val v) })
+        { block_call with
+          args =
+            (* lift this value into an Expr.t *)
+            (* also see the Expr.get_val_exn later on *)
+            call_args |> List.map ~f:(fun v -> Expr.Val v)
+        })
     in
     { block with entry; exit })
 ;;

@@ -60,11 +60,6 @@ let rec parse_expr st sexp =
              Parser.parse_error [%message "couldn't parse number" ~s]))
        in
        Expr.Const { ty; const }
-     (* | "call" ->
-    let ty = Parser.item xs parse_ty in
-    let@ call = Parser.item xs in
-    let call = parse_call st call in
-    Expr.Call { ty; call } *)
      | "cmp" ->
        let ty = Parser.item xs parse_ty in
        let op = Parser.item xs @@ Parser.atom parse_cmp_op in
@@ -74,6 +69,23 @@ let rec parse_expr st sexp =
      | "add" -> parse_bin Bin_op.Add st xs
      | "sub" -> parse_bin Sub st xs
      | _ -> Parser.parse_error [%message "unknown op" ~name])
+
+and parse_impure_expr st sexp =
+  let@ xs = Parser.list_ref sexp in
+  let name = Parser.item xs parse_ident in
+  match name with
+  | "call" ->
+    let ty = Parser.item xs parse_ty in
+    let@ call = Parser.item xs in
+    let call = parse_call st call in
+    Impure_expr.Call { ty; call }
+  | _ -> todo [%here]
+
+and parse_call st sexp =
+  let@ xs = Parser.list_ref sexp in
+  let name = Parser.item xs (Parser.atom Fn.id) in
+  let args = Parser.rest !xs (parse_expr st) in
+  Call.{ name; args }
 
 and parse_bin op st xs =
   let ty = Parser.item xs parse_ty in
@@ -88,13 +100,6 @@ and parse_block_call st sexp =
   ({ label; args } : _ Block_call.t)
 ;;
 
-let parse_call st sexp =
-  let@ xs = Parser.list_ref sexp in
-  let name = Parser.item xs (Parser.atom Fn.id) in
-  let args = Parser.rest !xs (parse_expr st) in
-  Call.{ name; args }
-;;
-
 let parse_lit s =
   Parser.atom (fun s' ->
     if [%equal: string] s s'
@@ -103,9 +108,7 @@ let parse_lit s =
 ;;
 
 let parse_instr st sexp =
-  let instr_o name instr_op : _ Some_instr.t =
-    Some_instr.T (Generic_instr.Instr (Assign { dst = name; expr = instr_op }))
-  in
+  let instr_o i : _ Some_instr.t = Some_instr.T (Generic_instr.Instr i) in
   let instr_c instr_control : _ Some_instr.t =
     Some_instr.T (Generic_instr.Control instr_control)
   in
@@ -115,9 +118,14 @@ let parse_instr st sexp =
   | "set" ->
     let name = Parser.item xs (parse_var st) in
     (* TODO: handle single values here *)
-    let expr = Parser.item xs (parse_expr st) in
-    let ty = Expr.get_ty_exn expr in
-    instr_o { Value.name; ty } expr
+    let expr = Parser.item xs (Parser.either (parse_expr st) (parse_impure_expr st)) in
+    (match expr with
+     | First expr ->
+       let ty = Expr.get_ty_exn expr in
+       instr_o (Assign { dst = { Value.name; ty }; expr })
+     | Second expr ->
+       let ty = Impure_expr.get_ty expr in
+       instr_o (ImpureAssign { dst = { Value.name; ty }; expr }))
   | "call" ->
     let _ = Parser.item xs (parse_lit "void") in
     let@ call = Parser.item xs in

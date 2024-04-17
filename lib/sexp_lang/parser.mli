@@ -1,10 +1,14 @@
 open! O
 
+type 'a t = Cst.t -> 'a
+
 module Error : sig
   type t =
-    { span : Span.t
-    ; message : Sexp.t
-    }
+    | Single of
+        { span : Span.t
+        ; message : Sexp.t
+        }
+    | List of t list
   [@@deriving equal, compare, sexp]
 
   val to_error : t -> Error.t
@@ -20,3 +24,4 @@ val list_ref : Cst.t -> (Cst.t list ref -> 'a) -> 'a
 val item : Cst.t list ref -> (Cst.t -> 'a) -> 'a
 val optional_item : Cst.t list -> (Cst.t -> 'a) -> 'a option
 val rest : Cst.t list -> (Cst.t -> 'a) -> 'a list
+val either : 'a t -> 'b t -> ('a, 'b) Either.t t

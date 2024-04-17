@@ -66,6 +66,7 @@ module Instr = struct
   let map_defs i ~f =
     match i with
     | Assign { dst; expr } -> Assign { dst = f dst; expr }
+    | ImpureAssign { dst; expr } -> ImpureAssign { dst = f dst; expr }
     | VoidCall _ -> i
     | Store _ -> i
   ;;
@@ -73,6 +74,7 @@ module Instr = struct
   let iter_defs i ~f =
     match i with
     | Assign { dst; _ } -> f dst
+    | ImpureAssign { dst; _ } -> f dst
     | VoidCall _ | Store _ -> ()
   ;;
 
