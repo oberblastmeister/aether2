@@ -18,9 +18,10 @@ let prefix_of_size (s : Size.t) =
   match s with
   | Q -> "qword ptr"
   | B -> "byte ptr"
-  (* dword ptr *)
-  (* word ptr *)
 ;;
+
+(* dword ptr *)
+(* word ptr *)
 
 let print_size cx s = Cx.add cx @@ suffix_of_size s
 
@@ -74,6 +75,7 @@ let string_of_cond (cond : Cond.t) =
   | B -> "b"
   | BE -> "be"
   | A -> "a"
+  | AE -> "ae"
 ;;
 
 let print_mreg cx (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg mreg.s mreg.reg

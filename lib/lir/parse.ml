@@ -36,6 +36,7 @@ let parse_ident = Parser.atom Fn.id
 
 let parse_cmp_op = function
   | "gt" -> Cmp_op.Gt
+  | "ge" -> Cmp_op.Ge
   | s -> Parser.parse_error [%message "unknown cmp op" ~op:s]
 ;;
 

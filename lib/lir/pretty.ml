@@ -27,6 +27,7 @@ let pretty_value_typed (value : Value.t) =
 
 let cmp_op_to_string = function
   | Cmp_op.Gt -> "gt"
+  | Ge -> "ge"
 ;;
 
 let rec pretty_expr cx expr =

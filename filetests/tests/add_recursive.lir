@@ -2,7 +2,7 @@
   (block (start)
     (set zero (const u64 0))
     (set res (const u64 0))
-    (set f (cmp u64 gt zero count))
+    (set f (cmp u64 gt count zero))
     (cond_jump f (body) (done))
   )
   (block (body)

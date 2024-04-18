@@ -160,4 +160,3 @@ let run ~dict ~precolored ~interference =
   in
   { alloc_of_name; used_registers }
 ;;
-

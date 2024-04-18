@@ -27,7 +27,10 @@ module Value = struct
 end
 
 module Cmp_op = struct
-  type t = Gt [@@deriving sexp]
+  type t =
+    | Gt
+    | Ge
+  [@@deriving sexp]
 end
 
 module Bin_op = struct

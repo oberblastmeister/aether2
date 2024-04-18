@@ -42,7 +42,8 @@ let cmp_op_to_cond ty op =
   match ty with
   | Ty.U1 | Ty.U64 ->
     (match op with
-     | Cmp_op.Gt -> X86.Cond.A)
+     | Cmp_op.Gt -> X86.Cond.A
+     | Cmp_op.Ge -> X86.Cond.AE)
   | Void -> raise_s [%message "cannot use void with cond"]
 ;;
 

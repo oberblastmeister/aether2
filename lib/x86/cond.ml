@@ -9,4 +9,6 @@ type t =
   | BE
   (* above (unsigned >) *)
   | A
+  (* above or equal (unsigned >=) *)
+  | AE
 [@@deriving equal, compare, hash, sexp, variants]
