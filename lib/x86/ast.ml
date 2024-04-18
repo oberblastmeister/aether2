@@ -28,16 +28,6 @@ module AReg = struct
   let size (Spilled { s; _ } | InReg { s; _ }) = s
   let create ?name s reg = InReg { s; name; reg }
   let of_mreg (mreg : MReg.t) = InReg { s = mreg.s; name = mreg.name; reg = mreg.reg }
-  (* let in_reg s name reg = { s; name; reg = Some reg }
-  let spilled s name = { s; name; reg = None }
-  let is_spilled t = Option.is_none t.reg
-  let is_in_reg t = Option.is_some t.reg
-
-  let to_spilled t =
-    match t.reg with
-    | None -> Some (t.s, t.name)
-    | Some _ -> None
-  ;; *)
 end
 
 module VReg = struct
@@ -245,34 +235,6 @@ module Instr = struct
       VInstr.iter_defs vinstr ~f:(fun reg -> on_def (Reg reg))
   ;;
 
-  (* type 'r mapper = { f : 'op. ('r, 'op) GOperand.t -> ('r, 'op) GOperand.t } *)
-
-  (* let map_operands i ~f:{ f = gmap } =
-    let map_op (o : 'a Operand.t) =
-      match o with
-      | Operand.Reg r -> GOperand.to_operand (gmap (Reg r))
-      | Mem m -> GOperand.to_operand (gmap (Mem m))
-      | Imm i -> GOperand.to_operand (gmap (Imm i))
-    in
-    let map_address a = gmap (Mem a) |> GOperand.mem_val in
-    let map_imm i = gmap (Imm i) |> GOperand.imm_val in
-    let map_reg r = gmap (Reg r) |> GOperand.reg_val in
-    match i with
-    | NoOp -> NoOp
-    | Mov { s; dst; src } -> Mov { s; dst = map_op dst; src = map_op src }
-    | Lea { dst; src; s } -> Lea { dst = map_reg dst; src = map_address src; s }
-    | Add { dst; src1; src2; s } ->
-      Add { dst = map_op dst; src1 = map_op src1; src2 = map_op src2; s }
-    | Push { src; s } -> Push { src = map_reg src; s }
-    | Pop { dst; s } -> Pop { dst = map_reg dst; s }
-    | MovAbs { dst; imm } -> MovAbs { dst = map_op dst; imm }
-    | Cmp { s; src1; src2 } -> Cmp { s; src1 = map_op src1; src2 = map_op src2 }
-    | Test { s; src1; src2; _ } -> Test { s; src1 = map_op src1; src2 = map_op src2 }
-    | Set { s; dst; cond } -> Set { s; dst = map_op dst; cond }
-    | Call p -> Call p
-    | Jump j -> Jump j
-    | Virt v -> Virt v *)
-
   let iter_operands i ~f = iter_operands_with i ~on_def:f ~on_use:f
   let iter_regs i ~f = iter_operands i ~f:(fun o -> Operand.iter_any_regs o ~f)
   let map_regs i ~f = map f i
@@ -323,56 +285,6 @@ module Instr = struct
     | Call { defines; _ } -> List.iter defines ~f:k
   ;;
 end
-
-(* module Instr_variant = struct
-   include Instr_variant
-   end
-
-   module Instr = struct
-   include Instr
-
-   let to_variant (type r) (i : r t) =
-   match i with
-   | Virt v -> Instr_variant.Virt v
-   | Real r -> Instr_variant.Real r
-   | Jump j -> Instr_variant.Jump j
-   ;;
-
-   let map_regs i ~f =
-   match i with
-   | Virt i -> Virt (VInstr.map_regs i ~f)
-   | Real i -> Real (MInstr.map_regs i ~f)
-   | Jump i -> Jump (Jump.map_regs i ~f)
-   ;;
-
-   let iter_regs (type r) (i : r t) (k : r -> unit) =
-   let module O = Operand in
-   let module A = Address in
-   match i with
-   | Virt i -> VInstr.iter_regs i k
-   | Real i -> MInstr.iter_regs i k
-   | Jump i -> Jump.iter_regs i k
-   ;;
-
-   let iter_defs i k =
-   let module O = Operand in
-   let open Instr_variant in
-   match to_variant i with
-   | Virt i -> VInstr.iter_defs i k
-   | Real i -> MInstr.iter_defs i k
-   | Jump _ -> ()
-   ;;
-
-   let iter_uses (type r) (i : r t) (k : r -> unit) =
-   let module O = Operand in
-   let open Instr_variant in
-   match i with
-   | Virt i -> VInstr.iter_uses i k
-   | Real i -> MInstr.iter_uses i k
-   | Jump i -> Jump.iter_uses i k
-   ;;
-
-   end *)
 
 module Block = struct
   include Block

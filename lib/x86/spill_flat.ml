@@ -104,16 +104,7 @@ let lower_jump = function
   | Jump.Ret r -> Jump.Ret r
 ;;
 
-(* | Jump.Ret _ -> raise_s [%message "jump must be legalized"] *)
-
 let lower_instr cx instr = lower_instr cx instr
-
-(* let lower_block cx (block : _ Block.t) =
-    (Block.iter_instrs_forward block) (lower_instr cx);
-    let instrs = Vec.copy_exact cx.instrs in
-    Vec.clear cx.instrs;
-    { Block.instrs }
-  ;; *)
 
 let lower_function stack_builder (fn : _ Flat.Program.t) =
   let cx = Cx.create stack_builder in
@@ -125,5 +116,3 @@ let lower_function stack_builder (fn : _ Flat.Program.t) =
   let instrs = Vec.freeze cx.instrs in
   instrs
 ;;
-(* let fn = Function.map_blocks fn ~f:(lower_block cx) in
-    { fn with unique_name = cx.unique_name } *)
