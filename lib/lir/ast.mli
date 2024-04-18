@@ -43,6 +43,7 @@ module Impure_expr : sig
   include module type of Impure_expr
 
   val get_ty : 'v t -> Ty.t
+  val iter_uses : ('v, 'v t) F.Fold.t
 end
 
 module Some_instr : sig

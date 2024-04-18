@@ -15,6 +15,7 @@ module Context = struct
     ; color_of_index : Side_effects.Color_of_index.t
     ; instr_of_value : Instr_of_value.t
     ; instrs : (Vir.Some_instr.t, read) Vec.t
+    ; inlined_indices : Int.Hash_set.t
     }
 
   let get_color cx instr_index =
@@ -26,12 +27,19 @@ module Context = struct
     let instr_of_value = Instr_of_value.create (Vec.iter instrs) in
     let color_of_index = Side_effects.color fn.graph in
     let use_states = Use_states.create fn instr_of_value in
-    { instrs; instr_of_value; use_states; color_of_index }
+    let inlined_indices = Int.Hash_set.create () in
+    { instrs; instr_of_value; use_states; color_of_index; inlined_indices }
+  ;;
+
+  let add_inlined_index cx index = Hash_set.add cx.inlined_indices index
+
+  let is_index_inlined cx index =
+    Hash_set.mem cx.inlined_indices index
   ;;
 end
 
-let rec lower_instr (cx : Context.t) (instr : Vir.Instr.t) instr_index =
-  let color = Context.get_color cx instr_index in
+let rec lower_instr (cx : Context.t) (instr : Vir.Instr.t) color =
+  (* let color = Context.get_color cx instr_index in *)
   Lir.Instr.map_uses instr ~f:(fun use -> lower_value cx color use)
 
 and lower_block_call (_cx : Context.t) (block_args : Vir.Block_args.t) _instr_index
@@ -46,7 +54,7 @@ and lower_control_instr (cx : Context.t) (instr : Vir.Control_instr.t) instr_ind
 and lower_value cx color value =
   let data = Instr_of_value.find_data cx.instr_of_value value in
   match data with
-  (* can't inline, this isn't an single value Instr.t *)
+  (* can't inline, this isn't a single value Instr.t *)
   | None -> Tir.Value.V value
   (* used once, possibly inline *)
   | Some (index, value_instr)
@@ -60,33 +68,43 @@ and lower_value cx color value =
     in
     if can_inline
     then (
-      match lower_instr cx value_instr index with
-      | Lir.Instr.Assign { dst; expr } -> Tir.Value.I { dst; expr }
-      | _ -> raise_s [%message "expected an assign instr if can_inline"])
+      (* IMPORTANT: lower the value instr with the current instrs color *)
+      match lower_instr cx value_instr color with
+      | Lir.Instr.Assign { dst; expr } ->
+        assert (Lir.Value.equal dst value);
+        Context.add_inlined_index cx index;
+        Tir.Value.I { dst; expr }
+      | Lir.Instr.ImpureAssign { dst; expr } ->
+        assert (Lir.Value.equal dst value);
+        Context.add_inlined_index cx index;
+        Tir.Value.I' { dst; expr }
+      | instr ->
+        raise_s
+          [%message
+            "expected an assign instr if can_inline" (instr : Tir.Value.t Lir.Instr.t)])
     else Tir.Value.V value
   | Some _ -> Tir.Value.V value
 ;;
 
 let lower_block cx (block : Vir.Block.t) instr_index =
-  let entry = lower_block_call cx block.entry !instr_index in
-  incr instr_index;
+  (* incr instr_index; *)
+  let length = List.length block.body in
+  let index_start = !instr_index in
+  let body_index_start = index_start + 1 in
+  let exit = lower_control_instr cx block.exit (index_start + 1 + length) in
   let body =
-    List.filter_map block.body ~f:(fun instr ->
+    List.rev_filter_mapi (List.rev block.body) ~f:(fun i instr ->
+      let index = body_index_start + (length - i - 1) in
       let res =
-        if F.Iter.exists (Lir.Instr.iter_defs instr) ~f:(fun def ->
-             [%equal: Use_states.state option]
-               (Use_states.find cx.use_states def)
-               (Some Once))
-        then
-          (* this instruction will be inlined later, so don't duplicate it by lowering it again *)
+        if Context.is_index_inlined cx index
+        then (* this instruction was inlined, so skip it *)
           None
-        else Some (lower_instr cx instr !instr_index)
+        else Some (lower_instr cx instr (Context.get_color cx index))
       in
-      incr instr_index;
       res)
   in
-  let exit = lower_control_instr cx block.exit !instr_index in
-  incr instr_index;
+  let entry = lower_block_call cx block.entry index_start in
+  instr_index := 2 + length + !instr_index;
   { Lir.Block.entry; body; exit }
 ;;
 

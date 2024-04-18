@@ -32,6 +32,7 @@ let emit_conv =
   Arg.conv
     ( (function
         | "lir" -> Ok (Some (Lir : emit))
+        | "tir" -> Ok (Some (Tir : emit))
         | "x86" -> Ok (Some X86)
         | "asm" -> Ok (Some Asm)
         | _ -> Error (`Msg "invalid emit"))

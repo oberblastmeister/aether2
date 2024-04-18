@@ -65,11 +65,6 @@ let freshen_name (cx : Context.t) (name : Name.t) : Name.t =
 
 let vreg (v : Value.t) = X86.VReg.create (ty_to_size v.ty) v.name
 
-(* let fresh_value (cx : Context.t) (v : Value.t) : Value.t =
-  let name = freshen_name cx v.name in
-  { v with name }
-;; *)
-
 let categorize_args args =
   let registers = X86.Mach_reg.args in
   let args_with_reg, remaining = List.zip_with_remainder args registers in
@@ -84,6 +79,9 @@ let categorize_args args =
 let rec lower_value cx = function
   | Tir.Value.I { dst; expr } ->
     lower_expr_to cx dst expr;
+    dst
+  | Tir.Value.I' { dst; expr } ->
+    lower_impure_expr_to cx dst expr;
     dst
   | Tir.Value.V v -> v
 
@@ -123,7 +121,6 @@ and lower_call cx Call.{ name; args } dst =
   ()
 
 and lower_expr_to cx dst (expr : Tir.Value.t Expr.t) =
-  (* let dst = fresh_value cx "expr_tmp" ty in *)
   let dst = X86.Operand.Reg (vreg dst) in
   match expr with
   | Bin { op; v1; v2; _ } ->

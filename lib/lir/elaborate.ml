@@ -15,7 +15,7 @@ let elaborate_error e = raise (Exn e)
 let collect_types (fn : Name.t Function.t) =
   let add_instr z (Some_instr.T i) =
     match i with
-    | Generic_instr.Instr (Instr.Assign { dst; _ }) ->
+    | Generic_instr.Instr (Instr.Assign { dst; _ } | ImpureAssign { dst; _ }) ->
       Map.update z dst.name ~f:(function
         | None -> List1.singleton dst.ty
         | Some at -> List1.(dst.ty |: at))
@@ -57,7 +57,9 @@ let elaborate_function (fn : Name.t Function.t) : Value.t Function.t =
         Map.find ty_of_name name
         |> Option.value_or_thunk ~default:(fun () ->
           elaborate_error
-            (Error.t_of_sexp [%message "name not defined" ~name:(name : Name.t)]))
+            (Error.t_of_sexp
+               [%message
+                 "name not defined" (fn : Name.t Function.t) ~name:(name : Name.t)]))
     })
 ;;
 

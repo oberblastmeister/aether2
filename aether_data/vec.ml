@@ -39,7 +39,9 @@ module Raw = struct
   let[@inline] unsafe_get t i = A.unsafe_get_some_assuming_some t.data i
 
   let get t i =
-    if i < 0 || i >= t.size then invalid_arg "index out of bounds" else unsafe_get t i
+    if i < 0 || i >= t.size
+    then raise_s [%message "index out of bounds" (i : int)]
+    else unsafe_get t i
   ;;
 
   let get_opt t i = if i < 0 || i >= t.size then None else Some (unsafe_get t i)
@@ -154,6 +156,45 @@ module Raw = struct
     List.iteri xs ~f:(fun i x -> unsafe_set t i x);
     t.size <- size;
     t
+  ;;
+
+  let patch_after_filter t removed =
+    let size = t.size in
+    let rec go i free =
+      if i < size
+      then
+        if A.unsafe_is_some t.data i
+        then (
+          if i <> free
+          then (
+            unsafe_set t free (unsafe_get t i);
+            A.unsafe_set_none t.data i;
+            ());
+          go (i + 1) (free + 1))
+        else go (i + 1) free
+    in
+    go 0 0;
+    t.size <- t.size - removed;
+    ()
+  ;;
+
+  let filter_inplace_revi t ~f =
+    check_not_frozen t;
+    let rec go i removed =
+      if i >= 0
+      then (
+        match f i (unsafe_get t i) with
+        | None ->
+          A.unsafe_set_none t.data i;
+          go (i - 1) (removed + 1)
+        | Some x ->
+          unsafe_set t i x;
+          go (i - 1) removed)
+      else removed
+    in
+    let removed = go (t.size - 1) 0 in
+    patch_after_filter t removed;
+    ()
   ;;
 
   let to_list t = List.init t.size ~f:(unsafe_get t)
@@ -375,4 +416,20 @@ let%expect_test _ =
   let t = of_list [ 1; 2; 3; 4; 5 ] in
   print_s [%sexp (t : (int, _) t)];
   [%expect {| (1 2 3 4 5) |}]
+;;
+
+let%expect_test _ =
+  let t = of_list (List.range 20 50) in
+  let indices = ref [] in
+  filter_inplace_revi t ~f:(fun i x ->
+    if x mod 3 = 0 || x mod 5 = 0
+    then None
+    else (
+      indices := i :: !indices;
+      Some x));
+  print_s [%sexp (indices : int list ref), (t : (int, _) t)];
+  [%expect
+    {|
+    ((2 3 6 8 9 11 12 14 17 18 21 23 24 26 27 29)
+     (22 23 26 28 29 31 32 34 37 38 41 43 44 46 47 49)) |}]
 ;;

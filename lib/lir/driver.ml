@@ -2,6 +2,7 @@ open O
 
 type emit =
   | Lir
+  | Tir
   | X86
   | Asm
 [@@deriving sexp_of]
@@ -31,14 +32,18 @@ let parse_string_ssa source =
 
 let compile_lir ?(emit = Asm) lir =
   let open Or_error.Let_syntax in
-  let x86 = lir |> Lower.run |> Lir_x86.lower in
-  let%bind () = X86.Check_ssa.check x86 in
   match emit with
   | Asm ->
+    let x86 = lir |> Lower.run |> Lir_x86.lower in
+    let%bind () = X86.Check_ssa.check x86 in
     let x86 = X86.Reg_alloc.run x86 |> X86.Print.run in
     Ok x86
-  | X86 -> Ok (Sexp.to_string_hum @@ X86.Ast.Program.sexp_of_t X86.Ast.VReg.sexp_of_t x86)
+  | X86 ->
+    let x86 = lir |> Lower.run |> Lir_x86.lower in
+    let%bind () = X86.Check_ssa.check x86 in
+    Ok (Sexp.to_string_hum @@ X86.Ast.Program.sexp_of_t X86.Ast.VReg.sexp_of_t x86)
   | Lir -> Ok (Pretty.pretty lir)
+  | Tir -> Ok (Lower.run lir |> Lower.Tir.pretty)
 ;;
 
 let compile_string ?emit source =

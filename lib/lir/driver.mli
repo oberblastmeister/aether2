@@ -3,6 +3,7 @@ open Ast
 
 type emit =
   | Lir
+  | Tir
   | X86
   | Asm
 [@@deriving sexp_of]

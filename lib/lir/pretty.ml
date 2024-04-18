@@ -29,9 +29,9 @@ let cmp_op_to_string = function
   | Cmp_op.Gt -> "gt"
 ;;
 
-let rec pretty_expr cx =
+let rec pretty_expr cx expr =
   let pretty_value = cx.pretty_value in
-  function
+  match expr with
   | Expr.Bin { ty; op; v1; v2 } ->
     Pretty.(
       list
@@ -70,6 +70,12 @@ let pretty_call_with_ty cx ty call =
   Pretty.(list [ atom "call"; pretty_ty ty; pretty_call cx call ])
 ;;
 
+let pretty_impure_expr cx expr =
+  match expr with
+  | Impure_expr.Call { ty; call } -> pretty_call_with_ty cx ty call
+  | _ -> todo [%here]
+;;
+
 let pretty_instr_control cx i =
   match i with
   | Control_instr.Jump v -> Pretty.(list [ Atom "jump"; pretty_block_call cx v ])
@@ -89,6 +95,8 @@ let pretty_instr cx i =
   match i with
   | Instr.Assign { dst; expr } ->
     Pretty.(list [ Atom "set"; pretty_value dst; pretty_expr cx expr ])
+  | Instr.ImpureAssign { dst; expr } ->
+    Pretty.(list [ Atom "set"; pretty_value dst; pretty_impure_expr cx expr ])
   | VoidCall call -> pretty_call_with_ty cx Void call
   | _ -> todo [%here]
 ;;

@@ -51,6 +51,8 @@ module Impure_expr = struct
   let get_ty = function
     | Load { ty; _ } | Alloca { ty; _ } | Call { ty; _ } -> ty
   ;;
+
+  let iter_uses i ~f = iter f i
 end
 
 module Instr = struct
