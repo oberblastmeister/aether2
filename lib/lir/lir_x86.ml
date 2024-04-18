@@ -140,7 +140,7 @@ and lower_expr_to cx dst (expr : Tir.Value.t Expr.t) =
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
     Cx.add cx (Cmp { src1; src2 });
-    Cx.add cx (Set { cond = cmp_op_to_cond ty op; dst })
+    Cx.add cx (Set { dst; cond = cmp_op_to_cond ty op })
   | Val v ->
     let src = lower_value_op_merge cx v in
     Cx.add cx (Mov { dst; src })
