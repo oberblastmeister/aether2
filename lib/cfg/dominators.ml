@@ -132,10 +132,10 @@ let frontier_of_idoms idoms (graph : Label.t Data.Graph.double) =
 
 let%test_module _ =
   (module struct
-    module Intern_table = Entity.Intern_table
+    module Intern_table = Utils.Intern_table.String_intern
 
-    let tbl = Intern_table.create (module Label)
-    let lab = Intern_table.name_of_string tbl
+    let tbl = Intern_table.create ()
+    let lab = Intern_table.name_of_key tbl
 
     let graph xs =
       xs

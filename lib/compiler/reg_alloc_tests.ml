@@ -19,30 +19,10 @@ let%test_module _ =
       end)
 
     open Ra
+    module Intern_table = Utils.Intern_table.String_intern
 
-    (* let enum =
-      let module M = Data.Enum_set.Make_enum (Register) in
-      M.enum
-    ;;
-
-    let dict =
-      { config
-      ; register = { enum; sexp_of = Register.sexp_of_t; equal = Register.equal }
-      }
-    ;; *)
-
-    (* module Config = struct
-       module Register = Register
-       module RegisterSet = RegisterSet
-       end *)
-
-    (* module Reg_alloc = Make (Config)
-       module Allocation = Make_allocation (Config)
-       module Constraints = Reg_constraints.Make (Config) *)
-    module Intern_table = Entity.Intern_table
-
-    let tbl = Intern_table.create (module Name)
-    let name = Intern_table.name_of_string tbl
+    let tbl = Intern_table.create ()
+    let name = Intern_table.name_of_key tbl
     let b = name "b"
     let d = name "d"
     let a = name "a"

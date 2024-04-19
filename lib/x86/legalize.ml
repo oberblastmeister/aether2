@@ -1,12 +1,22 @@
 open O
 open Ast
 
-type context =
-  { instrs : (AReg.t Flat.Line.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
-  ; func_index : int
-  }
+module Cx : sig
+  type t
 
-module Cx = struct
+  val create : int -> t
+  val add : t -> AReg.t Flat.Instr.t -> unit
+  val add_label : t -> Label.t -> unit
+  val string_of_label : t -> Label.t -> string
+  (* Cx should not be used afterwards *)
+  val get_instrs : t -> (AReg.t Flat.Line.t, read) Vec.t
+end = struct
+  type t =
+    { instrs :
+        (AReg.t Flat.Line.t, read_write) Vec.t (* ; stack_layout : Stack_layout.t *)
+    ; func_index : int
+    }
+
   let create func_index = { instrs = Vec.create (); func_index }
   let add cx i = Vec.push cx.instrs (Instr i)
 
@@ -19,6 +29,8 @@ module Cx = struct
     Vec.push cx.instrs (Comment [%string "label: %{label.name}"]);
     Vec.push cx.instrs (Label (string_of_label cx label))
   ;;
+
+  let get_instrs cx = Vec.freeze cx.instrs
 end
 
 let to_op = function
@@ -63,17 +75,6 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
     | Operand.Reg r -> AReg.size r
     | Operand.Mem mem -> mem.size
     | _ -> failwith "get_size"
-  in
-  let force_same ~dst ~src =
-    match dst, src with
-    | Operand.Mem _, Operand.Mem _ ->
-      let size = operand_size dst in
-      let reg = force_register ~size src in
-      Cx.add cx @@ Mov { dst = to_op dst; src = Reg reg };
-      Operand.Reg reg
-    | _ ->
-      Cx.add cx @@ Mov { dst = to_op dst; src = to_op src };
-      dst
   in
   let force_register_op size o = Operand.reg @@ force_register ~size o in
   (* s is the size of o2 *)
@@ -138,7 +139,6 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create Q mach_reg, reg)
      |> legalize_par_mov
      |> List.iter ~f:(Cx.add cx);
-     (* TODO: not doing this correctly, need to par move arguments *)
      Cx.add cx @@ Call { src = name };
      (match dst with
       | Some (dst, dst_reg) ->
@@ -182,5 +182,5 @@ let legalize_function ~func_index (fn : _ Function.t) =
   (* we need the first and last block to be at the end so we can patch it with a prologue and epilogue *)
   Graph.Dfs.iteri_reverse_postorder_start_end fn.graph
   |> F.Iter.iter ~f:(fun (label, block) -> legalize_block cx label block);
-  Vec.freeze cx.instrs
+  Cx.get_instrs cx
 ;;

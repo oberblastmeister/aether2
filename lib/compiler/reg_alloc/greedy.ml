@@ -1,5 +1,3 @@
-(* TODO: use precolored registers that have also set machine registers *)
-(* only find registers for non precolored registers *)
 open O
 open Utils.Instr_types
 open Types
@@ -119,27 +117,26 @@ let alloc_colors ~dict ~precolored ~interference =
     ());
   [%log.global.debug
     (ColorMap.sexp_of_t (Alloc_reg.sexp_of_t register.sexp_of) alloc_of_color : Sexp.t)];
-  F.Iter.Infix.(
-    Color.to_int Color.lowest -- Color.to_int max_color
-    |> F.Iter.map ~f:Color.of_int
-    |> F.Iter.filter ~f:(fun color -> not @@ ColorMap.mem alloc_of_color color)
-    (* make sure they aren't precolored *)
-    |> F.Iter.iter ~f:(fun color ->
-      let reg =
-        F.Iter.(
-          List.iter config.register_order
-          |> F.Iter.find ~f:(fun reg ->
-            let not_used = not (Data.Enum_set.mem ~enum used_registers reg) in
-            not_used))
-      in
-      let alloc_reg =
-        reg |> Option.value_map ~default:Alloc_reg.Spilled ~f:Alloc_reg.inreg
-      in
-      Option.iter reg ~f:(Data.Enum_set.add ~enum used_registers);
-      ColorMap.set alloc_of_color ~key:color ~data:alloc_reg;
-      [%log.global.debug
-        "setting color" (color : Color.t) (Option.sexp_of_t register.sexp_of reg : Sexp.t)];
-      ()));
+  F.Iter.Infix.(Color.to_int Color.lowest -- Color.to_int max_color)
+  |> F.Iter.map ~f:Color.of_int
+  |> F.Iter.filter ~f:(fun color -> not @@ ColorMap.mem alloc_of_color color)
+  (* make sure they aren't precolored *)
+  |> F.Iter.iter ~f:(fun color ->
+    let reg =
+      F.Iter.(
+        List.iter config.register_order
+        |> F.Iter.find ~f:(fun reg ->
+          let not_used = not (Data.Enum_set.mem ~enum used_registers reg) in
+          not_used))
+    in
+    let alloc_reg =
+      reg |> Option.value_map ~default:Alloc_reg.Spilled ~f:Alloc_reg.inreg
+    in
+    Option.iter reg ~f:(Data.Enum_set.add ~enum used_registers);
+    ColorMap.set alloc_of_color ~key:color ~data:alloc_reg;
+    [%log.global.debug
+      "setting color" (color : Color.t) (Option.sexp_of_t register.sexp_of reg : Sexp.t)];
+    ());
   color_of_name, alloc_of_color, used_registers
 ;;
 

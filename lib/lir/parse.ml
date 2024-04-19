@@ -1,7 +1,7 @@
 open! O
 open Ast
 module Parser = Sexp_lang.Parser
-module Intern_table = Entity.Intern_table
+module Intern_table = Utils.Intern_table.String_intern
 
 type state =
   { label_intern : Label.key Intern_table.t
@@ -9,9 +9,7 @@ type state =
   }
 
 let create_state () =
-  { label_intern = Intern_table.create (module Label)
-  ; name_intern = Intern_table.create (module Name)
-  }
+  { label_intern = Intern_table.create (); name_intern = Intern_table.create () }
 ;;
 
 let parse_ty =
@@ -22,8 +20,8 @@ let parse_ty =
     | _ -> Parser.parse_error [%message "unknown type"])
 ;;
 
-let parse_label st = Parser.atom (fun s -> Intern_table.name_of_string st.label_intern s)
-let parse_var st = Parser.atom (fun s -> Intern_table.name_of_string st.name_intern s)
+let parse_label st = Parser.atom (fun s -> Intern_table.name_of_key st.label_intern s)
+let parse_var st = Parser.atom (fun s -> Intern_table.name_of_key st.name_intern s)
 
 let parse_value st sexp =
   let@ xs = Parser.list_ref sexp in
@@ -42,7 +40,7 @@ let parse_cmp_op = function
 
 let rec parse_expr st sexp =
   match sexp with
-  | Sexp_lang.Cst.Atom s -> Expr.Val (Intern_table.name_of_string st.name_intern s.value)
+  | Sexp_lang.Cst.Atom s -> Expr.Val (Intern_table.name_of_key st.name_intern s.value)
   | List list ->
     let xs = ref list.items in
     let name = Parser.item xs parse_ident in
