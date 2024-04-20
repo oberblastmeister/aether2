@@ -249,7 +249,7 @@ let%test_module _ =
         |> Ssa.convert
         |> Lower.run
         |> Lir_x86.lower
-        |> X86.Reg_alloc.run
+        |> X86.Driver.compile_program
         |> X86.Print.run
       in
       print_string program;
@@ -429,7 +429,7 @@ let%test_module _ =
         |> Ssa.convert
         |> Lower.run
         |> Lir_x86.lower
-        |> X86.Reg_alloc.run
+        |> X86.Driver.compile_program
         |> X86.Print.run
       in
       print_string program;
@@ -499,7 +499,7 @@ let%test_module _ =
         |> Ssa.convert
         |> Lower.run
         |> Lir_x86.lower
-        |> X86.Reg_alloc.run
+        |> X86.Driver.compile_program
         |> X86.Print.run
       in
       print_string program;

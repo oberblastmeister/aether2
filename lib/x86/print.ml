@@ -178,7 +178,7 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
       "movabs"
       op
       dst
-      (fun b i -> Buffer.add_string b (Int64.to_string_hum i))
+      (fun b i -> Buffer.add_string b (Int64.to_string i))
       imm
   | Ret -> bprintf b "\tret"
   | Call { src } -> bprintf b "\tcall\t%s" src

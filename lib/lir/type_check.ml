@@ -160,7 +160,25 @@ let check_block cx (func : _ Function.t) label (block : _ Block.t) =
 
 let check_func cx (func : _ Function.t) =
   let@ () = with_tag [%message (func.name : string)] in
-  Cfg.Graph.iteri func.graph ~f:(fun (label, block) -> check_block cx func label block);
+  Cfg.Graph.iteri func.graph ~f:(fun (label, block) ->
+    check_block cx func label block;
+    if Label.equal label (Cfg.Graph.exit func.graph)
+    then (
+      (match block.exit with
+       | Ret _ -> ()
+       | instr ->
+         error
+           [%message
+             "exit block must have a return"
+               (instr : Value.t Control_instr.t)
+               (label : Label.t)]);
+      ())
+    else (
+      (match block.exit with
+       | Ret _ ->
+         error [%message "non exit block must not end with a return" (label : Label.t)]
+       | _ -> ());
+      ()));
   ()
 ;;
 

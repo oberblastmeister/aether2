@@ -35,6 +35,7 @@ let parse_ident = Parser.atom Fn.id
 let parse_cmp_op = function
   | "gt" -> Cmp_op.Gt
   | "ge" -> Cmp_op.Ge
+  | "eq" -> Cmp_op.Eq
   | s -> Parser.parse_error [%message "unknown cmp op" ~op:s]
 ;;
 
@@ -78,7 +79,7 @@ and parse_impure_expr st sexp =
     let@ call = Parser.item xs in
     let call = parse_call st call in
     Impure_expr.Call { ty; call }
-  | _ -> todo [%here]
+  | name -> raise_s [%message "unknown impure expr" (name : string)]
 
 and parse_call st sexp =
   let@ xs = Parser.list_ref sexp in

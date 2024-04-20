@@ -1,0 +1,16 @@
+(define (add [x u64] [y u64]) u64
+  (block (start)
+    (set r (add u64 x y))
+    (ret r)
+  )
+)
+
+(define (entry) void
+  (block (start)
+    (set r (call u64 (add (const u64 1) (const u64 2))))
+    (call void (assert_eq_u64 r (const u64 3)))
+    (set r (call u64 (add (const u64 5) (const u64 2))))
+    (call void (assert_eq_u64 r (const u64 7)))
+    (ret)
+  )
+)

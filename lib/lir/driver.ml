@@ -36,7 +36,7 @@ let compile_lir ?(emit = Asm) lir =
   | Asm ->
     let x86 = lir |> Lower.run |> Lir_x86.lower in
     let%bind () = X86.Check_ssa.check x86 in
-    let x86 = X86.Reg_alloc.run x86 |> X86.Print.run in
+    let x86 = X86.Driver.compile_program x86 |> X86.Print.run in
     Ok x86
   | X86 ->
     let x86 = lir |> Lower.run |> Lir_x86.lower in

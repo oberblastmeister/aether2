@@ -43,7 +43,8 @@ let cmp_op_to_cond ty op =
   | Ty.U1 | Ty.U64 ->
     (match op with
      | Cmp_op.Gt -> X86.Cond.A
-     | Cmp_op.Ge -> X86.Cond.AE)
+     | Ge -> X86.Cond.AE
+     | Eq -> X86.Cond.E)
   | Void -> raise_s [%message "cannot use void with cond"]
 ;;
 
@@ -160,7 +161,12 @@ and lower_impure_expr_to cx dst expr =
   | Load _ -> todo [%here]
   | Alloca _ -> todo [%here]
 
-and lower_expr_op cx expr = X86.Operand.Reg (lower_expr cx expr)
+and lower_expr_op cx expr =
+  match expr with
+  | Expr.Const { ty = Ty.U64; const }
+    when Int64.( <= ) const (Int64.of_int32 Int32.max_value) ->
+    X86.Operand.Imm (Int (Int32.of_int64_exn const))
+  | _ -> X86.Operand.Reg (lower_expr cx expr)
 
 and lower_instr cx instr =
   match instr with

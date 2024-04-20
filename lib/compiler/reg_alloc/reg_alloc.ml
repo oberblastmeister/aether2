@@ -4,6 +4,18 @@ open Types
 module Types = Types
 module Interference = Interference
 
+module type Allocation = sig
+  module Config : Config
+  open Config
+
+  type t [@@deriving sexp_of]
+
+  val to_iter : t -> (Name.t * Register.t Alloc_reg.t) F.Iter.t
+  val to_spilled_iter : t -> Name.t F.Iter.t
+  val find_exn : t -> Name.t -> Register.t Alloc_reg.t
+  val used_registers : t -> Register.t F.Iter.t
+end
+
 module Make (Config : Config) : sig
   open Config
   module Interference = Interference
@@ -15,14 +27,7 @@ module Make (Config : Config) : sig
     val add : t -> Name.t -> Register.t -> unit
   end
 
-  module Allocation : sig
-    type t [@@deriving sexp_of]
-
-    val to_iter : t -> (Name.t * Register.t Alloc_reg.t) F.Iter.t
-    val to_spilled_iter : t -> Name.t F.Iter.t
-    val find_exn : t -> Name.t -> Register.t Alloc_reg.t
-    val used_registers : t -> Register.t F.Iter.t
-  end
+  module Allocation : Allocation with module Config := Config
 
   module type Algorithm = sig
     val run
