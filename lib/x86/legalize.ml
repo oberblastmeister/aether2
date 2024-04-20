@@ -8,6 +8,7 @@ module Cx : sig
   val add : t -> AReg.t Flat.Instr.t -> unit
   val add_label : t -> Label.t -> unit
   val string_of_label : t -> Label.t -> string
+
   (* Cx should not be used afterwards *)
   val get_instrs : t -> (AReg.t Flat.Line.t, read) Vec.t
 end = struct
@@ -161,13 +162,15 @@ let legalize_function ~func_index (fn : _ Function.t) =
       ((List.map & Tuple2.map_snd) ~f:(fun reg -> AReg.of_mreg reg) fn.params)
   in
   List.iter param_movs ~f:(Cx.add cx);
-  let rsp = AReg.create Q Mach_reg.RBP in
+  (* TODO: fix this shit, this should be turned into the stack ends *)
+  let rsp = AReg.create Q Mach_reg.RSP in
   List.iter fn.stack_params
   |> F.Iter.enumerate
   |> F.Iter.iter ~f:(fun (i, param) ->
     Cx.add cx
     @@ Flat.Instr.Mov
-         { dst =
+         { dst = Reg param
+         ; src =
              Mem
                { size = Q
                ; addr =
@@ -177,7 +180,6 @@ let legalize_function ~func_index (fn : _ Function.t) =
                      ; offset = Stack (Start Int32.(8l * of_int_exn i))
                      }
                }
-         ; src = Reg param
          });
   (* we need the first and last block to be at the end so we can patch it with a prologue and epilogue *)
   Graph.Dfs.iteri_reverse_postorder_start_end fn.graph

@@ -12,6 +12,8 @@ type t =
 
 open Int32
 
+(* make sure to skip the return address *)
+let start_offset t i = t.stack_size + i + 8l
 let end_offset t i = t.end_offset + i
 
 let local_offset t name =
@@ -29,9 +31,10 @@ let create stack_instrs =
     | ReserveLocal { stack_slot; size } ->
       Stack_slot.Table.set offset_of_local ~key:stack_slot ~data:!locals_size;
       locals_size := !locals_size + size);
+  (* make sure to align to 16 bits so calls are correct *)
   let align size =
     assert (size % 8l = 0l);
-    if size % 16l = 0l then size + 8l else size
+    if size % 16l = 0l then size else size + 8l
   in
   { stack_size = align @@ (!locals_size + !end_size)
   ; end_offset = 0l

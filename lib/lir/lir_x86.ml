@@ -23,6 +23,7 @@ module Context = struct
     }
   ;;
 
+  let add_stack_instr cx instr = cx.stack_instrs <- instr :: cx.stack_instrs
   let add cx instr = Vec.push cx.instrs instr
   let addv cx instr = Vec.push cx.instrs (X86.Instr.Virt instr)
   let addj cx instr = Vec.push cx.instrs (X86.Instr.Jump instr)
@@ -93,7 +94,7 @@ and lower_value_op cx v = X86.Operand.Reg (vreg (lower_value cx v))
 and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
   match v with
   | I { expr = Const { ty = U64; const }; _ }
-    when Int64.(const <= Int64.of_int32 Int32.max_value) ->
+    when Int64.( <= ) const (Int64.of_int32 Int32.max_value) ->
     Imm (Int (Int32.of_int64_exn const))
   | I { dst; expr = Const { ty = U64; const }; _ } ->
     let dst = vreg dst in
@@ -106,6 +107,9 @@ and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
 and lower_call cx Call.{ name; args } dst =
   let args = List.map ~f:(lower_expr cx) args in
   let args_with_reg, stack_args = categorize_args args in
+  Cx.add_stack_instr cx
+  @@ X86.Stack_instr.ReserveEnd
+       { size = Int32.(of_int_exn (List.length stack_args) * 8l) };
   List.iter stack_args
   |> F.Iter.enumerate
   |> F.Iter.iter ~f:(fun (i, arg) ->
@@ -135,6 +139,8 @@ and lower_expr_to cx dst (expr : Tir.Value.t Expr.t) =
        let src1 = lower_expr_op cx v1 in
        let src2 = lower_expr_op cx v2 in
        Cx.add cx (Sub { dst; src1; src2 }))
+  | Const { ty = Ty.U64; const } when Int64.( <= ) const (Int64.of_int32 Int32.max_value)
+    -> Cx.add cx (Mov { dst; src = X86.Operand.imm (Int64.to_int32_exn const) })
   | Const { ty = Ty.U64; const } -> Cx.add cx (MovAbs { dst; imm = const })
   | Const { const; _ } ->
     Cx.add cx (Mov { dst; src = X86.Operand.imm (Int64.to_int32_exn const) })

@@ -11,7 +11,7 @@ end = struct
     | Imm.Int i -> Imm.Int i
     | Stack (End i) -> Int (Stack_layout.end_offset stack i)
     | Stack (Local name) -> Int (Stack_layout.local_offset stack name)
-    | Stack (Start _) -> todo [%here]
+    | Stack (Start i) -> Int (Stack_layout.start_offset stack i)
   ;;
 
   let resolve_address stack address =
@@ -85,7 +85,8 @@ let run_function ~func_index (fn : _ Function.t) =
   let fn = Remove_ssa.remove_ssa fn in
   let flat = Legalize.legalize_function ~func_index fn in
   let flat = Spill_flat.lower_function stack_builder flat in
-  let stack_layout = Stack_layout.create (Stack_builder.get_stack_instrs stack_builder) in
+  let stack_instrs = fn.stack_instrs @ Stack_builder.get_stack_instrs stack_builder in
+  let stack_layout = Stack_layout.create stack_instrs in
   let flat =
     let flat' = Vec.create ~size:(Vec.length flat + 10) () in
     (* spill callee saved *)

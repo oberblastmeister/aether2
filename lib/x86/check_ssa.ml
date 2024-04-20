@@ -28,7 +28,10 @@ module Check = Compiler.Check_ssa.Make (struct
       type t = VReg.t Function.t [@@deriving sexp_of]
 
       let to_graph (fn : t) = fn.graph
-      let params (fn : t) = List.map ~f:(fun param -> fst param |> VReg.name) fn.params
+
+      let params (fn : t) =
+        List.map ~f:(fun param -> VReg.name param) (Function.all_params fn)
+      ;;
     end
   end)
 
