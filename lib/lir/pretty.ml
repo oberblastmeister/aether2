@@ -18,6 +18,7 @@ let pretty_value (value : Value.t) = pretty_name value.name
 let pretty_ty = function
   | Ty.U64 -> Pretty.(Atom "u64")
   | Ty.U1 -> Pretty.(Atom "u1")
+  | Ty.I64 -> Atom "i64"
   | Void -> Atom "void"
 ;;
 
@@ -75,6 +76,8 @@ let pretty_call_with_ty cx ty call =
 let pretty_impure_expr cx expr =
   match expr with
   | Impure_expr.Call { ty; call } -> pretty_call_with_ty cx ty call
+  | Load { ty; pointer } ->
+    Pretty.(list [ Atom "load"; pretty_ty ty; pretty_expr cx pointer ])
   | _ -> todo [%here]
 ;;
 
@@ -100,6 +103,9 @@ let pretty_instr cx i =
   | Instr.ImpureAssign { dst; expr } ->
     Pretty.(list [ Atom "set"; pretty_value dst; pretty_impure_expr cx expr ])
   | VoidCall call -> pretty_call_with_ty cx Void call
+  | Store { ty; pointer; expr } ->
+    Pretty.(
+      list [ Atom "store"; pretty_ty ty; pretty_expr cx pointer; pretty_expr cx expr ])
   | _ -> todo [%here]
 ;;
 

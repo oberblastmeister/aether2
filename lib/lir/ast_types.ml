@@ -14,6 +14,7 @@ module Ty = struct
   type t =
     | U1
     | U64
+    | I64
     | Void
   [@@deriving equal, compare, hash, sexp]
 end
@@ -75,9 +76,9 @@ module Impure_expr = struct
   type 'v t =
     | Load of
         { ty : Ty.t
-        ; v : 'v Expr.t
+        ; pointer : 'v Expr.t
         }
-    | Alloca of { ty : Ty.t }
+    | Alloca of { size : int32 }
     | Call of
         { ty : Ty.t
         ; call : 'v Call.t
@@ -99,7 +100,8 @@ module Instr = struct
         }
     | Store of
         { ty : Ty.t
-        ; pointer : 'v
+        ; pointer : 'v Expr.t
+        ; expr : 'v Expr.t
         }
   [@@deriving sexp_of, fold, map, iter]
 end

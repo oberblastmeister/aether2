@@ -49,7 +49,8 @@ module Impure_expr = struct
   include Impure_expr
 
   let get_ty = function
-    | Load { ty; _ } | Alloca { ty; _ } | Call { ty; _ } -> ty
+    | Load { ty; _ } | Call { ty; _ } -> ty
+    | Alloca _ -> U64
   ;;
 
   let iter_uses i ~f = iter f i

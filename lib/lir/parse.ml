@@ -15,6 +15,7 @@ let create_state () =
 let parse_ty =
   Parser.atom (function
     | "u64" -> Ty.U64
+    | "i64" -> Ty.I64
     | "u1" -> Ty.U1
     | "void" -> Ty.Void
     | _ -> Parser.parse_error [%message "unknown type"])
@@ -22,6 +23,7 @@ let parse_ty =
 
 let parse_label st = Parser.atom (fun s -> Intern_table.name_of_key st.label_intern s)
 let parse_var st = Parser.atom (fun s -> Intern_table.name_of_key st.name_intern s)
+let parse_int32 = Parser.atom Int32.of_string
 
 let parse_value st sexp =
   let@ xs = Parser.list_ref sexp in
@@ -79,6 +81,13 @@ and parse_impure_expr st sexp =
     let@ call = Parser.item xs in
     let call = parse_call st call in
     Impure_expr.Call { ty; call }
+  | "load" ->
+    let ty = Parser.item xs parse_ty in
+    let pointer = Parser.item xs (parse_expr st) in
+    Load { ty; pointer }
+  (* | "alloca" ->
+    let size = Parser.item xs parse_int32 in
+    Alloca { size } *)
   | name -> raise_s [%message "unknown impure expr" (name : string)]
 
 and parse_call st sexp =
@@ -142,6 +151,11 @@ let parse_instr st sexp =
     let j1 = Parser.item xs (parse_block_call st) in
     let j2 = Parser.item xs (parse_block_call st) in
     instr_c (Control_instr.CondJump (v, j1, j2))
+  | "store" ->
+    let ty = Parser.item xs parse_ty in
+    let pointer = Parser.item xs (parse_expr st) in
+    let expr = Parser.item xs (parse_expr st) in
+    instr_o (Store { ty; pointer; expr })
   | _ -> Parser.parse_error [%message "unknown instruction" ~name:instr_name]
 ;;
 

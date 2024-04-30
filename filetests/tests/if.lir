@@ -19,7 +19,7 @@
     (ret r)
   )
 )
-    
+
 (define (entry) void
   (block (start)
     (set x (const u64 2))

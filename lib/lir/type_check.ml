@@ -70,9 +70,25 @@ let check_call cx is_void (ty : Ty.t) Call.{ name; args } =
   ()
 ;;
 
+let check_ty_bin_op ty op =
+  match ty with
+  | Ty.U64 | I64 -> ()
+  | _ -> error [%message "type not supported" (ty : Ty.t) (op : Bin_op.t)]
+;;
+
+let check_ty_cmp_op ty op =
+  match ty with
+  | Ty.U64 | I64 -> ()
+  | _ -> error [%message "type not supported" (ty : Ty.t) (op : Cmp_op.t)]
+;;
+
+(* match ty, op with
+   | *)
+
 let rec check_expr cx (expr : Value.t Expr.t) =
   match expr with
-  | Bin { ty; v1; v2; _ } ->
+  | Bin { ty; v1; v2; op } ->
+    check_ty_bin_op ty op;
     check_ty_equal ty (Expr.get_ty v1);
     check_ty_equal ty (Expr.get_ty v2);
     check_expr cx v1;
@@ -83,8 +99,11 @@ let rec check_expr cx (expr : Value.t Expr.t) =
      | Void -> error [%message "cannot use const with unit" (const : int64)]
      | U1 when Int64.(const <= 1L) -> ()
      | U1 -> error [%message "U1 constant out of range" (const : int64)]
-     | U64 -> ())
-  | Cmp { ty; v1; v2; _ } ->
+     (* check out of bounds here *)
+     | U64 -> ()
+     | I64 -> ())
+  | Cmp { ty; v1; v2; op } ->
+    check_ty_cmp_op ty op;
     check_ty_equal ty (Expr.get_ty v1);
     check_ty_equal ty (Expr.get_ty v2);
     check_expr cx v1;

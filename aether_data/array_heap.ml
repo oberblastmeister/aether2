@@ -242,7 +242,6 @@ module Indexed = struct
   let unsafe_remove ~cmp t key =
     let heap_index = A.unsafe_get_some_assuming_some t.qp key in
     let heap_len = length t in
-    (* print_s [%message "removing" (key : int) (heap_index : int)]; *)
     let v = A.unsafe_get_some_assuming_some t.values key in
     unsafe_swap t heap_index (heap_len - 1);
     A.unsafe_set_none t.values key;

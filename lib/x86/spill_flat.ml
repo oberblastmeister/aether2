@@ -53,7 +53,9 @@ let lower_instr cx instr =
         (spilled : Stack_slot.t list)];
     ());
   assert (List.length spilled <= 9);
-  let name_and_victim, remaining = List.zip_with_remainder spilled unused_registers in
+  let stack_slot_and_victim, remaining =
+    List.zip_with_remainder spilled unused_registers
+  in
   (match remaining with
    | Some (Second _) -> ()
    | Some (First _) | None ->
@@ -61,33 +63,35 @@ let lower_instr cx instr =
        [%message
          "impossible, list of registers must be greater than number of spilled because \
           we have only 9 maximum spills"]);
-  let victims = List.map name_and_victim ~f:snd in
+  let victims = List.map stack_slot_and_victim ~f:snd in
   (* spill victims *)
   List.iter victims ~f:(Cx.spill_reg cx);
-  let victim_of_spilled =
-    List.iter name_and_victim |> Hashtbl.of_iter (module Stack_slot)
-  in
   (* move spilled uses to the victims *)
   Flat.Instr.iter_uses instr
   |> F.Iter.filter_map ~f:AReg.spilled_val
   |> F.Iter.iter ~f:(fun (`s s, `name spilled) ->
-    let reg = Hashtbl.find_exn victim_of_spilled spilled in
+    let reg = List.Assoc.find_exn ~equal:Stack_slot.equal stack_slot_and_victim spilled in
     Cx.add_instr cx @@ Flat.Instr.mov_to_reg_from_stack s reg spilled;
     ());
   (* use the victims instead of the stack slots *)
-  let minstr_with_victims =
+  let instr_with_victims =
     Flat.Instr.map_regs instr ~f:(fun areg ->
       match areg with
       | Spilled { s; name } ->
-        MReg.create ~name:name.name s (Hashtbl.find_exn victim_of_spilled name)
+        MReg.create
+          ~name:name.name
+          s
+          (List.Assoc.find_exn ~equal:Stack_slot.equal stack_slot_and_victim name)
       | InReg { s; name; reg } -> MReg.create ?name s reg)
   in
-  Cx.add_instr cx minstr_with_victims;
+  Cx.add_instr cx instr_with_victims;
   (* move defined victim registers to the stack slot *)
   Flat.Instr.iter_defs instr (fun def ->
     match def with
     | Spilled { s; name } ->
-      let victim = Hashtbl.find_exn victim_of_spilled name in
+      let victim =
+        List.Assoc.find_exn ~equal:Stack_slot.equal stack_slot_and_victim name
+      in
       Cx.add_instr cx @@ Flat.Instr.mov_to_stack_from_reg s name victim;
       ()
     | _ -> ());

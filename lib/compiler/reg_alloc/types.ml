@@ -45,36 +45,6 @@ let sexp_of_alloation_with ~enum f t =
     , ("used_registers", (Data.Enum_set.sexp_of_t_with ~enum t.used_registers : Sexp.t))]
 ;;
 
-module Constraints = struct
-  type 'r t = 'r Data.Enum_set.t Name.Table.t
-
-  let sexp_of_t_with ~enum = Name.Table.sexp_of_t (Data.Enum_set.sexp_of_t_with ~enum)
-  let create () = Name.Table.create ()
-
-  let add ~enum t name reg =
-    match Name.Table.find t name with
-    | None ->
-      Name.Table.set
-        t
-        ~key:name
-        ~data:
-          (let set = Data.Enum_set.create ~enum () in
-           Data.Enum_set.add ~enum set reg;
-           set)
-    | Some set -> Data.Enum_set.add ~enum set reg
-  ;;
-
-  let find t name = Name.Table.find t name
-
-  let count t name =
-    Name.Table.find t name |> Option.value_map ~default:0 ~f:Data.Enum_set.count
-  ;;
-
-  let iter_counts t =
-    Entity.Map.iteri t |> F.Iter.map ~f:(Tuple2.map_snd ~f:Data.Enum_set.count)
-  ;;
-end
-
 module type Algorithm = sig
   val run
     :  dict:'r dict

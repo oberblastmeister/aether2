@@ -19,14 +19,6 @@ end
 module Make (Config : Config) : sig
   open Config
   module Interference = Interference
-
-  module Constraints : sig
-    type t [@@deriving sexp_of]
-
-    val create : unit -> t
-    val add : t -> Name.t -> Register.t -> unit
-  end
-
   module Allocation : Allocation with module Config := Config
 
   module type Algorithm = sig
@@ -52,15 +44,6 @@ end = struct
         }
     }
   ;;
-
-  module Constraints = struct
-    include Constraints
-
-    type t = Register.t Constraints.t
-
-    let sexp_of_t = Constraints.sexp_of_t_with ~enum:Register_enum.enum
-    let add = add ~enum:Register_enum.enum
-  end
 
   module Allocation = struct
     type t = Register.t allocation
