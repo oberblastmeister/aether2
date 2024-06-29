@@ -4,7 +4,7 @@
  (name aether2)
  (inline_tests)
  (flags
-  (:standard -warn-error -A))
+  (:standard -warn-error -A -w -23))
  (preprocess
   (pps
    ppx_deriving.enum

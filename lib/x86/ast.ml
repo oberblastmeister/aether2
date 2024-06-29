@@ -13,6 +13,7 @@ module Size = struct
 
   let to_byte_size = function
     | Q -> 8
+    | B -> 1
   ;;
 end
 
@@ -24,7 +25,7 @@ module MReg = struct
     }
   [@@deriving equal, compare, hash]
 
-  let sexp_of_t { s; name; reg } =
+  let sexp_of_t { name; reg; _ } =
     match name with
     | None -> [%sexp (reg : Mach_reg.t)]
     | Some name -> [%sexp (name : string), (reg : Mach_reg.t)]

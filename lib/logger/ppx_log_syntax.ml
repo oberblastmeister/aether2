@@ -1,4 +1,4 @@
-open Core
+open! Core
 
 let string_of_level = function
   | `Debug -> "DEBUG"

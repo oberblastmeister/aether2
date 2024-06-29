@@ -11,19 +11,19 @@ module Option_array = struct
 
   (* TODO: inline not allowed on definitions, needs to be a function n *)
   module Safe_ops : Ops = struct
-    let[@inline always] unsafe_get_some_assuming_some = Option_array.get_some_exn
-    let[@inline always] unsafe_set_some = Option_array.set_some
-    let[@inline always] unsafe_swap = Option_array.swap
-    let[@inline always] unsafe_set_none = Option_array.set_none
-    let[@inline always] unsafe_is_some = Option_array.is_some
+    let[@inline always] unsafe_get_some_assuming_some t i = Option_array.get_some_exn t i
+    let[@inline always] unsafe_set_some t i x = Option_array.set_some t i x
+    let[@inline always] unsafe_swap t i j = Option_array.swap t i j
+    let[@inline always] unsafe_set_none t i = Option_array.set_none t i
+    let[@inline always] unsafe_is_some t i = Option_array.is_some t i
   end
 
   module Unsafe_ops : Ops = struct
-    let[@inline always] unsafe_get_some_assuming_some =
-      Option_array.unsafe_get_some_assuming_some
+    let[@inline always] unsafe_get_some_assuming_some t i =
+      Option_array.unsafe_get_some_assuming_some t i
     ;;
 
-    let[@inline always] unsafe_set_some = Option_array.unsafe_set_some
+    let[@inline always] unsafe_set_some t i = Option_array.unsafe_set_some t i
 
     let[@inline always] unsafe_swap t i j =
       let tmp = unsafe_get_some_assuming_some t i in
@@ -31,8 +31,8 @@ module Option_array = struct
       unsafe_set_some t j tmp
     ;;
 
-    let[@inline always] unsafe_set_none = Option_array.unsafe_set_none
-    let[@inline always] unsafe_is_some = Option_array.unsafe_is_some
+    let[@inline always] unsafe_set_none t i = Option_array.unsafe_set_none t i
+    let[@inline always] unsafe_is_some t i = Option_array.unsafe_is_some t i
   end
 
   module Ops : Ops = Safe_ops
