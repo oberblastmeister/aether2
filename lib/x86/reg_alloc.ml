@@ -173,9 +173,7 @@ let apply_allocation_block cx (block : VReg.t Block.t) =
 (* TODO: handle using callee saved registers *)
 let apply_allocation_function ~allocation ~stack_builder (fn : VReg.t Function.t) =
   let cx = { allocation; stack_builder } in
-  let graph =
-    Graph.map_blocks fn.graph ~f:(fun block -> apply_allocation_block cx block)
-  in
+  let graph = Cfg.Graph.map fn.graph ~f:(fun block -> apply_allocation_block cx block) in
   let params = (List.map & Tuple2.map_fst) fn.params ~f:(apply_vreg cx) in
   let stack_params = List.map fn.stack_params ~f:(apply_vreg cx) in
   { fn with graph; params; stack_params }

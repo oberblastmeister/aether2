@@ -1,10 +1,76 @@
 open! O
-include Ast_types
 module Name = Utils.Instr_types.Name
 module Label = Utils.Instr_types.Label
 module Stack_slot = Utils.Instr_types.Stack_slot
 module Control = Utils.Instr_types.Control
 module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
+
+module Size = struct
+  type t =
+    | Q
+    | B
+  [@@deriving equal, compare, hash, sexp]
+
+  let to_byte_size = function
+    | Q -> 8
+  ;;
+end
+
+module MReg = struct
+  type t =
+    { s : Size.t
+    ; name : string option
+    ; reg : Mach_reg.t
+    }
+  [@@deriving equal, compare, hash]
+
+  let sexp_of_t { s; name; reg } =
+    match name with
+    | None -> [%sexp (reg : Mach_reg.t)]
+    | Some name -> [%sexp (name : string), (reg : Mach_reg.t)]
+  ;;
+
+  let create ?name s reg = { s; name; reg }
+end
+
+module Stack_instr = struct
+  type t =
+    | ReserveEnd of { size : int32 }
+    | ReserveLocal of
+        { stack_slot : Stack_slot.t
+        ; size : int32
+        }
+  [@@deriving sexp_of]
+end
+
+module Cmp_op = struct
+  type t = Gt [@@deriving equal, compare, sexp]
+end
+
+module Stack_off = struct
+  type t =
+    (* to access arguments for this function *)
+    | Start of int32
+    (* use ReserveStackEnd *)
+    (* used to put arguments on the stack to call a function *)
+    | End of int32
+    | Local of Stack_slot.t
+  [@@deriving sexp_of]
+end
+
+module Imm = struct
+  type t =
+    | Int of int32
+    | Stack of Stack_off.t
+  [@@deriving sexp_of, map, fold]
+end
+
+module Ty = struct
+  type t =
+    | U1
+    | U64
+  [@@deriving equal, compare, sexp, hash, variants]
+end
 
 module Mach_reg = struct
   include Mach_reg
@@ -18,7 +84,17 @@ module Mach_reg = struct
 end
 
 module AReg = struct
-  include AReg
+  type t =
+    | Spilled of
+        { s : Size.t [@equal.ignore]
+        ; name : Stack_slot.t
+        }
+    | InReg of
+        { s : Size.t [@equal.ignore]
+        ; name : string option [@equal.ignore]
+        ; reg : Mach_reg.t
+        }
+  [@@deriving equal, sexp_of, variants]
 
   let reg_val = function
     | InReg { reg; _ } -> Some reg
@@ -31,45 +107,75 @@ module AReg = struct
 end
 
 module VReg = struct
-  include VReg
+  (* make this a variant so we can have unnamed virtual registers *)
+  module T = struct
+    type t =
+      { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
+      ; name : Name.t
+      }
+    [@@deriving equal, compare, sexp, hash, fields]
+  end
+
+  include T
+  include Comparable.Make (T)
 
   (* let to_name r = r.name *)
   let create s name = { s; name }
-  let precolored s name = { s; name }
-end
-
-module Size = struct
-  include Size
-
-  let to_byte_size = function
-    | Q -> 8
-  ;;
-end
-
-module Stack_off = struct
-  include Stack_off
 end
 
 module Address = struct
-  include Address
-
   module Base = struct
-    include Base
+    type 'r t =
+      | None
+      | Reg of 'r
+      | Rip
+      | Rsp
+    [@@deriving sexp_of, variants, map, fold, iter]
 
-    let iter_regs a k = reg_val a |> Option.iter ~f:k
+    let iter_regs a ~f = reg_val a |> Option.iter ~f
   end
 
   module Scale = struct
-    include Scale
+    type t =
+      | One
+      | Two
+      | Four
+      | Eight
+    [@@deriving equal, compare, sexp, hash, sexp]
+
+    let to_int = function
+      | One -> 1
+      | Two -> 2
+      | Four -> 4
+      | Eight -> 8
+    ;;
   end
 
   module Index = struct
-    include Index
+    type 'r t =
+      | None
+      | Some of
+          { index : 'r
+          ; scale : Scale.t
+          }
+    [@@deriving sexp_of, variants, map, fold, iter]
 
-    let iter_regs a k =
-      some_val a |> Option.iter ~f:(fun (`index index, `scale _) -> k index)
+    let iter_regs a ~f =
+      some_val a |> Option.iter ~f:(fun (`index index, `scale _) -> f index)
     ;;
   end
+
+  type 'r t =
+    | Imm of
+        { offset : Imm.t
+        ; scale : Scale.t
+        }
+    | Complex of
+        { base : 'r Base.t
+        ; index : 'r Index.t
+        ; offset : Imm.t
+        }
+  [@@deriving sexp_of, map, fold, iter]
 
   let stack_offset imm = Complex { base = Rsp; index = None; offset = Stack imm }
   let stack_off_end i = stack_offset (End i)
@@ -83,29 +189,38 @@ module Address = struct
   let base_offset base offset = Complex { base; index = None; offset }
   let rip_relative offset = base_offset Base.Rip offset
 
-  let iter_regs a ~f:k =
+  let iter_regs a ~f =
     match a with
     | Imm _ -> ()
     | Complex { base; index; _ } ->
-      Base.iter_regs base k;
-      Index.iter_regs index k
+      Base.iter_regs base ~f;
+      Index.iter_regs index ~f
   ;;
 end
 
 module Mem = struct
-  include Mem
+  type 'r t =
+    { size : Size.t
+    ; addr : 'r Address.t
+    }
+  [@@deriving sexp_of, map, fold, iter]
 
   let iter_regs a = Address.iter_regs a.addr
+  let map_addr t ~f = { t with addr = f t.addr }
 end
 
 module Operand = struct
-  include Operand
+  type 'r t =
+    | Imm of Imm.t
+    | Reg of 'r
+    | Mem of 'r Mem.t
+  [@@deriving sexp_of, variants, map, fold, iter]
 
+  let mem size addr = Mem { size; addr }
   let imm i = Imm (Imm.Int i)
-  let stack_off_end s i = Operand.mem s (Address.stack_off_end i)
-  let stack_local s name = Operand.mem s (Address.stack_local name)
+  let stack_off_end s i = mem s (Address.stack_off_end i)
+  let stack_local s name = mem s (Address.stack_local name)
   let vreg s name = Reg (VReg.create s name)
-  let precolored s name = Reg (VReg.precolored s name)
   let iter_reg_val o ~f:k = reg_val o |> Option.iter ~f:k
   let iter_mem_val o ~f:k = mem_val o |> Option.iter ~f:k
   let iter_mem_regs o ~f:k = (iter_mem_val @> Mem.iter_regs) o ~f:k
@@ -124,24 +239,36 @@ module Operand = struct
 end
 
 module Block_call = struct
-  include Block_call
+  type 'r t =
+    { label : Label.t
+    ; args : 'r list
+    }
+  [@@deriving sexp_of, fold, map, iter]
 
-  let iter_uses (type r) (instr : r t) (k : r -> unit) = instr.args |> List.iter ~f:k
+  let iter_uses (type r) (instr : r t) ~(f : r -> unit) = instr.args |> List.iter ~f
   let map_regs i ~f = map f i
 end
 
 module Jump = struct
-  include Jump
+  type 'r t =
+    | Jump of 'r Block_call.t
+    | CondJump of
+        { cond : Cond.t
+        ; j1 : 'r Block_call.t
+        ; j2 : 'r Block_call.t
+        }
+    | Ret of 'r Operand.t option
+  [@@deriving sexp_of, fold, map, iter]
 
   let map_regs i ~f = map f i
 
-  let iter_uses i k =
+  let iter_uses i ~f =
     match i with
-    | Jump j -> Block_call.iter_uses j k
+    | Jump j -> Block_call.iter_uses j ~f
     | CondJump { j1; j2; _ } ->
-      Block_call.iter_uses j1 k;
-      Block_call.iter_uses j2 k
-    | Ret r -> Option.iter r ~f:(fun o -> Operand.iter_any_regs o ~f:k)
+      Block_call.iter_uses j1 ~f;
+      Block_call.iter_uses j2 ~f
+    | Ret r -> Option.iter r ~f:(fun o -> Operand.iter_any_regs o ~f)
   ;;
 
   let iter_block_calls j ~f:k =
@@ -163,12 +290,35 @@ module Jump = struct
   let map_regs i = (map_block_calls & Block_call.map_regs) i
 end
 
+module Precolored = struct
+  type 'r t =
+    | Precolored of
+        { s : Size.t
+        ; reg : Mach_reg.t
+        }
+    | Reg of 'r
+  [@@deriving sexp_of, equal, compare, map]
+end
+
 module VInstr = struct
-  include VInstr
+  (* TODO: allow operands in par mov source *)
+  (* TODO: put stack operations in separate type *)
+  type 'r t =
+    (* for calling conventions*)
+    (* | ReserveStackEnd of { size : int32 } *)
+    (* | ReserveStackLocal of
+        { name : Name.t
+        ; size : int32
+        } *)
+    (* for ssa *)
+    | Block_args of 'r list
+    (* | Par_mov of ('r Precolored.t * 'r Precolored.t) list *)
+    | Par_mov of ('r * 'r) list
+  [@@deriving sexp_of, variants, map]
 
   let map_regs i ~f = map f i
 
-  let iter_regs i f =
+  let iter_regs i ~f =
     let module O = Operand in
     let module A = Address in
     match i with
@@ -198,7 +348,71 @@ module VInstr = struct
 end
 
 module Instr = struct
-  include Instr
+  type 'r t =
+    | NoOp
+    | Mov of
+        { dst : 'r Operand.t
+        ; src : 'r Operand.t
+        }
+    | Lea of
+        { dst : 'r
+        ; src : 'r Address.t
+        }
+    | Add of
+        { dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    | Sub of
+        { dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    | Push of { src : 'r }
+    | Pop of { dst : 'r }
+    | MovAbs of
+        { dst : 'r Operand.t
+        ; imm : int64
+        }
+    | Cmp of
+        { src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    | Test of
+        { src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    | Set of
+        { cond : Cond.t
+        ; dst : 'r Operand.t
+        }
+    | Call of
+        { name : string
+        ; reg_args : (Mach_reg.t * 'r) list
+        ; defines : Mach_reg.t list (* caller saved registers*)
+        ; dst : ('r * Mach_reg.t) option
+        }
+    | Jump of 'r Jump.t
+    | Virt of 'r VInstr.t
+  [@@deriving sexp_of, map]
+
+  let sexp_of_t f = function
+    | Virt v -> VInstr.sexp_of_t f v
+    | Jump v -> Jump.sexp_of_t f v
+    | instr -> sexp_of_t f instr
+  ;;
+
+  let jump_val = function
+    | Jump j -> Some j
+    | _ -> None
+  ;;
+
+  let virt_val = function
+    | Virt v -> Some v
+    | _ -> None
+  ;;
+
+  let map_regs t ~f = map f t
 
   (* add a on_mach_reg parameter *)
   (* then add a specialized fold_mach_regs *)
@@ -229,7 +443,7 @@ module Instr = struct
       List.iter reg_args ~f:(fun (_, arg) -> on_use (Reg arg));
       Option.iter dst ~f:(fun (dst, _) -> on_def (Reg dst));
       ()
-    | Jump jump -> Jump.iter_uses jump (fun reg -> on_use (Reg reg))
+    | Jump jump -> Jump.iter_uses jump ~f:(fun reg -> on_use (Reg reg))
     | Virt vinstr ->
       VInstr.iter_uses vinstr ~f:(fun reg -> on_use (Reg reg));
       VInstr.iter_defs vinstr ~f:(fun reg -> on_def (Reg reg))
@@ -286,9 +500,15 @@ module Instr = struct
   ;;
 end
 
-module Block = struct
-  include Block
+module Some_instr = struct
+  type t = T : 'r Instr.t -> t [@@deriving sexp_of]
+end
 
+module Block = struct
+  type 'r t = { instrs : ('r Instr.t, read) Vec.t } [@@deriving sexp_of, fields]
+
+  let map_regs b ~f = { b with instrs = (Vec.map_copy & Instr.map_regs) b.instrs ~f }
+  let map_instrs b ~f = { b with instrs = Vec.map_copy b.instrs ~f }
   let first_instr b = Vec.first b.instrs
 
   let jump_exn block =
@@ -318,12 +538,12 @@ module Block = struct
 
   let cons instr b = { instrs = Vec.cons instr b.instrs }
 
-  let iter_jumps block ~f:k =
+  let iter_jumps block ~f =
     match jump_exn block with
-    | Jump j -> k j.label
+    | Jump j -> f j.label
     | CondJump { j1; j2; _ } ->
-      k j1.label;
-      k j2.label
+      f j1.label;
+      f j2.label
     | Ret _ -> ()
   ;;
 
@@ -332,26 +552,38 @@ module Block = struct
 end
 
 module Graph = struct
-  include Graph
+  type 'r t = 'r Block.t Cfg.Graph.t [@@deriving sexp_of]
+
+  let map_regs g ~f = (Cfg.Graph.map & Block.map_regs) ~f g
 
   include Cfg.Graph.Make_gen (struct
       type 'r t = 'r Block.t
 
       let iter_jumps = Block.iter_jumps
     end)
-
-  let map_blocks = Cfg.Graph.map
 end
 
 module Function = struct
-  include Function
+  type 'r t =
+    { name : string
+    ; graph : 'r Graph.t
+    ; params : ('r * MReg.t) list
+    ; stack_params : 'r list
+    ; unique_name : Name.Id.t
+    ; unique_stack_slot : Stack_slot.Id.t
+    ; caller_saved : Mach_reg.t list
+    ; stack_instrs : Stack_instr.t list
+    }
+  [@@deriving sexp_of, fields]
 
+  let map_regs fn ~f = { fn with graph = Graph.map_regs ~f fn.graph }
+  let all_params fn = List.map fn.params ~f:fst @ fn.stack_params
   let iter_instrs_forward fn = (Cfg.Graph.iter @> Block.iter_instrs_forward) fn.graph
-  let map_blocks fn ~f = { fn with graph = Graph.map_blocks fn.graph ~f }
+  let map_blocks fn ~f = { fn with graph = Cfg.Graph.map fn.graph ~f }
 end
 
 module Program = struct
-  include Program
+  type 'r t = { functions : 'r Function.t list } [@@deriving sexp_of, fields]
 
   let map_functions program ~f = { functions = List.map program.functions ~f }
   let iter_functions program ~f = List.iter program.functions ~f

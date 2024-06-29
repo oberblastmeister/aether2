@@ -66,7 +66,7 @@ let legalize_vinstr cx instr =
 ;;
 
 let legalize_instr cx (instr : AReg.t Instr.t) =
-  let open Ast_types.Instr in
+  let open Ast.Instr in
   let force_register ~size o =
     let reg = AReg.InReg { s = size; name = Some "scratch"; reg = Mach_reg.R11 } in
     Cx.add cx @@ Mov { dst = Reg reg; src = to_op o };

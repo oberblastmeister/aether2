@@ -82,7 +82,7 @@ module Instr = struct
       i
       ~on_use:(fun op -> Op.iter_any_regs op ~f)
       ~on_def:(function
-        | Mem m -> Ast_types.Mem.iter_regs m ~f
+        | Mem m -> Ast.Mem.iter_regs m ~f
         | _ -> ())
   ;;
 
