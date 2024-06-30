@@ -214,32 +214,59 @@ let%test_module _ =
                ((body.3
                  ((instrs
                    ((Block_args ())
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.16))))
+                     (src (Reg ((s Q) (name e.10)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.17)))) (src (Imm (Int 1))))
                     (Add (dst (Reg ((s Q) (name e.8))))
-                     (src1 (Reg ((s Q) (name e.10)))) (src2 (Imm (Int 1))))
+                     (src1 (Reg ((s Q) (name expr_tmp.16))))
+                     (src2 (Reg ((s Q) (name expr_tmp.17)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.15))))
+                     (src (Reg ((s Q) (name e.8)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.19))))
+                     (src (Reg ((s Q) (name r.11)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.20))))
+                     (src (Reg ((s Q) (name b.0)))))
                     (Add (dst (Reg ((s Q) (name r.6))))
-                     (src1 (Reg ((s Q) (name r.11))))
-                     (src2 (Reg ((s Q) (name b.0)))))
+                     (src1 (Reg ((s Q) (name expr_tmp.19))))
+                     (src2 (Reg ((s Q) (name expr_tmp.20)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.18))))
+                     (src (Reg ((s Q) (name r.6)))))
                     (Jump
-                     ((label loop.1) (args (((s Q) (name e.8)) ((s Q) (name r.6))))))))))
+                     ((label loop.1)
+                      (args (((s Q) (name expr_tmp.15)) ((s Q) (name expr_tmp.18))))))))))
                 (done.2
-                 ((instrs ((Block_args ()) (Ret ((Reg ((s Q) (name r.11)))))))))
+                 ((instrs
+                   ((Block_args ())
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.21))))
+                     (src (Reg ((s Q) (name r.11)))))
+                    (Ret ((Reg ((s Q) (name expr_tmp.21)))))))))
                 (loop.1
                  ((instrs
                    ((Block_args (((s Q) (name e.10)) ((s Q) (name r.11))))
-                    (Cmp (src1 (Reg ((s Q) (name e.10)))) (src2 (Imm (Int 0))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.23))))
+                     (src (Reg ((s Q) (name e.10)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.24)))) (src (Imm (Int 0))))
+                    (Cmp (src1 (Reg ((s Q) (name expr_tmp.23))))
+                     (src2 (Reg ((s Q) (name expr_tmp.24)))))
                     (Set (cond A) (dst (Reg ((s B) (name f.13)))))
-                    (Test (src1 (Reg ((s B) (name f.13))))
-                     (src2 (Reg ((s B) (name f.13)))))
+                    (Mov (dst (Reg ((s B) (name expr_tmp.22))))
+                     (src (Reg ((s B) (name f.13)))))
+                    (Test (src1 (Reg ((s B) (name expr_tmp.22))))
+                     (src2 (Reg ((s B) (name expr_tmp.22)))))
                     (CondJump (cond NE) (j1 ((label done.2) (args ())))
                      (j2 ((label body.3) (args ()))))))))
                 (start.0
                  ((instrs
-                   ((Block_args ()) (MovAbs (dst (Reg ((s Q) (name r.2)))) (imm 1))
+                   ((Block_args ())
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.25))))
+                     (src (Reg ((s Q) (name e.1)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.26)))) (src (Imm (Int 1))))
                     (Jump
-                     ((label loop.1) (args (((s Q) (name e.1)) ((s Q) (name r.2))))))))))))
+                     ((label loop.1)
+                      (args (((s Q) (name expr_tmp.25)) ((s Q) (name expr_tmp.26))))))))))))
               (exit done.2)))
             (params ((((s Q) (name b.0)) RDI) (((s Q) (name e.1)) RSI)))
-            (stack_params ()) (unique_name 15) (unique_stack_slot 0)
+            (stack_params ()) (unique_name 27) (unique_stack_slot 0)
             (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)) (stack_instrs ()))))) |}]
     ;;
 
@@ -260,35 +287,46 @@ let%test_module _ =
         	.type	pow,@function
         	.globl	pow
         pow:
-        	sub	rsp, 8
+        	sub	rsp, 0
         	mov	rax, rdi
         	mov	rdi, rsi
         # label: start
         .L00:
-        	movabs	rsi, 1
+        	mov	rdi, rdi
+        	mov	rsi, 1
         	mov	rdx, rsi
         	jmp .L01
         # label: loop
         .L01:
-        	cmp	rdi, 0
+        	mov	rdi, rdi
+        	mov	rsi, 0
+        	cmp	rdi, rsi
         	seta	sil
+        	mov	sil, sil
         	test	sil, sil
         	jne .L02
         	jmp .L03
         # label: body
         .L03:
-        	mov	r11, rdi
-        	add	r11, 1
+        	mov	rsi, rdi
+        	mov	rdi, 1
+        	mov	r11, rsi
+        	add	r11, rdi
         	mov	rdi, r11
-        	mov	r11, rdx
+        	mov	rdi, rdi
+        	mov	rsi, rdx
+        	mov	rax, rax
+        	mov	r11, rsi
         	add	r11, rax
         	mov	rsi, r11
+        	mov	rsi, rsi
         	mov	rdx, rsi
         	jmp .L01
         # label: done
         .L02:
         	mov	rax, rdx
-        	add	rsp, 8
+        	mov	rax, rax
+        	add	rsp, 0
         	ret |}]
     ;;
   end)
@@ -372,33 +410,58 @@ let%test_module _ =
                ((done.3
                  ((instrs
                    ((Block_args (((s Q) (name r.12))))
-                    (Ret ((Reg ((s Q) (name r.12)))))))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.13))))
+                     (src (Reg ((s Q) (name r.12)))))
+                    (Ret ((Reg ((s Q) (name expr_tmp.13)))))))))
                 (else.2
                  ((instrs
                    ((Block_args ())
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.15)))) (src (Imm (Int 5))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.17))))
+                     (src (Reg ((s Q) (name x.0)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.18))))
+                     (src (Reg ((s Q) (name y.1)))))
                     (Add (dst (Reg ((s Q) (name a.7))))
-                     (src1 (Reg ((s Q) (name x.0)))) (src2 (Reg ((s Q) (name y.1)))))
-                    (Add (dst (Reg ((s Q) (name r.8)))) (src1 (Imm (Int 5)))
-                     (src2 (Reg ((s Q) (name a.7)))))
-                    (Jump ((label done.3) (args (((s Q) (name r.8))))))))))
+                     (src1 (Reg ((s Q) (name expr_tmp.17))))
+                     (src2 (Reg ((s Q) (name expr_tmp.18)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.16))))
+                     (src (Reg ((s Q) (name a.7)))))
+                    (Add (dst (Reg ((s Q) (name r.8))))
+                     (src1 (Reg ((s Q) (name expr_tmp.15))))
+                     (src2 (Reg ((s Q) (name expr_tmp.16)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.14))))
+                     (src (Reg ((s Q) (name r.8)))))
+                    (Jump ((label done.3) (args (((s Q) (name expr_tmp.14))))))))))
                 (start.0
                  ((instrs
                    ((Block_args ())
-                    (Cmp (src1 (Reg ((s Q) (name x.0)))) (src2 (Imm (Int 9))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.20))))
+                     (src (Reg ((s Q) (name x.0)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.21)))) (src (Imm (Int 9))))
+                    (Cmp (src1 (Reg ((s Q) (name expr_tmp.20))))
+                     (src2 (Reg ((s Q) (name expr_tmp.21)))))
                     (Set (cond A) (dst (Reg ((s B) (name f.3)))))
-                    (Test (src1 (Reg ((s B) (name f.3))))
-                     (src2 (Reg ((s B) (name f.3)))))
+                    (Mov (dst (Reg ((s B) (name expr_tmp.19))))
+                     (src (Reg ((s B) (name f.3)))))
+                    (Test (src1 (Reg ((s B) (name expr_tmp.19))))
+                     (src2 (Reg ((s B) (name expr_tmp.19)))))
                     (CondJump (cond NE) (j1 ((label then.1) (args ())))
                      (j2 ((label else.2) (args ()))))))))
                 (then.1
                  ((instrs
                    ((Block_args ())
-                    (Add (dst (Reg ((s Q) (name r.11)))) (src1 (Imm (Int 3)))
-                     (src2 (Reg ((s Q) (name x.0)))))
-                    (Jump ((label done.3) (args (((s Q) (name r.11))))))))))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.23)))) (src (Imm (Int 3))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.24))))
+                     (src (Reg ((s Q) (name x.0)))))
+                    (Add (dst (Reg ((s Q) (name r.11))))
+                     (src1 (Reg ((s Q) (name expr_tmp.23))))
+                     (src2 (Reg ((s Q) (name expr_tmp.24)))))
+                    (Mov (dst (Reg ((s Q) (name expr_tmp.22))))
+                     (src (Reg ((s Q) (name r.11)))))
+                    (Jump ((label done.3) (args (((s Q) (name expr_tmp.22))))))))))))
               (exit done.3)))
             (params ((((s Q) (name x.0)) RDI) (((s Q) (name y.1)) RSI)))
-            (stack_params ()) (unique_name 13) (unique_stack_slot 0)
+            (stack_params ()) (unique_name 25) (unique_stack_slot 0)
             (caller_saved (RAX RDI RSI RDX RCX R8 R9 R10 R11)) (stack_instrs ()))))) |}]
     ;;
 
@@ -440,34 +503,46 @@ let%test_module _ =
         	.type	if,@function
         	.globl	if
         if:
-        	sub	rsp, 8
+        	sub	rsp, 0
         	mov	rax, rdi
         # label: start
         .L00:
-        	cmp	rax, 9
+        	mov	rax, rax
+        	mov	rdi, 9
+        	cmp	rax, rdi
         	seta	dil
+        	mov	dil, dil
         	test	dil, dil
         	jne .L01
         	jmp .L02
         # label: else
         .L02:
+        	mov	rdi, 5
+        	mov	rax, rax
+        	mov	rsi, rsi
         	mov	r11, rax
         	add	r11, rsi
         	mov	rax, r11
-        	mov	r11, 5
+        	mov	rax, rax
+        	mov	r11, rdi
         	add	r11, rax
         	mov	rax, r11
+        	mov	rax, rax
         	jmp .L03
         # label: then
         .L01:
-        	mov	r11, 3
+        	mov	rdi, 3
+        	mov	rax, rax
+        	mov	r11, rdi
         	add	r11, rax
         	mov	rax, r11
+        	mov	rax, rax
         	jmp .L03
         # label: done
         .L03:
         	mov	rax, rax
-        	add	rsp, 8
+        	mov	rax, rax
+        	add	rsp, 0
         	ret |}]
     ;;
   end)
@@ -510,29 +585,35 @@ let%test_module _ =
         	.type	another,@function
         	.globl	another
         another:
-        	sub	rsp, 8
+        	sub	rsp, 0
         	mov	rax, rdi
         	mov	rdi, rsi
         # label: start
         .L00:
-        	movabs	rdi, 1
+        	mov	rdi, 1
         	mov	rax, rax
-        	add	rsp, 8
+        	mov	rax, rax
+        	add	rsp, 0
         	ret
         	.type	fn,@function
         	.globl	fn
         fn:
-        	sub	rsp, 8
+        	sub	rsp, 0
         	mov	rax, rdi
         # label: start
         .L10:
+        	mov	rax, rax
+        	mov	rdi, rsi
         	mov	r11, rax
-        	add	r11, rsi
+        	add	r11, rdi
         	mov	rdi, r11
+        	mov	rax, rax
+        	mov	rdi, rsi
+        	mov	rsi, rdi
         	mov	rdi, rax
         	call	another
         	mov	rax, rax
-        	add	rsp, 8
+        	add	rsp, 0
         	ret |}]
     ;;
   end)

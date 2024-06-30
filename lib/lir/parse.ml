@@ -299,7 +299,7 @@ let%expect_test _ =
              ((entry (((name arg.2) (ty U64))))
               (body
                ((Assign (dst ((name x.3) (ty U64)))
-                 (expr (Bin (ty U64) (op Add) (v1 _) (v2 _))))))
+                 (expr (Bin (ty U64) (op Add) (v1 (Val _)) (v2 (Val _)))))))
               (exit (Ret ()))))))
           (exit first.0)))
         (ty
