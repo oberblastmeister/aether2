@@ -13,11 +13,5 @@
    ppx_deriving.fold
    ppx_jane
    -log-source-position))
- (libraries
-  core
-  algaeff
-  folds
-  higher_kinded
-  aether_data
-  aether_entity)
+ (libraries core algaeff folds higher_kinded aether_data aether_entity)
  (ocamlopt_flags -S))

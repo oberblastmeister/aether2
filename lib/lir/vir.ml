@@ -1,8 +1,10 @@
 open! O
 
-module Lir = struct
-  include Instantiate
-  include Ast
+open struct
+  module Lir = struct
+    include Instantiate
+    include Ast
+  end
 end
 
 include Lir.Instantiate (struct

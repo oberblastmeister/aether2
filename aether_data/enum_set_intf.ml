@@ -39,6 +39,7 @@ end
 module type Intf = sig
   type nonrec 'a enum = 'a enum
   type 'a t
+
   module type S = S
 
   val create : enum:'a enum -> unit -> 'a t

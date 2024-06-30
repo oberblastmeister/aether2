@@ -1,10 +1,47 @@
 open! O
-include Ast_types
 module Name = Utils.Instr_types.Name
 module Label = Utils.Instr_types.Label
 module Control = Utils.Instr_types.Control
 
+module type Value = sig
+  type t [@@deriving sexp_of, compare, hash, equal]
+
+  include Base.Comparable.S with type t := t
+end
+
+module Ty = struct
+  type t =
+    | U1
+    | U64
+    | I64
+    | Void
+  [@@deriving equal, compare, hash, sexp]
+end
+
+module Bin_op = struct
+  type t =
+    | Add
+    | Sub
+  [@@deriving sexp]
+end
+
+module Cmp_op = struct
+  type t =
+    | Gt
+    | Ge
+    | Eq
+  [@@deriving sexp]
+end
+
 module Value = struct
+  module Value = struct
+    type t =
+      { name : Name.t
+      ; ty : Ty.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
+      }
+    [@@deriving equal, compare, hash, sexp, fields]
+  end
+
   include Value
   module Hashtbl = Hashtbl.Make (Value)
   module Hash_set = Hash_set.Make (Value)
@@ -16,14 +53,26 @@ end
 
 module ValueMap = Entity.Map.Make (Value)
 
-module Call = struct
-  include Call
-
-  let map_uses c ~f = map f c
-end
-
 module Expr = struct
-  include Expr
+  type 'v t =
+    | Bin of
+        { ty : Ty.t
+        ; op : Bin_op.t
+        ; v1 : 'v t
+        ; v2 : 'v t
+        }
+    | Const of
+        { ty : Ty.t
+        ; const : int64
+        }
+    | Cmp of
+        { ty : Ty.t
+        ; op : Cmp_op.t
+        ; v1 : 'v t
+        ; v2 : 'v t
+        }
+    | Val of 'v
+  [@@deriving sexp_of, fold, map, iter]
 
   let get_ty_with f = function
     | Bin { ty; _ } | Const { ty; _ } -> ty
@@ -39,14 +88,34 @@ module Expr = struct
 
   let get_val_exn = function
     | Val v -> v
-    | e -> raise_s [%message "expected value expression" ~got:(e : _ Expr.t)]
+    | e -> raise_s [%message "expected value expression" ~got:(e : _ t)]
   ;;
 
   let iter_uses i ~f = iter f i
 end
 
+module Call = struct
+  type 'v t =
+    { name : string
+    ; args : 'v Expr.t list
+    }
+  [@@deriving sexp_of, fold, map, iter]
+
+  let map_uses c ~f = map f c
+end
+
 module Impure_expr = struct
-  include Impure_expr
+  type 'v t =
+    | Load of
+        { ty : Ty.t
+        ; pointer : 'v Expr.t
+        }
+    | Alloca of { size : int32 }
+    | Call of
+        { ty : Ty.t
+        ; call : 'v Call.t
+        }
+  [@@deriving sexp_of, fold, map, iter]
 
   let get_ty = function
     | Load { ty; _ } | Call { ty; _ } -> ty
@@ -57,7 +126,22 @@ module Impure_expr = struct
 end
 
 module Instr = struct
-  include Instr
+  type 'v t =
+    | VoidCall of 'v Call.t
+    | Assign of
+        { dst : Value.t
+        ; expr : 'v Expr.t
+        }
+    | ImpureAssign of
+        { dst : Value.t
+        ; expr : 'v Impure_expr.t
+        }
+    | Store of
+        { ty : Ty.t
+        ; pointer : 'v Expr.t
+        ; expr : 'v Expr.t
+        }
+  [@@deriving sexp_of, fold, map, iter]
 
   let has_side_effect = function
     | VoidCall _ | ImpureAssign _ | Store _ -> true
@@ -82,17 +166,29 @@ module Instr = struct
   ;;
 
   let iter_uses i ~f = iter f i
-  let to_some i = Some_instr.T (Instr i)
+  (* let to_some i = Some_instr.T (Instr i) *)
 end
 
 module Block_call = struct
-  include Block_call
+  type 'v t =
+    { label : Label.t
+    ; args : 'v Expr.t list
+    }
+  [@@deriving sexp_of, fields, fold, map, iter]
 
   let map_uses i ~f = map f i
 end
 
+module Block_args = struct
+  type t = Value.t list [@@deriving sexp]
+end
+
 module Control_instr = struct
-  include Control_instr
+  type 'v t =
+    | Jump of 'v Block_call.t
+    | CondJump of ('v Expr.t * 'v Block_call.t * 'v Block_call.t)
+    | Ret of 'v Expr.t option
+  [@@deriving sexp_of, fold, map, iter]
 
   let map_uses i ~f = map f i
 
@@ -114,18 +210,36 @@ module Control_instr = struct
     | Ret v -> Ret v
   ;;
 
-  let to_some i = Some_instr.T (Control i)
+  (* let to_some i = Some_instr.T (Control i) *)
   let iter_uses i ~f = fold (fun () use -> f use) () i
 end
 
-module Block_args = struct
-  include Block_args
-
-  let to_some args = Some_instr.T (Block_args args)
-end
-
 module Generic_instr = struct
-  include Generic_instr
+  type ('v, 'c) t =
+    | Block_args : Block_args.t -> ('v, Control.e) t
+    | Instr : 'v Instr.t -> ('v, Control.o) t
+    | Control : 'v Control_instr.t -> ('v, Control.c) t
+
+  let sexp_of_t (type c v) (f : v -> Sexp.t) (i : (v, c) t) =
+    match i with
+    | Control c -> [%sexp "Control", (Control_instr.sexp_of_t f c : Sexp.t)]
+    | Block_args vs -> [%sexp "Block_args", (vs : Value.t list)]
+    | Instr op -> [%sexp "Instr", (Instr.sexp_of_t f op : Sexp.t)]
+  ;;
+
+  let fold (type c v) (i : (v, c) t) ~(init : 'a) ~(f : 'a -> v -> 'a) : 'a =
+    match i with
+    | Block_args _ -> init
+    | Instr instr -> Instr.fold f init instr
+    | Control c -> Control_instr.fold f init c
+  ;;
+
+  let map (type c) f (i : (_, c) t) : (_, c) t =
+    match i with
+    | Block_args vs -> Block_args vs
+    | Instr instr -> Instr (Instr.map f instr)
+    | Control c -> Control (Control_instr.map f c)
+  ;;
 
   let get_control : type v. (v, Control.c) t -> v Control_instr.t = function
     | Control c -> c
@@ -157,7 +271,7 @@ module Generic_instr = struct
     | Control c -> Control (Control_instr.map f c)
   ;;
 
-  let to_some i = Some_instr.T i
+  (* let to_some i = Some_instr.T i *)
   let iter_uses i ~f = fold i ~init:() ~f:(fun () u -> f u)
   let uses i = fold ~init:[] ~f:(Fn.flip List.cons) i
   let map_uses = map
@@ -188,9 +302,18 @@ module Generic_instr = struct
   let block_calls i = F.Fold.to_list iter_block_calls i
 end
 
-module Some_instr = struct
-  include Some_instr
+module Variant_instr = struct
+  type 'v t =
+    | Block_args : Block_args.t -> 'v t
+    | Instr : 'v Instr.t -> 'v t
+    | Control : 'v Control_instr.t -> 'v t
+end
 
+module Some_instr = struct
+  type 'v t = T : ('v, 'c) Generic_instr.t -> 'v t [@@unboxed]
+
+  let sexp_of_t f (T s) = Generic_instr.sexp_of_t f s
+  let map f (T s) = T (Generic_instr.map s ~f)
   let map_uses i ~f = map f i
   let iter_uses (T i) = Generic_instr.iter_uses i
   let iter_defs (T i) = Generic_instr.iter_defs i
@@ -211,7 +334,19 @@ module Some_instr = struct
 end
 
 module Block = struct
-  include Block
+  type 'v t =
+    { entry : Value.t list
+    ; body : 'v Instr.t list
+    ; exit : 'v Control_instr.t
+    }
+  [@@deriving fields, map]
+
+  let sexp_of_t f ({ entry; body; exit } : 'v t) =
+    [%sexp
+      ("entry", (entry : Value.t list))
+      , ("body", (List.sexp_of_t (Instr.sexp_of_t f) body : Sexp.t))
+      , ("exit", (Control_instr.sexp_of_t f exit : Sexp.t))]
+  ;;
 
   let map_exit t ~f = { t with exit = f t.exit }
 
@@ -231,17 +366,20 @@ module Block = struct
   ;;
 
   let iter_instrs_forward ({ entry; body; exit } : _ t) ~init ~f =
-    let init = f init (Block_args.to_some entry) in
-    let init = List.fold_left ~init ~f:(fun z i -> f z (Instr.to_some i)) body in
-    f init (Control_instr.to_some exit)
+    let init = f init (Some_instr.T (Generic_instr.Block_args entry)) in
+    let init =
+      List.fold_left ~init ~f:(fun z i -> f z (Some_instr.T (Generic_instr.Instr i))) body
+    in
+    f init (Some_instr.T (Generic_instr.Control exit))
   ;;
 
   let iter_instrs_backward ({ entry; body; exit } : _ t) ~init ~f =
-    let init = f init (Control_instr.to_some exit) in
+    let init = f init (Some_instr.T (Generic_instr.Control exit)) in
     let init =
-      List.rev body |> List.fold_left ~init ~f:(fun z i -> f z (Instr.to_some i))
+      List.rev body
+      |> List.fold_left ~init ~f:(fun z i -> f z (Some_instr.T (Generic_instr.Instr i)))
     in
-    f init (Block_args.to_some entry)
+    f init (Some_instr.T (Generic_instr.Block_args entry))
   ;;
 
   let iter_instrs_forward block ~f =
@@ -260,7 +398,9 @@ module Block = struct
 end
 
 module Graph = struct
-  include Graph
+  type 'v t = 'v Block.t Cfg.Graph.t [@@deriving sexp_of]
+
+  let map f graph = (Cfg.Graph.map & F.Map.of_map Block.map) graph ~f
 
   include Cfg.Graph.Make_gen (struct
       type 'a t = 'a Block.t [@@deriving sexp_of]
@@ -282,11 +422,19 @@ module Graph = struct
 end
 
 module Function_ty = struct
-  include Function_ty
+  type t =
+    { params : Ty.t list
+    ; return : Ty.t
+    }
+  [@@deriving sexp_of]
 end
 
 module Named_function_ty = struct
-  include Named_function_ty
+  type t =
+    { params : Value.t list
+    ; return : Ty.t
+    }
+  [@@deriving sexp_of]
 
   let to_anon { params; return } =
     Function_ty.{ params = List.map ~f:(fun { ty; _ } -> ty) params; return }
@@ -294,7 +442,14 @@ module Named_function_ty = struct
 end
 
 module Mut_function = struct
-  include Mut_function
+  type 'v t =
+    { name : string
+    ; mutable graph : 'v Graph.t
+    ; ty : Named_function_ty.t
+    ; mutable unique_label : Label.Id.t
+    ; mutable unique_name : Name.Id.t
+    }
+  [@@deriving sexp_of, fields]
 
   let fresh_name fn s =
     let unique = fn.unique_name in
@@ -312,8 +467,23 @@ module Mut_function = struct
   let add_block_exn fn label block = fn.graph <- Cfg.Graph.add_exn fn.graph label block
 end
 
+module Extern = struct
+  type t =
+    { name : string
+    ; ty : Function_ty.t
+    }
+  [@@deriving sexp_of]
+end
+
 module Function = struct
-  include Function
+  type 'v t =
+    { name : string
+    ; graph : 'v Graph.t
+    ; ty : Named_function_ty.t
+    ; unique_label : Label.Id.t
+    ; unique_name : Name.Id.t
+    }
+  [@@deriving sexp_of, fields, map]
 
   let map_graph fn ~f = { fn with graph = f fn.graph }
   (* let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn *)
@@ -350,7 +520,11 @@ module Function = struct
 end
 
 module Program = struct
-  include Program
+  type 'v t =
+    { funcs : 'v Function.t list
+    ; externs : Extern.t list
+    }
+  [@@deriving sexp_of, fields, map]
 
   let map_functions p ~f = { p with funcs = f p.funcs }
 end

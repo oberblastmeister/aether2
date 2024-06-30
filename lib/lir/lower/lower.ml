@@ -32,10 +32,7 @@ module Context = struct
   ;;
 
   let add_inlined_index cx index = Hash_set.add cx.inlined_indices index
-
-  let is_index_inlined cx index =
-    Hash_set.mem cx.inlined_indices index
-  ;;
+  let is_index_inlined cx index = Hash_set.mem cx.inlined_indices index
 end
 
 let rec lower_instr (cx : Context.t) (instr : Vir.Instr.t) color =
