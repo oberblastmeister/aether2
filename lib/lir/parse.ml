@@ -57,7 +57,7 @@ let rec parse_expr st sexp =
        let const =
          Parser.item xs
          @@ Parser.atom (fun s ->
-           Int64.of_string_opt s
+           Z.of_string_opt s
            |> Option.value_or_thunk ~default:(fun () ->
              Parser.parse_error [%message "couldn't parse number" ~s]))
        in

@@ -9,9 +9,9 @@ end = struct
   let resolve_imm stack imm =
     match imm with
     | Imm.Int i -> Imm.Int i
-    | Stack (End i) -> Int (Stack_layout.end_offset stack i)
-    | Stack (Local name) -> Int (Stack_layout.local_offset stack name)
-    | Stack (Start i) -> Int (Stack_layout.start_offset stack i)
+    | Stack (End i) -> Int (Imm_int.of_int32 (Stack_layout.end_offset stack i))
+    | Stack (Local name) -> Int (Imm_int.of_int32 (Stack_layout.local_offset stack name))
+    | Stack (Start i) -> Int (Imm_int.of_int32 (Stack_layout.start_offset stack i))
   ;;
 
   let resolve_address stack address =
@@ -57,13 +57,17 @@ end
 
 let create_prologue stack_layout =
   [ Flat.Instr.Sub
-      { dst = Reg (MReg.create Q RSP); src = Imm (Int (Stack_layout.size stack_layout)) }
+      { dst = Reg (MReg.create Q RSP)
+      ; src = Imm (Int (Imm_int.of_int32 (Stack_layout.size stack_layout)))
+      }
   ]
 ;;
 
 let create_epilogue stack_layout =
   [ Flat.Instr.Add
-      { dst = Reg (MReg.create Q RSP); src = Imm (Int (Stack_layout.size stack_layout)) }
+      { dst = Reg (MReg.create Q RSP)
+      ; src = Imm (Int (Imm_int.of_int32 (Stack_layout.size stack_layout)))
+      }
   ; Ret
   ]
 ;;

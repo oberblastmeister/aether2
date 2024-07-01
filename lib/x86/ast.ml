@@ -59,9 +59,55 @@ module Stack_off = struct
   [@@deriving sexp_of]
 end
 
+let uint32_to_z u = Z.of_int64_unsigned (Int_repr.Uint32.to_base_int64 u)
+
+module Imm_int = struct
+  (* 32 bit signed or 32 bit unsigned *)
+  (* represent the actual number instead of bit pattern *)
+  (* thats why we use int64 *)
+  type t = int64 [@@deriving sexp_of, equal, compare]
+
+  let of_z z =
+    let module Uint32 = Int_repr.Uint32 in
+    if Z.(of_int32 Int32.min_value <= z && z <= of_int32 Int32.max_value)
+    then Some (Z.to_int64 z)
+    else if Z.(z <= of_int 0 && z <= uint32_to_z Uint32.max_value)
+    then Some (Z.to_int64 z)
+    else None
+  ;;
+
+  let of_z_exn z = Option.value_exn (of_z z)
+  let of_int32 = Int64.of_int32
+  let to_int64 = Fn.id
+  let to_z = Z.of_int64
+
+  let to_encoded_uint32 i =
+    let module Uint32 = Int_repr.Uint32 in
+    if Int64.(i < 0L)
+    then
+      Uint32.of_base_int64_exn Int64.(Int64.shift_left 1L 31 + Int64.shift_left 1L 31 + i)
+    else Uint32.of_base_int64_exn i
+  ;;
+
+  (* make sure this isn't using Int64.to_string_hum because that one uses underscores*)
+  let to_encoded_uint32_string i =
+    Int64.to_string (Int_repr.Uint32.to_base_int64 (to_encoded_uint32 i))
+  ;;
+
+  let to_string_hum i = Int64.to_string_hum i
+end
+
+module Abs_imm = struct
+  type t = Z.t [@@deriving sexp_of, equal, compare]
+
+  let of_z z = if Z.(Z.of_int64 Int64.min_value <= z && true) then Some z else None
+  let of_z_exn z = Option.value_exn (of_z z)
+  let to_encoded_string _ = todo [%here]
+end
+
 module Imm = struct
   type t =
-    | Int of int32
+    | Int of Imm_int.t
     | Stack of Stack_off.t
   [@@deriving sexp_of, map, fold]
 end
@@ -181,10 +227,10 @@ module Address = struct
   let stack_offset imm = Complex { base = Rsp; index = None; offset = Stack imm }
   let stack_off_end i = stack_offset (End i)
   let stack_local name = stack_offset (Local name)
-  let base base = Complex { base; index = None; offset = Int 0l }
+  let base base = Complex { base; index = None; offset = Int 0L }
 
   let index_scale index scale =
-    Complex { base = None; index = Some { index; scale }; offset = Int 0l }
+    Complex { base = None; index = Some { index; scale }; offset = Int 0L }
   ;;
 
   let base_offset base offset = Complex { base; index = None; offset }
@@ -373,7 +419,7 @@ module Instr = struct
     | Pop of { dst : 'r }
     | MovAbs of
         { dst : 'r Operand.t
-        ; imm : int64
+        ; imm : Z.t
         }
     | Cmp of
         { src1 : 'r Operand.t

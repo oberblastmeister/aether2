@@ -19,7 +19,11 @@ let test_header =
   {|
 (extern (assert_eq_u64 u64 u64) void)
 
+(extern (assert_eq_i64 i64 i64) void)
+
 (extern (print_u64 u64) void)
+
+(extern (print_i64 i64) void)
 |}
 ;;
 
@@ -144,6 +148,7 @@ let run ~env (args : Args.t) =
       ());
     ()
   | Test _ ->
+    compile_runtime ~cwd ~process;
     run_tests ~cwd ~process ~stdout;
     ()
 ;;

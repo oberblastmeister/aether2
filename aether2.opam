@@ -21,6 +21,8 @@ depends: [
   "higher_kinded" {= "v0.16.0"}
   "eio" {= "0.15"}
   "eio_main" {= "0.15"}
+  "zarith" {= "1.13"}
+  "int_repr"
   "odoc" {with-doc}
 ]
 build: [

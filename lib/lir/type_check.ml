@@ -96,9 +96,9 @@ let rec check_expr cx (expr : Value.t Expr.t) =
     ()
   | Const { ty; const } ->
     (match ty with
-     | Void -> error [%message "cannot use const with unit" (const : int64)]
-     | U1 when Int64.(const <= 1L) -> ()
-     | U1 -> error [%message "U1 constant out of range" (const : int64)]
+     | Void -> error [%message "cannot use const with unit" (const : Z.t)]
+     | U1 when Z.(const <= of_int 1) -> ()
+     | U1 -> error [%message "U1 constant out of range" (const : Z.t)]
      (* check out of bounds here *)
      | U64 -> ()
      | I64 -> ())

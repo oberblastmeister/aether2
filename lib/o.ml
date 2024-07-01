@@ -57,6 +57,32 @@ module List1 = Data.List1
 module Entity = Aether_entity
 module Ppx_log_syntax = Logger.Ppx_log_syntax
 
+module Z = struct
+  module Z' = struct
+    include Z
+
+    let of_string_opt s =
+      match Z.of_string s with
+      | exception _ -> None
+      | z -> Some z
+    ;;
+
+    let to_string_hum = Z.to_string
+    let sexp_of_t z = Sexp.Atom (Z.to_string z)
+
+    let t_of_sexp = function
+      | Sexp.Atom s ->
+        (match of_string_opt s with
+         | Some z -> z
+         | None -> raise_s [%message "Z.t_of_sexp: invalid Z" (s : string)])
+      | _ -> raise_s [%message "Z.t_of_sexp: invalid Sexp"]
+    ;;
+  end
+
+  include Z'
+  include Comparable.Make (Z')
+end
+
 let ( |- ) x f =
   f x;
   x

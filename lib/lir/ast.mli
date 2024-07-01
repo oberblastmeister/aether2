@@ -61,7 +61,7 @@ module Expr : sig
         }
     | Const of
         { ty : Ty.t
-        ; const : int64
+        ; const : Z.t
         }
     | Cmp of
         { ty : Ty.t

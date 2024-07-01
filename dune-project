@@ -39,6 +39,9 @@
   (eio
    (= 0.15))
   (eio_main
-   (= 0.15)))
+   (= 0.15))
+  (zarith
+   (= 1.13))
+  int_repr)
  (tags
   (topics "to describe" your project)))

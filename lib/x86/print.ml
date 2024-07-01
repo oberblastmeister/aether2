@@ -82,7 +82,7 @@ let print_mreg cx (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg mreg.s mreg.
 
 let print_imm cx imm =
   match imm with
-  | Imm.Int i -> Cx.add cx @@ string_of_int @@ Int.of_int32_exn i
+  | Imm.Int i -> Cx.add cx @@ Imm_int.to_encoded_uint32_string i
   | imm -> raise_s [%message "could not print imm" (imm : Imm.t)]
 ;;
 
@@ -123,7 +123,7 @@ let print_address cx (address : _ Address.t) =
 
 let print_operand b (operand : _ Operand.t) =
   match operand with
-  | Imm (Int i) -> Cx.add b @@ string_of_int @@ Int.of_int32_exn i
+  | Imm (Int i) -> Cx.add b @@ Imm_int.to_encoded_uint32_string i
   | Imm _ -> todo [%here]
   | Reg r -> print_mreg b r
   | Mem mem ->
@@ -178,7 +178,7 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
       "movabs"
       op
       dst
-      (fun b i -> Buffer.add_string b (Int64.to_string i))
+      (fun b i -> Buffer.add_string b (Z.to_string_hum i))
       imm
   | Ret -> bprintf b "\tret"
   | Call { src } -> bprintf b "\tcall\t%s" src

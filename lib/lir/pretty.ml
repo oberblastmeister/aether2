@@ -47,7 +47,7 @@ let rec pretty_expr cx expr =
         ; pretty_expr cx v2
         ])
   | Expr.Const { ty; const } ->
-    Pretty.(list [ atom "const"; pretty_ty ty; Atom (Int64.to_string_hum const) ])
+    Pretty.(list [ atom "const"; pretty_ty ty; Atom (Z.to_string_hum const) ])
   | Expr.Cmp { ty; op; v1; v2 } ->
     Pretty.(
       list

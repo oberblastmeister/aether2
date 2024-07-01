@@ -648,16 +648,3 @@ let%expect_test "parse extern" =
       (((name extern_function) (ty ((params (U64 U64)) (return U64))))
        ((name another) (ty ((params (U64 U64)) (return U64))))))) |}]
 ;;
-
-(* let%expect_test "type check" =
-  let lir =
-    parse
-      {|
-  (define (first [x u64] [y u64]) u64
-    (block (start)
-      (ret))
-  )
-  |}
-  in
-  ()
-;; *)

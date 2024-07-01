@@ -34,6 +34,7 @@ module Cx = Context
 let ty_to_size = function
   | Ty.U1 -> X86.Size.B
   | Ty.U64 -> X86.Size.Q
+  | Ty.I64 -> X86.Size.Q
   | Void -> raise_s [%message "void has no size"]
 ;;
 
@@ -45,6 +46,11 @@ let cmp_op_to_cond ty op =
     (match op with
      | Cmp_op.Gt -> X86.Cond.A
      | Ge -> X86.Cond.AE
+     | Eq -> X86.Cond.E)
+  | Ty.I64 ->
+    (match op with
+     | Gt -> X86.Cond.G
+     | Ge -> X86.Cond.GE
      | Eq -> X86.Cond.E)
   | Void -> raise_s [%message "cannot use void with cond"]
 ;;
@@ -93,10 +99,10 @@ and lower_value_op cx v = X86.Operand.Reg (vreg (lower_value cx v))
 
 and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
   match v with
-  | I { expr = Const { ty = U64; const }; _ }
-    when Int64.( <= ) const (Int64.of_int32 Int32.max_value) ->
-    Imm (Int (Int32.of_int64_exn const))
-  | I { dst; expr = Const { ty = U64; const }; _ } ->
+  | I { expr = Const { ty = U64 | I64; const }; _ }
+    when Option.is_some (X86.Imm_int.of_z const) ->
+    Imm (Int (Option.value_exn (X86.Imm_int.of_z const)))
+  | I { dst; expr = Const { ty = U64 | I64; const }; _ } ->
     let dst = vreg dst in
     Cx.add cx (MovAbs { dst = Reg dst; imm = const });
     Reg dst
@@ -139,11 +145,12 @@ and lower_expr_to cx dst (expr : Tir.Value.t Expr.t) =
        let src1 = lower_expr_op cx v1 in
        let src2 = lower_expr_op cx v2 in
        Cx.add cx (Sub { dst; src1; src2 }))
-  | Const { ty = Ty.U64; const } when Int64.( <= ) const (Int64.of_int32 Int32.max_value)
-    -> Cx.add cx (Mov { dst; src = X86.Operand.imm (Int64.to_int32_exn const) })
-  | Const { ty = Ty.U64; const } -> Cx.add cx (MovAbs { dst; imm = const })
-  | Const { const; _ } ->
-    Cx.add cx (Mov { dst; src = X86.Operand.imm (Int64.to_int32_exn const) })
+  | Const { ty = Ty.U64 | Ty.I64; const } when is_some (X86.Imm_int.of_z const) ->
+    Cx.add cx (Mov { dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) })
+  | Const { ty = Ty.U64 | Ty.I64; const } -> Cx.add cx (MovAbs { dst; imm = const })
+  | Const { ty = Ty.U1; const; _ } ->
+    Cx.add cx (Mov { dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) })
+  | Const { ty = Ty.Void; _ } -> todo [%here]
   | Cmp { ty; op; v1; v2 } ->
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
@@ -167,12 +174,7 @@ and lower_impure_expr_to cx dst expr =
   | Load _ -> todo [%here]
   | Alloca _ -> todo [%here]
 
-and lower_expr_op cx expr =
-  match expr with
-  | Expr.Const { ty = Ty.U64; const }
-    when Int64.( <= ) const (Int64.of_int32 Int32.max_value) ->
-    X86.Operand.Imm (Int (Int32.of_int64_exn const))
-  | _ -> X86.Operand.Reg (lower_expr cx expr)
+and lower_expr_op cx expr = X86.Operand.Reg (lower_expr cx expr)
 
 and lower_instr cx instr =
   match instr with

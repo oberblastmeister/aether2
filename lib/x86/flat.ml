@@ -12,7 +12,7 @@ module Instr = struct
         }
     | MovAbs of
         { dst : 'r Op.t
-        ; imm : int64
+        ; imm : Z.t
         }
     | Lea of
         { dst : 'r Op.t

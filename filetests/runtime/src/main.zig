@@ -6,7 +6,18 @@ export fn assert_eq_u64(x: u64, y: u64) void {
     }
 }
 
+export fn assert_eq_i64(x: i64, y: i64) void {
+    if (x != y) {
+        // std.debug.panic("expected: {}, actual: {}\n", .{ x, y });
+        std.debug.panic("woopes wtf\n", .{});
+    }
+}
+
 export fn print_u64(x: u64) void {
+    std.debug.print("{}\n", .{x});
+}
+
+export fn print_i64(x: i64) void {
     std.debug.print("{}\n", .{x});
 }
 

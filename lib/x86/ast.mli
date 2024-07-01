@@ -50,9 +50,30 @@ module Stack_off : sig
   [@@deriving sexp_of]
 end
 
+module Imm_int : sig
+  type t [@@deriving sexp_of, equal, compare]
+
+  val of_z : Z.t -> t option
+  val of_z_exn : Z.t -> t
+  val to_z : t -> Z.t
+  val of_int32 : int32 -> t
+  val to_int64 : t -> int64
+  val to_string_hum : t -> string
+  val to_encoded_uint32 : t -> Int_repr.Uint32.t
+  val to_encoded_uint32_string : t -> string
+end
+
+module Abs_imm : sig
+  type t [@@deriving sexp_of, equal, compare]
+
+  val of_z : Z.t -> t option
+  val of_z_exn : Z.t -> t
+  val to_encoded_string : t -> string
+end
+
 module Imm : sig
   type t =
-    | Int of int32
+    | Int of Imm_int.t
     | Stack of Stack_off.t
   [@@deriving sexp_of, map, fold]
 end
@@ -182,7 +203,7 @@ module Operand : sig
   [@@deriving sexp_of, variants, map, fold, iter]
 
   val mem : Size.t -> 'a Address.t -> 'a t
-  val imm : int32 -> 'a t
+  val imm : Imm_int.t -> 'a t
   val stack_off_end : Size.t -> int32 -> 'a t
   val stack_local : Size.t -> Stack_slot.t -> 'a t
   val vreg : Size.t -> Name.t -> VReg.t t
@@ -273,7 +294,7 @@ module Instr : sig
     | Pop of { dst : 'r }
     | MovAbs of
         { dst : 'r Operand.t
-        ; imm : int64
+        ; imm : Z.t
         }
     | Cmp of
         { src1 : 'r Operand.t
