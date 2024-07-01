@@ -82,9 +82,6 @@ let check_ty_cmp_op ty op =
   | _ -> error [%message "type not supported" (ty : Ty.t) (op : Cmp_op.t)]
 ;;
 
-(* match ty, op with
-   | *)
-
 let rec check_expr cx (expr : Value.t Expr.t) =
   match expr with
   | Bin { ty; v1; v2; op } ->
@@ -97,11 +94,18 @@ let rec check_expr cx (expr : Value.t Expr.t) =
   | Const { ty; const } ->
     (match ty with
      | Void -> error [%message "cannot use const with unit" (const : Z.t)]
-     | U1 when Z.(const <= of_int 1) -> ()
-     | U1 -> error [%message "U1 constant out of range" (const : Z.t)]
-     (* check out of bounds here *)
-     | U64 -> ()
-     | I64 -> ())
+     | U1 ->
+       assert_s
+         Z.(of_int 0 <= const && const <= of_int 1)
+         [%message "U1 constant out of range" (const : Z.t)]
+     | U64 ->
+       assert_s
+         Z.(of_int 0 <= const && const <= shift_left (of_int 1) 64 - of_int 1)
+         [%message "U64 constant out of range" (const : Z.t)]
+     | I64 ->
+       assert_s
+         Z.(of_int64 Int64.min_value <= const && const <= of_int64 Int64.max_value)
+         [%message "I64 constant out of range" (const : Z.t)])
   | Cmp { ty; v1; v2; op } ->
     check_ty_cmp_op ty op;
     check_ty_equal ty (Expr.get_ty v1);
@@ -109,8 +113,7 @@ let rec check_expr cx (expr : Value.t Expr.t) =
     check_expr cx v1;
     check_expr cx v2;
     ()
-  | Val v -> ()
-  | _ -> todo [%here]
+  | Val _v -> ()
 ;;
 
 let check_impure_expr cx (expr : _ Impure_expr.t) =

@@ -94,6 +94,8 @@ module Imm_int = struct
     Int64.to_string (Int_repr.Uint32.to_base_int64 (to_encoded_uint32 i))
   ;;
 
+  let to_string = Int64.to_string
+
   let to_string_hum i = Int64.to_string_hum i
 end
 

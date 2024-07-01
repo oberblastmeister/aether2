@@ -108,8 +108,6 @@ let lower_jump = function
   | Jump.Ret r -> Jump.Ret r
 ;;
 
-let lower_instr cx instr = lower_instr cx instr
-
 let lower_function stack_builder (fn : _ Flat.Program.t) =
   let cx = Cx.create stack_builder in
   Vec.iter fn ~f:(function

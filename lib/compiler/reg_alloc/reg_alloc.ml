@@ -48,7 +48,7 @@ end = struct
   module Allocation = struct
     type t = Register.t allocation
 
-    let sexp_of_t = sexp_of_alloation_with ~enum:Register_enum.enum Register.sexp_of_t
+    let sexp_of_t = sexp_of_allocation_with ~enum:Register_enum.enum Register.sexp_of_t
     let find_exn t name = Name.Table.find_exn t.alloc_of_name name
 
     let did_use_reg t reg =

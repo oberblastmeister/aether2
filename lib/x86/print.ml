@@ -76,13 +76,17 @@ let string_of_cond (cond : Cond.t) =
   | BE -> "be"
   | A -> "a"
   | AE -> "ae"
+  | G -> "g"
+  | GE -> "ge"
+  | L -> "l"
+  | LE -> "le"
 ;;
 
 let print_mreg cx (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg mreg.s mreg.reg
 
 let print_imm cx imm =
   match imm with
-  | Imm.Int i -> Cx.add cx @@ Imm_int.to_encoded_uint32_string i
+  | Imm.Int i -> Cx.add cx @@ Imm_int.to_string i
   | imm -> raise_s [%message "could not print imm" (imm : Imm.t)]
 ;;
 
@@ -123,7 +127,7 @@ let print_address cx (address : _ Address.t) =
 
 let print_operand b (operand : _ Operand.t) =
   match operand with
-  | Imm (Int i) -> Cx.add b @@ Imm_int.to_encoded_uint32_string i
+  | Imm (Int i) -> Cx.add b @@ Imm_int.to_string i
   | Imm _ -> todo [%here]
   | Reg r -> print_mreg b r
   | Mem mem ->

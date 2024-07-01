@@ -37,7 +37,7 @@ type 'r allocation =
   ; used_registers : 'r Data.Enum_set.t
   }
 
-let sexp_of_alloation_with ~enum f t =
+let sexp_of_allocation_with ~enum f t =
   [%sexp
     ( "alloc_of_name"
     , (Entity.Map.sexp_of_t Name.sexp_of_t (Alloc_reg.sexp_of_t f) t.alloc_of_name

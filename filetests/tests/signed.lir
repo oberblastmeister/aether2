@@ -1,8 +1,8 @@
 (define (entry) void
   (block (start)
-    (set bruh1 (const u64 1234))
-    (set bruh1 (add u64 bruh1 (const u64 -1235)))
-    (call void (assert_eq_u64 bruh1 (const u64 -1)))
+    (set bruh1 (const i64 1234))
+    (set bruh1 (add i64 bruh1 (const i64 -1235)))
+    (call void (assert_eq_i64 bruh1 (const i64 -1)))
     (ret)
   )
 )

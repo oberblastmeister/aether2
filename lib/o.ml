@@ -91,3 +91,4 @@ let ( |- ) x f =
 (* CPS let operator *)
 let ( let@ ) f x = f x
 let todo location = raise_s [%message "TODO" (location : Source_code_position.t)]
+let assert_s b sexp = if b then () else raise_s sexp

@@ -58,6 +58,7 @@ module Imm_int : sig
   val to_z : t -> Z.t
   val of_int32 : int32 -> t
   val to_int64 : t -> int64
+  val to_string : t -> string
   val to_string_hum : t -> string
   val to_encoded_uint32 : t -> Int_repr.Uint32.t
   val to_encoded_uint32_string : t -> string
