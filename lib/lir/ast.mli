@@ -40,6 +40,8 @@ module Cmp_op : sig
   type t =
     | Gt
     | Ge
+    | Lt
+    | Le
     | Eq
   [@@deriving sexp]
 end

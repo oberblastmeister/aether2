@@ -30,6 +30,8 @@ let cmp_op_to_string = function
   | Cmp_op.Gt -> "gt"
   | Ge -> "ge"
   | Eq -> "eq"
+  | Lt -> "lt"
+  | Le -> "le"
 ;;
 
 let rec pretty_expr cx expr =

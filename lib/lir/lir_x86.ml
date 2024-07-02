@@ -1,3 +1,25 @@
+(* TODO
+   we have two options:
+   1. We can define a lower function cogen(d, e) that lowers an expression e to a destination d
+   This has the benefit of avoiding a move when we are lowering a move instruction,
+   because we already have the destination, so we can pass it into the lower_to_dst function.
+
+   However, this has the downside that we need extra moves when we are lowering in an expression context,
+   because we have to create a new destination and then pass it into lower_to_dst.
+   For example, when lowering constant expressions we need to create a new register for the constant expression instead of just using it as an immediate
+
+   2. We can define a lower function gen(e) that lowers an expression e and returns the operand v used to refer to it.
+   This is better in the second case but worse in the first case, because we need to create an extra destination and move the returned operand to it.
+
+   We will choose the second option, because copy propagation is easier in lowered code than constant propagation.
+   This is because constant propagation actually changes the form of something (from a register to an immediate),
+   while copy propagation doesn't (from a register to another register)
+
+   For example, let's say a register r1 is used inside of an address [r1 + r2 * 8].
+   Replacing r1 with a constant completely changes the addressing mode which is nontrivial.
+
+   However, just replacing r1 with another register, say r3, is trivial, because the addressing mode is the same.
+*)
 open O
 open Ast
 module Tir = Lower.Tir
@@ -46,12 +68,16 @@ let cmp_op_to_cond ty op =
     (match op with
      | Cmp_op.Gt -> X86.Cond.A
      | Ge -> X86.Cond.AE
-     | Eq -> X86.Cond.E)
+     | Eq -> X86.Cond.E
+     | Lt -> X86.Cond.B
+     | Le -> X86.Cond.BE)
   | Ty.I64 ->
     (match op with
      | Gt -> X86.Cond.G
      | Ge -> X86.Cond.GE
-     | Eq -> X86.Cond.E)
+     | Eq -> X86.Cond.E
+     | Lt -> X86.Cond.L
+     | Le -> X86.Cond.LE)
   | Void -> raise_s [%message "cannot use void with cond"]
 ;;
 
@@ -61,18 +87,17 @@ let fresh_name (cx : Context.t) (name : string) : Name.t =
   Name.create name id
 ;;
 
-let fresh_value (cx : Context.t) name ty =
+let fresh_vreg cx (name : string) =
   let name = fresh_name cx name in
-  { Value.name; ty }
+  X86.VReg.create Q name
 ;;
 
-let freshen_name (cx : Context.t) (name : Name.t) : Name.t =
-  let id = cx.unique_name in
-  cx.unique_name <- Name.Id.next cx.unique_name;
-  Name.create name.name id
+let fresh_op cx (name : string) =
+  let vreg = fresh_vreg cx name in
+  X86.Operand.Reg vreg
 ;;
 
-let vreg (v : Value.t) = X86.VReg.create (ty_to_size v.ty) v.name
+let vreg (v : Value.t) = X86.VReg.create Q v.name
 
 let categorize_args args =
   let registers = X86.Mach_reg.args in
@@ -85,33 +110,8 @@ let categorize_args args =
   args_with_reg, stack_args
 ;;
 
-let rec lower_value cx = function
-  | Tir.Value.I { dst; expr } ->
-    lower_expr_to cx dst expr;
-    dst
-  | Tir.Value.I' { dst; expr } ->
-    lower_impure_expr_to cx dst expr;
-    dst
-  | Tir.Value.V v -> v
-
-and lower_value_reg cx v = vreg (lower_value cx v)
-and lower_value_op cx v = X86.Operand.Reg (vreg (lower_value cx v))
-
-and lower_value_op_merge cx (v : Tir.Value.t) : _ X86.Operand.t =
-  match v with
-  | I { expr = Const { ty = U64 | I64; const }; _ }
-    when Option.is_some (X86.Imm_int.of_z const) ->
-    Imm (Int (Option.value_exn (X86.Imm_int.of_z const)))
-  | I { dst; expr = Const { ty = U64 | I64; const }; _ } ->
-    let dst = vreg dst in
-    Cx.add cx (MovAbs { dst = Reg dst; imm = const });
-    Reg dst
-  | I { dst = _; expr = Val v; _ } -> lower_value_op_merge cx v
-  (* we can't merge it *)
-  | v -> lower_value_op cx v
-
-and lower_call cx Call.{ name; args } dst =
-  let args = List.map ~f:(lower_expr cx) args in
+let rec lower_call cx Call.{ name; args } dst =
+  let args = List.map ~f:(lower_expr_reg cx) args in
   let args_with_reg, stack_args = categorize_args args in
   Cx.add_stack_instr cx
   @@ X86.Stack_instr.ReserveEnd
@@ -132,60 +132,79 @@ and lower_call cx Call.{ name; args } dst =
        });
   ()
 
-and lower_expr_to cx dst (expr : Tir.Value.t Expr.t) =
-  let dst = X86.Operand.Reg (vreg dst) in
+and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
   match expr with
   | Bin { op; v1; v2; _ } ->
     (match op with
      | Bin_op.Add ->
+       let dst = fresh_op cx "tmp" in
        let src1 = lower_expr_op cx v1 in
        let src2 = lower_expr_op cx v2 in
-       Cx.add cx (Add { dst; src1; src2 })
+       Cx.add cx (Add { dst; src1; src2 });
+       dst
      | Sub ->
+       let dst = fresh_op cx "tmp" in
        let src1 = lower_expr_op cx v1 in
        let src2 = lower_expr_op cx v2 in
-       Cx.add cx (Sub { dst; src1; src2 }))
+       Cx.add cx (Sub { dst; src1; src2 });
+       dst)
   | Const { ty = Ty.U64 | Ty.I64; const } when is_some (X86.Imm_int.of_z const) ->
-    Cx.add cx (Mov { dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) })
-  | Const { ty = Ty.U64 | Ty.I64; const } -> Cx.add cx (MovAbs { dst; imm = const })
+    let dst = fresh_op cx "tmp" in
+    Cx.add cx (Mov { dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) });
+    dst
+  | Const { ty = Ty.U64 | Ty.I64; const } ->
+    let dst = fresh_op cx "tmp" in
+    Cx.add cx (MovAbs { dst; imm = const });
+    dst
   | Const { ty = Ty.U1; const; _ } ->
-    Cx.add cx (Mov { dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) })
-  | Const { ty = Ty.Void; _ } -> todo [%here]
+    let dst = fresh_op cx "tmp" in
+    Cx.add cx (Mov { dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) });
+    dst
+  | Const { ty = Ty.Void; _ } -> raise_s [%message "const can't be void" [%here]]
   | Cmp { ty; op; v1; v2 } ->
+    let dst = fresh_op cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
     Cx.add cx (Cmp { src1; src2 });
-    Cx.add cx (Set { dst; cond = cmp_op_to_cond ty op })
-  | Val v ->
-    let src = lower_value_op_merge cx v in
-    Cx.add cx (Mov { dst; src })
+    Cx.add cx (Set { dst; cond = cmp_op_to_cond ty op });
+    dst
+  | Val (I { expr; _ }) -> lower_expr_op cx expr
+  | Val (I' { expr; _ }) -> Reg (lower_impure_expr_reg cx expr)
+  | Val (V v) -> Reg (vreg v)
 
-and lower_expr cx (expr : Tir.Value.t Expr.t) : X86.VReg.t =
-  let ty = Expr.get_ty_with Tir.Value.get_ty expr in
-  let dst = fresh_value cx "expr_tmp" ty in
-  lower_expr_to cx dst expr;
-  vreg dst
+and lower_expr_reg cx expr =
+  match lower_expr_op cx expr with
+  | Reg v -> v
+  | op ->
+    let dst = fresh_vreg cx "tmp" in
+    Cx.add cx (Mov { dst = Reg dst; src = op });
+    dst
 
-and lower_impure_expr_to cx dst expr =
+and lower_impure_expr_reg cx expr =
   match expr with
   | Impure_expr.Call { call; _ } ->
-    lower_call cx call (Some (vreg dst, X86.Mach_reg.ret));
-    ()
+    let dst = fresh_vreg cx "tmp" in
+    lower_call cx call (Some (dst, X86.Mach_reg.ret));
+    dst
   | Load _ -> todo [%here]
   | Alloca _ -> todo [%here]
 
-and lower_expr_op cx expr = X86.Operand.Reg (lower_expr cx expr)
-
 and lower_instr cx instr =
   match instr with
-  | Instr.Assign { dst; expr } -> lower_expr_to cx dst expr
-  | Instr.ImpureAssign { dst; expr } -> lower_impure_expr_to cx dst expr
+  | Instr.Assign { dst; expr } ->
+    let op = lower_expr_op cx expr in
+    Cx.add cx (Mov { dst = X86.Operand.Reg (vreg dst); src = op });
+    ()
+  | Instr.ImpureAssign { dst; expr } ->
+    let reg = lower_impure_expr_reg cx expr in
+    Cx.add cx (Mov { dst = X86.Operand.Reg (vreg dst); src = Reg reg });
+    ()
   | VoidCall call -> lower_call cx call None
   | Store _ -> todo [%here]
 
 and lower_block_call cx block_call =
   { X86.Block_call.label = block_call.Block_call.label
-  ; args = List.map ~f:(lower_expr cx) block_call.args
+  ; args = List.map ~f:(lower_expr_reg cx) block_call.args
   }
 
 and lower_block_args cx (block_args : Block_args.t) =

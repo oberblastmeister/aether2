@@ -29,6 +29,8 @@ module Cmp_op = struct
   type t =
     | Gt
     | Ge
+    | Lt
+    | Le
     | Eq
   [@@deriving sexp]
 end

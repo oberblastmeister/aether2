@@ -5,6 +5,13 @@ module Stack_slot = Utils.Instr_types.Stack_slot
 module Control = Utils.Instr_types.Control
 module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
 
+module Reg_class = struct
+  type t =
+    | Int
+    | Float
+  [@@deriving compare, equal, sexp_of, variants]
+end
+
 module Size = struct
   type t =
     | Q
@@ -19,8 +26,8 @@ end
 
 module MReg = struct
   type t =
-    { s : Size.t
-    ; name : string option
+    { name : string option
+    ; reg_class : Reg_class.t
     ; reg : Mach_reg.t
     }
   [@@deriving equal, compare, hash]
@@ -31,7 +38,7 @@ module MReg = struct
     | Some name -> [%sexp (name : string), (reg : Mach_reg.t)]
   ;;
 
-  let create ?name s reg = { s; name; reg }
+  let create ?name reg = { name; reg }
 end
 
 module Stack_instr = struct
@@ -95,7 +102,6 @@ module Imm_int = struct
   ;;
 
   let to_string = Int64.to_string
-
   let to_string_hum i = Int64.to_string_hum i
 end
 
@@ -135,11 +141,11 @@ end
 module AReg = struct
   type t =
     | Spilled of
-        { s : Size.t [@equal.ignore]
+        { reg_class : Reg_class.t
         ; name : Stack_slot.t
         }
     | InReg of
-        { s : Size.t [@equal.ignore]
+        { reg_class : Reg_class.t
         ; name : string option [@equal.ignore]
         ; reg : Mach_reg.t
         }
@@ -150,16 +156,19 @@ module AReg = struct
     | _ -> None
   ;;
 
-  let size (Spilled { s; _ } | InReg { s; _ }) = s
-  let create ?name s reg = InReg { s; name; reg }
-  let of_mreg (mreg : MReg.t) = InReg { s = mreg.s; name = mreg.name; reg = mreg.reg }
+  let reg_class (Spilled { reg_class; _ } | InReg { reg_class; _ }) = reg_class
+  let create ?name reg = InReg { reg_class = Int; name; reg }
+
+  let of_mreg (mreg : MReg.t) =
+    InReg { reg_class = mreg.reg_class; name = mreg.name; reg = mreg.reg }
+  ;;
 end
 
 module VReg = struct
   (* make this a variant so we can have unnamed virtual registers *)
   module T = struct
     type t =
-      { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
+      { reg_class : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
       ; name : Name.t
       }
     [@@deriving equal, compare, sexp, hash, fields]
@@ -169,7 +178,7 @@ module VReg = struct
   include Comparable.Make (T)
 
   (* let to_name r = r.name *)
-  let create s name = { s; name }
+  let create ?(reg_class = Reg_class.Int) name = { reg_class; name }
 end
 
 module Address = struct
@@ -368,8 +377,6 @@ module VInstr = struct
   let map_regs i ~f = map f i
 
   let iter_regs i ~f =
-    let module O = Operand in
-    let module A = Address in
     match i with
     | Par_mov movs ->
       (List.iter
@@ -382,14 +389,12 @@ module VInstr = struct
   ;;
 
   let iter_defs i ~f =
-    let module O = Operand in
     match i with
     | Par_mov movs -> (List.iter @> F.Fold.of_fn fst) movs ~f
     | Block_args args -> List.iter args ~f
   ;;
 
   let iter_uses i ~f =
-    let module O = Operand in
     match i with
     | Par_mov movs -> (List.iter @> F.Fold.of_fn snd) movs ~f
     | Block_args _ -> ()
@@ -400,43 +405,64 @@ module Instr = struct
   type 'r t =
     | NoOp
     | Mov of
-        { dst : 'r Operand.t
+        { s : Size.t
+        ; dst : 'r Operand.t
+        ; src : 'r Operand.t
+        }
+    | MovZx of
+        { dst_size : Size.t
+        ; src_size : Size.t
+        ; dst : 'r Operand.t
         ; src : 'r Operand.t
         }
     | Lea of
-        { dst : 'r
+        { s : Size.t
+        ; dst : 'r
         ; src : 'r Address.t
         }
     | Add of
-        { dst : 'r Operand.t
+        { s : Size.t
+        ; dst : 'r Operand.t
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Sub of
-        { dst : 'r Operand.t
+        { s : Size.t
+        ; dst : 'r Operand.t
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
-    | Push of { src : 'r }
-    | Pop of { dst : 'r }
+    | Push of
+        { s : Size.t
+        ; src : 'r
+        }
+    | Pop of
+        { s : Size.t
+        ; dst : 'r
+        }
     | MovAbs of
-        { dst : 'r Operand.t
+        { (* dst size is always Q *)
+          dst : 'r Operand.t
         ; imm : Z.t
         }
     | Cmp of
-        { src1 : 'r Operand.t
+        { s : Size.t
+        ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Test of
-        { src1 : 'r Operand.t
+        { s : Size.t
+        ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Set of
-        { cond : Cond.t
+        { (* dst size is always B *)
+          cond : Cond.t
         ; dst : 'r Operand.t
         }
     | Call of
-        { name : string
+        { (* dst size is always Q *)
+          name : string
         ; reg_args : (Mach_reg.t * 'r) list
         ; defines : Mach_reg.t list (* caller saved registers*)
         ; dst : ('r * Mach_reg.t) option
@@ -474,12 +500,15 @@ module Instr = struct
       on_def @@ O.Reg dst;
       on_def @@ O.Reg dst;
       Address.iter_regs src ~f:(fun reg -> on_use (O.Reg reg))
-    | Sub { dst; src1; src2 } | Add { dst; src1; src2 } ->
+    | Sub { dst; src1; src2; _ } | Add { dst; src1; src2; _ } ->
       on_def dst;
       on_use src1;
       on_use src2
     | MovAbs { dst; _ } -> on_def dst
     | Mov { dst; src; _ } ->
+      on_def dst;
+      on_use src
+    | MovZx { dst; src; _ } ->
       on_def dst;
       on_use src
     | Cmp { src1; src2; _ } | Test { src1; src2; _ } ->
@@ -518,15 +547,17 @@ module Instr = struct
 
   let mov_to_reg_from_stack s reg (stack_name : Stack_slot.t) =
     Mov
-      { dst = Reg (MReg.create ~name:stack_name.name s reg)
+      { s
+      ; dst = Reg (MReg.create ~name:stack_name.name reg)
       ; src = Operand.mem s (Address.stack_local stack_name)
       }
   ;;
 
   let mov_to_stack_from_reg s (stack_name : Stack_slot.t) reg =
     Mov
-      { dst = Operand.mem s (Address.stack_local stack_name)
-      ; src = Reg (MReg.create ~name:stack_name.name s reg)
+      { s
+      ; dst = Operand.mem s (Address.stack_local stack_name)
+      ; src = Reg (MReg.create ~name:stack_name.name reg)
       }
   ;;
 
@@ -534,6 +565,7 @@ module Instr = struct
     match i with
     | NoOp
     | Mov _
+    | MovZx _
     | Lea _
     | Add _
     | Sub _

@@ -4,6 +4,13 @@ module Label = Utils.Instr_types.Label
 module Stack_slot = Utils.Instr_types.Stack_slot
 module Mach_reg_set : module type of Data.Enum_set.Make (Mach_reg)
 
+module Reg_class : sig
+  type t =
+    | Int
+    | Float
+  [@@deriving compare, equal, sexp_of, variants]
+end
+
 module Size : sig
   type t =
     | Q
@@ -275,6 +282,12 @@ module Instr : sig
     | NoOp
     | Mov of
         { dst : 'r Operand.t
+        ; src : 'r Operand.t
+        }
+    | MovZx of
+        { dst_size : Size.t
+        ; src_size : Size.t
+        ; dst : 'r Operand.t
         ; src : 'r Operand.t
         }
     | Lea of

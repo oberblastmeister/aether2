@@ -40,7 +40,7 @@ let compile_lir ?(emit = Asm) lir =
     Ok x86
   | X86 ->
     let x86 = lir |> Split_critical.split |> Lower.run |> Lir_x86.lower in
-    (* let%bind () = X86.Check_ssa.check x86 in *)
+    let%bind () = X86.Check_ssa.check x86 in
     Ok (Sexp.to_string_hum @@ X86.Ast.Program.sexp_of_t X86.Ast.VReg.sexp_of_t x86)
   | Lir -> Ok (Pretty.pretty lir)
   | Tir -> Ok (Lower.run lir |> Lower.Tir.pretty)

@@ -38,6 +38,8 @@ let parse_cmp_op = function
   | "gt" -> Cmp_op.Gt
   | "ge" -> Cmp_op.Ge
   | "eq" -> Cmp_op.Eq
+  | "lt" -> Cmp_op.Lt
+  | "le" -> Cmp_op.Le
   | s -> Parser.parse_error [%message "unknown cmp op" ~op:s]
 ;;
 
