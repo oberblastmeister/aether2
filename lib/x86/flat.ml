@@ -8,33 +8,51 @@ module Size = Ast.Size
 module Instr = struct
   type 'r t =
     | Mov of
-        { s : Size.t; dst : 'r Op.t
+        { s : Size.t
+        ; dst : 'r Op.t
         ; src : 'r Op.t
         }
     | MovAbs of
         { dst : 'r Op.t
         ; imm : Z.t
         }
+    | MovZx of
+        { dst_size : Size.t
+        ; src_size : Size.t
+        ; dst : 'r Op.t
+        ; src : 'r Op.t
+        }
     | Lea of
-        { s : Size.t; dst : 'r Op.t
+        { s : Size.t
+        ; dst : 'r Op.t
         ; src : 'r Op.t
         }
     | Add of
-        { s : Size.t; dst : 'r Op.t
+        { s : Size.t
+        ; dst : 'r Op.t
         ; src : 'r Op.t
         }
     | Sub of
-        { s : Size.t; dst : 'r Op.t
+        { s : Size.t
+        ; dst : 'r Op.t
         ; src : 'r Op.t
         }
-    | Push of { s : Size.t; src : 'r Op.t }
-    | Pop of { s : Size.t; dst : 'r Op.t }
+    | Push of
+        { s : Size.t
+        ; src : 'r Op.t
+        }
+    | Pop of
+        { s : Size.t
+        ; dst : 'r Op.t
+        }
     | Cmp of
-        { s : Size.t; src1 : 'r Op.t
+        { s : Size.t
+        ; src1 : 'r Op.t
         ; src2 : 'r Op.t
         }
     | Test of
-        { s : Size.t; src1 : 'r Op.t
+        { s : Size.t
+        ; src1 : 'r Op.t
         ; src2 : 'r Op.t
         }
     | Set of
@@ -52,7 +70,7 @@ module Instr = struct
 
   let iter_operands ~on_use ~on_def i =
     match i with
-    | Mov { dst; src; _ } ->
+    | MovZx { dst; src; _ } | Mov { dst; src; _ } ->
       on_use src;
       on_def dst
     | MovAbs { dst; _ } -> on_def dst
@@ -104,14 +122,16 @@ module Instr = struct
 
   let mov_to_stack_from_reg s (stack_name : Stack_slot.t) reg =
     Mov
-      { s; dst = Mem (Address.stack_local stack_name)
+      { s
+      ; dst = Mem (Address.stack_local stack_name)
       ; src = Reg (MReg.create ~name:stack_name.name reg)
       }
   ;;
 
   let mov_to_reg_from_stack s reg (stack_name : Stack_slot.t) =
     Mov
-      { s; dst = Reg (MReg.create ~name:stack_name.name reg)
+      { s
+      ; dst = Reg (MReg.create ~name:stack_name.name reg)
       ; src = Mem (Address.stack_local stack_name)
       }
   ;;

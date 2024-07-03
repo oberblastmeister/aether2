@@ -47,11 +47,16 @@ let legalize_par_mov movs =
     W.convert
       ~eq:[%equal: AReg.t]
       ~scratch:(fun reg ->
-        AReg.InReg { name = Some "par_mov_scratch"; reg = Reg_class.scratch_reg_of_class (AReg.reg_class reg )})
+        AReg.InReg
+          { name = Some "par_mov_scratch"
+          ; reg = Reg_class.scratch_reg_of_class (AReg.reg_class reg)
+          })
       movs
   in
   let movs =
-    List.map movs ~f:(fun { dst; src; ann = () } -> Flat.Instr.Mov { s = Reg_class.max_size (AReg.reg_class dst); dst = Reg dst; src = Reg src })
+    List.map movs ~f:(fun { dst; src; ann = () } ->
+      Flat.Instr.Mov
+        { s = Reg_class.max_size (AReg.reg_class dst); dst = Reg dst; src = Reg src })
   in
   movs
 ;;
@@ -129,6 +134,10 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      let src1, src2 = flip_src src1 src2 in
      Cx.add cx @@ Test { s; src1; src2 }
    | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst; imm }
+   | MovZx { dst_size; src_size; dst; src } ->
+     let src = legal_mem src_size dst src in
+     Cx.add cx @@ MovZx { dst_size; src_size; dst; src };
+     ()
    | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst }
    | Call { name; reg_args; dst; _ } ->
      List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create mach_reg, reg)
@@ -137,10 +146,16 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      Cx.add cx @@ Call { src = name };
      (match dst with
       | Some (dst, dst_reg) ->
-        Cx.add cx @@ Mov { s = Reg_class.max_size (Reg_class.of_mach_reg dst_reg);   dst = Reg dst; src = Reg (AReg.create dst_reg) }
+        Cx.add cx
+        @@ Mov
+             { s = Reg_class.max_size (Reg_class.of_mach_reg dst_reg)
+             ; dst = Reg dst
+             ; src = Reg (AReg.create dst_reg)
+             }
       | None -> ());
      ()
-   | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
+   | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]
+   );
   ()
 ;;
 
@@ -152,8 +167,7 @@ let legalize_block cx label (block : _ Block.t) =
 let legalize_function ~func_index (fn : _ Function.t) =
   let cx = Cx.create func_index in
   let param_movs =
-    legalize_par_mov
-      ((List.map) ~f:(fun (vreg, reg) -> vreg, AReg.of_mreg reg) fn.params)
+    legalize_par_mov (List.map ~f:(fun (vreg, reg) -> vreg, AReg.of_mreg reg) fn.params)
   in
   List.iter param_movs ~f:(Cx.add cx);
   (* TODO: fix this shit, this should be turned into the stack ends *)
@@ -163,13 +177,15 @@ let legalize_function ~func_index (fn : _ Function.t) =
   |> F.Iter.iter ~f:(fun (i, param) ->
     Cx.add cx
     @@ Flat.Instr.Mov
-         { s = Q; dst = Reg param
+         { s = Q
+         ; dst = Reg param
          ; src =
-                   Mem (Complex
-                     { base = Reg rsp
-                     ; index = None
-                     ; offset = Stack (Start Int32.(8l * of_int_exn i))
-                     })
+             Mem
+               (Complex
+                  { base = Reg rsp
+                  ; index = None
+                  ; offset = Stack (Start Int32.(8l * of_int_exn i))
+                  })
          });
   (* we need the first and last block to be at the end so we can patch it with a prologue and epilogue *)
   Graph.Dfs.iteri_reverse_postorder_start_end fn.graph

@@ -133,7 +133,6 @@ let print_operand s b (operand : _ Operand.t) =
 ;;
 
 let op = print_operand
-
 let i1 size b s x = bprintf b "\t%s\t%a" s (op size) x
 let i2_s size cx s x y = bprintf cx "\t%s\t%a, %a" s (op size) x (op size) y
 
@@ -158,6 +157,8 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
       imm
   | Ret -> bprintf b "\tret"
   | Call { src } -> bprintf b "\tcall\t%s" src
+  | MovZx { dst_size; src_size; dst; src } ->
+    bprintf b "\tmovzx\t%a, %a" (op dst_size) dst (op src_size) src
   | _ -> raise_s [%message "could not print instr" (instr : MReg.t Flat.Instr.t) [%here]]
 ;;
 

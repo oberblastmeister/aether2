@@ -21,7 +21,7 @@
           (const i64 -12)
           (const i64 -13)
         )
-        (const u1 0)
+        (const u1 1)
       )
     )
     (ret)

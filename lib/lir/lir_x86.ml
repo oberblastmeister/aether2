@@ -122,7 +122,11 @@ let rec lower_call cx Call.{ name; args } dst =
   |> F.Iter.enumerate
   |> F.Iter.iter ~f:(fun (i, arg) ->
     Cx.add cx
-    @@ Mov { s = Q; dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l); src = Reg arg };
+    @@ Mov
+         { s = Q
+         ; dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
+         ; src = Reg arg
+         };
     ());
   Cx.add
     cx
@@ -142,7 +146,7 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
        let dst = fresh_op cx "tmp" in
        let src1 = lower_expr_op cx v1 in
        let src2 = lower_expr_op cx v2 in
-       Cx.add cx (Add { s = Q;  dst; src1; src2 });
+       Cx.add cx (Add { s = Q; dst; src1; src2 });
        dst
      | Sub ->
        let dst = fresh_op cx "tmp" in
@@ -164,11 +168,13 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
     dst
   | Const { ty = Ty.Void; _ } -> raise_s [%message "const can't be void" [%here]]
   | Cmp { ty; op; v1; v2 } ->
+    let tmp = fresh_op cx "tmp" in
     let dst = fresh_op cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
     Cx.add cx (Cmp { s = Q; src1; src2 });
-    Cx.add cx (Set { dst; cond = cmp_op_to_cond ty op });
+    Cx.add cx (Set { dst = tmp; cond = cmp_op_to_cond ty op });
+    Cx.add cx (MovZx { dst_size = Q; src_size = B; dst; src = tmp });
     dst
   | Val (I { expr; _ }) -> lower_expr_op cx expr
   | Val (I' { expr; _ }) -> Reg (lower_impure_expr_reg cx expr)
@@ -199,7 +205,9 @@ and lower_instr cx instr =
     ()
   | Instr.ImpureAssign { dst; expr } ->
     let reg = lower_impure_expr_reg cx expr in
-    Cx.add cx (Mov { s = value_size dst; dst = X86.Operand.Reg (vreg dst); src = Reg reg });
+    Cx.add
+      cx
+      (Mov { s = value_size dst; dst = X86.Operand.Reg (vreg dst); src = Reg reg });
     ()
   | VoidCall call -> lower_call cx call None
   | Store _ -> todo [%here]
@@ -225,7 +233,7 @@ and lower_control_instr cx instr =
     let j = lower_block_call cx j in
     Cx.addj cx @@ X86.Jump.Jump j
   | Ret v ->
-    let v = Option.map ~f:(fun expr -> (X86.Size.Q, lower_expr_op cx expr)) v in
+    let v = Option.map ~f:(fun expr -> X86.Size.Q, lower_expr_op cx expr) v in
     Cx.addj cx @@ X86.Jump.Ret v
 ;;
 
@@ -246,8 +254,7 @@ let lower_function (fn : Tir.Function.t) =
   let cx = Context.create fn in
   let params, stack_params = categorize_args fn.ty.params in
   let params =
-    List.map params ~f:(fun (value, mach_reg) ->
-      vreg value, X86.MReg.create mach_reg)
+    List.map params ~f:(fun (value, mach_reg) -> vreg value, X86.MReg.create mach_reg)
   in
   let stack_params = List.map stack_params ~f:vreg in
   let graph = lower_graph cx fn.graph in
