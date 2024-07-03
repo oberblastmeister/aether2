@@ -20,9 +20,6 @@ let prefix_of_size (s : Size.t) =
   | B -> "byte ptr"
 ;;
 
-(* dword ptr *)
-(* word ptr *)
-
 let print_size cx s = Cx.add cx @@ suffix_of_size s
 
 let string_of_mach_reg8l = function
@@ -82,7 +79,7 @@ let string_of_cond (cond : Cond.t) =
   | LE -> "le"
 ;;
 
-let print_mreg cx (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg mreg.s mreg.reg
+let print_mreg cx s (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg s mreg.reg
 
 let print_imm cx imm =
   match imm with
@@ -109,70 +106,45 @@ let print_address cx (address : _ Address.t) =
      | None -> ()
      | Rsp ->
        Cx.add cx " + ";
-       print_mreg cx (MReg.create Q RSP);
+       print_mreg cx Q (MReg.create RSP);
        ()
      | Rip -> todo [%here]
      | Reg r ->
        Cx.add cx " + ";
-       print_mreg cx r;
+       print_mreg cx Q r;
        ());
     (match index with
      | None -> ()
      | Some { index; scale } ->
        Cx.add cx " + ";
-       print_mreg cx index;
+       print_mreg cx Q index;
        Cx.add cx " * ";
        Cx.add cx @@ string_of_scale scale)
 ;;
 
-let print_operand b (operand : _ Operand.t) =
+let print_operand s b (operand : _ Operand.t) =
   match operand with
   | Imm (Int i) -> Cx.add b @@ Imm_int.to_string i
   | Imm _ -> todo [%here]
-  | Reg r -> print_mreg b r
-  | Mem mem ->
-    bprintf b "%s [%a]" (prefix_of_size mem.size) print_address mem.addr;
+  | Reg r -> print_mreg b s r
+  | Mem addr ->
+    bprintf b "%s [%a]" (prefix_of_size s) print_address addr;
     ()
-;;
-
-(* Cx.add cx "[";
-    print_address cx mem.addr;
-    Cx.add cx "]" *)
-
-(* need to add dword ptr and qword ptr stuff *)
-(* todo [%here] *)
-
-let print_operands cx operands =
-  List1.of_list operands
-  |> Option.iter ~f:(function List1.T (x, xs) ->
-    print_operand cx x;
-    List.iter xs ~f:(fun o ->
-      Cx.add cx ", ";
-      print_operand cx o;
-      ());
-    ())
 ;;
 
 let op = print_operand
 
-let suffix (op : _ Flat.Op.t) =
-  match op with
-  | Imm imm -> raise_s [%message "no suffix for immediate" (imm : Imm.t)]
-  | Mem { size; _ } -> suffix_of_size size
-  | Reg { MReg.s; _ } -> suffix_of_size s
-;;
-
-let i1 b s x = bprintf b "\t%s\t%a" s op x
-let i2_s cx s x y = bprintf cx "\t%s\t%a, %a" s op x op y
+let i1 size b s x = bprintf b "\t%s\t%a" s (op size) x
+let i2_s size cx s x y = bprintf cx "\t%s\t%a, %a" s (op size) x (op size) y
 
 let print_instr b (instr : MReg.t Flat.Instr.t) =
   match instr with
-  | Add { dst; src } -> i2_s b "add" dst src
-  | Sub { dst; src } -> i2_s b "sub" dst src
-  | Mov { dst; src } -> i2_s b "mov" dst src
-  | Cmp { src1; src2 } -> i2_s b "cmp" src1 src2
-  | Test { src1; src2 } -> i2_s b "test" src1 src2
-  | Set { cond; dst } -> i1 b ("set" ^ string_of_cond cond) dst
+  | Add { s; dst; src } -> i2_s s b "add" dst src
+  | Sub { s; dst; src } -> i2_s s b "sub" dst src
+  | Mov { s; dst; src } -> i2_s s b "mov" dst src
+  | Cmp { s; src1; src2 } -> i2_s s b "cmp" src1 src2
+  | Test { s; src1; src2 } -> i2_s s b "test" src1 src2
+  | Set { cond; dst } -> i1 B b ("set" ^ string_of_cond cond) dst
   | J { cond; src } -> bprintf b "\t%s %s" ("j" ^ string_of_cond cond) src
   | Jmp { src } -> bprintf b "\tjmp %s" src
   | MovAbs { dst; imm } ->
@@ -180,7 +152,7 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
       b
       "\t%s\t%a, %a"
       "movabs"
-      op
+      (op Q)
       dst
       (fun b i -> Buffer.add_string b (Z.to_string_hum i))
       imm

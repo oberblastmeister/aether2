@@ -1,13 +1,14 @@
 open O
 
 module Move = struct
-  type 'a t =
-    { dst : 'a
-    ; src : 'a
+  type ('a, 'o) t =
+    { dst : 'o
+    ; src : 'o
+    ; ann : 'a
     }
   [@@deriving sexp_of]
 
-  let create ~dst ~src = { dst; src }
+  let create ~dst ~src ~ann = { dst; src; ann }
 end
 
 (* state of each edge being considered in the algorithm *)
@@ -44,7 +45,7 @@ let convert ~eq ~scratch (par_move : _ Move.t list) =
             did_use_scratch := true;
             let t = scratch par_move.(j).src in
             (* Vec.push sequential @@ move ~dst:t ~src:par_move.(j).src; *)
-            Vec.push sequential { Move.dst = t; src = par_move.(j).src };
+            Vec.push sequential { Move.dst = t; src = par_move.(j).src; ann = par_move.(j).ann };
             (* j now should move from the temp because we are about to overwrite j below *)
             par_move.(j) <- { (par_move.(j)) with src = t }
           | Moved -> ());
@@ -83,13 +84,13 @@ let%test_module _ =
     let convert par_move = convert ~eq:String.equal ~scratch:(Fn.const scratch) par_move
 
     let pmov dsts srcs =
-      List.zip_exn dsts srcs |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src)
+      List.zip_exn dsts srcs |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src ~ann:())
     ;;
 
     let%expect_test "simple no scratch" =
       let res, did_use_scratch = convert (pmov [ b; d; c ] [ a; a; b ]) in
       [%test_result: bool] did_use_scratch ~expect:false;
-      print_s [%sexp (res : string Move.t list)];
+      print_s [%sexp (res : (unit, string) Move.t list)];
       ();
       [%expect {|
         (((dst c) (src b)) ((dst b) (src a)) ((dst d) (src a))) |}]
@@ -98,7 +99,7 @@ let%test_module _ =
     let%expect_test "simple scratch" =
       let res, did_use_scratch = convert (pmov [ b; d; c; a ] [ a; a; b; c ]) in
       [%test_result: bool] did_use_scratch ~expect:true;
-      print_s [%sexp (res : string Move.t list)];
+      print_s [%sexp (res : (unit, string) Move.t list)];
       ();
       [%expect
         {|
@@ -111,7 +112,7 @@ let%test_module _ =
         convert (pmov [ rdi; rsi; rdx; rcx; r8; r9 ] [ rsi; rdi; rsi; rsi; r9; r8 ])
       in
       [%test_result: bool] did_use_scratch ~expect:true;
-      print_s [%sexp (res : string Move.t list)];
+      print_s [%sexp (res : (unit, string) Move.t list)];
       ();
       [%expect
         {|

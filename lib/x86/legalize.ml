@@ -42,16 +42,16 @@ let to_op = function
 
 let legalize_par_mov movs =
   let module W = Compiler.Windmills in
-  let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src) in
+  let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src ~ann:()) in
   let movs, _did_use_scratch =
     W.convert
       ~eq:[%equal: AReg.t]
       ~scratch:(fun reg ->
-        AReg.InReg { s = AReg.size reg; name = Some "par_mov_scratch"; reg = R11 })
+        AReg.InReg { name = Some "par_mov_scratch"; reg = Reg_class.scratch_reg_of_class (AReg.reg_class reg )})
       movs
   in
   let movs =
-    List.map movs ~f:(fun { dst; src } -> Flat.Instr.Mov { dst = Reg dst; src = Reg src })
+    List.map movs ~f:(fun { dst; src; ann = () } -> Flat.Instr.Mov { s = Reg_class.max_size (AReg.reg_class dst); dst = Reg dst; src = Reg src })
   in
   movs
 ;;
@@ -68,20 +68,15 @@ let legalize_vinstr cx instr =
 let legalize_instr cx (instr : AReg.t Instr.t) =
   let open Ast.Instr in
   let force_register ~size o =
-    let reg = AReg.InReg { s = size; name = Some "scratch"; reg = Mach_reg.R11 } in
-    Cx.add cx @@ Mov { dst = Reg reg; src = to_op o };
+    let reg = AReg.InReg { name = Some "scratch"; reg = Mach_reg.R11 } in
+    Cx.add cx @@ Mov { s = size; dst = Reg reg; src = to_op o };
     reg
-  in
-  let operand_size = function
-    | Operand.Reg r -> AReg.size r
-    | Operand.Mem mem -> mem.size
-    | _ -> failwith "get_size"
   in
   let force_register_op size o = Operand.reg @@ force_register ~size o in
   (* s is the size of o2 *)
-  let legal_mem o1 o2 =
+  let legal_mem s o1 o2 =
     match o1, o2 with
-    | Operand.Mem _, Operand.Mem { size; _ } -> force_register_op size o2
+    | Operand.Mem _, Operand.Mem _ -> force_register_op s o2
     | _ -> o2
   in
   (* precondition: instruction must work on the same size for all three operands *)
@@ -97,12 +92,11 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      So we just use a scratch register.
      We can then simplify all this stuff in the peephole optimization phase.
   *)
-  let legal3 dst src1 src2 rmw =
-    let size = operand_size dst in
-    let r11 = Operand.Reg (AReg.create size Mach_reg.R11) in
-    Cx.add cx @@ Mov { dst = r11; src = src1 };
-    Cx.add cx @@ rmw ~dst:(Operand.Reg (AReg.create size Mach_reg.R11)) ~src:src2;
-    Cx.add cx @@ Mov { dst; src = r11 }
+  let legal3 s dst src1 src2 rmw =
+    let r11 = Operand.Reg (AReg.create Mach_reg.R11) in
+    Cx.add cx @@ Mov { s; dst = r11; src = src1 };
+    Cx.add cx @@ rmw ~s ~dst:(Operand.Reg (AReg.create Mach_reg.R11)) ~src:src2;
+    Cx.add cx @@ Mov { s; dst; src = r11 }
   in
   let flip_src src1 src2 =
     match src1, src2 with
@@ -118,32 +112,32 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      ()
    | Jump (Ret src) ->
      (match src with
-      | Some src -> Cx.add cx @@ Mov { dst = Reg (AReg.create Q RAX); src }
+      | Some (s, src) -> Cx.add cx @@ Mov { s; dst = Reg (AReg.create RAX); src }
       | None -> ());
      ()
-   | Add { dst; src1; src2; _ } -> legal3 dst src1 src2 Flat.Instr.add
-   | Sub { dst; src1; src2; _ } -> legal3 dst src1 src2 Flat.Instr.sub
-   | Mov { dst; src } ->
-     let src = legal_mem dst src in
-     Cx.add cx @@ Mov { dst; src }
-   | Cmp { src1; src2; _ } ->
-     let src2 = legal_mem src1 src2 in
+   | Add { dst; src1; src2; s } -> legal3 s dst src1 src2 Flat.Instr.add
+   | Sub { dst; src1; src2; s } -> legal3 s dst src1 src2 Flat.Instr.sub
+   | Mov { s; dst; src } ->
+     let src = legal_mem s dst src in
+     Cx.add cx @@ Mov { s; dst; src }
+   | Cmp { s; src1; src2; _ } ->
+     let src2 = legal_mem s src1 src2 in
      let src1, src2 = flip_src src1 src2 in
-     Cx.add cx @@ Cmp { src1; src2 }
-   | Test { src1; src2; _ } ->
-     let src2 = legal_mem src1 src2 in
+     Cx.add cx @@ Cmp { s; src1; src2 }
+   | Test { s; src1; src2; _ } ->
+     let src2 = legal_mem s src1 src2 in
      let src1, src2 = flip_src src1 src2 in
-     Cx.add cx @@ Test { src1; src2 }
+     Cx.add cx @@ Test { s; src1; src2 }
    | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst; imm }
    | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst }
    | Call { name; reg_args; dst; _ } ->
-     List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create Q mach_reg, reg)
+     List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create mach_reg, reg)
      |> legalize_par_mov
      |> List.iter ~f:(Cx.add cx);
      Cx.add cx @@ Call { src = name };
      (match dst with
       | Some (dst, dst_reg) ->
-        Cx.add cx @@ Mov { dst = Reg dst; src = Reg (AReg.create Q dst_reg) }
+        Cx.add cx @@ Mov { s = Reg_class.max_size (Reg_class.of_mach_reg dst_reg);   dst = Reg dst; src = Reg (AReg.create dst_reg) }
       | None -> ());
      ()
    | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
@@ -159,27 +153,23 @@ let legalize_function ~func_index (fn : _ Function.t) =
   let cx = Cx.create func_index in
   let param_movs =
     legalize_par_mov
-      ((List.map & Tuple2.map_snd) ~f:(fun reg -> AReg.of_mreg reg) fn.params)
+      ((List.map) ~f:(fun (vreg, reg) -> vreg, AReg.of_mreg reg) fn.params)
   in
   List.iter param_movs ~f:(Cx.add cx);
   (* TODO: fix this shit, this should be turned into the stack ends *)
-  let rsp = AReg.create Q Mach_reg.RSP in
+  let rsp = AReg.create Mach_reg.RSP in
   List.iter fn.stack_params
   |> F.Iter.enumerate
   |> F.Iter.iter ~f:(fun (i, param) ->
     Cx.add cx
     @@ Flat.Instr.Mov
-         { dst = Reg param
+         { s = Q; dst = Reg param
          ; src =
-             Mem
-               { size = Q
-               ; addr =
-                   Complex
+                   Mem (Complex
                      { base = Reg rsp
                      ; index = None
                      ; offset = Stack (Start Int32.(8l * of_int_exn i))
-                     }
-               }
+                     })
          });
   (* we need the first and last block to be at the end so we can patch it with a prologue and epilogue *)
   Graph.Dfs.iteri_reverse_postorder_start_end fn.graph

@@ -26,23 +26,23 @@ end = struct
     match operand with
     | Operand.Imm imm -> Operand.Imm (resolve_imm stack imm)
     | Reg reg -> Reg reg
-    | Mem mem -> Mem (Mem.map_addr mem ~f:(resolve_address stack))
+    | Mem addr -> Mem (resolve_address stack addr)
   ;;
 
   let resolve_instr stack (minstr : _ Flat.Instr.t) : _ Flat.Instr.t =
     let resolve_operand = resolve_operand stack in
     match minstr with
-    | Mov { dst; src } -> Mov { dst = resolve_operand dst; src = resolve_operand src }
+    | Mov { dst; src; s } -> Mov { dst = resolve_operand dst; src = resolve_operand src; s }
     | MovAbs { dst; imm } -> MovAbs { dst = resolve_operand dst; imm }
-    | Lea { dst; src } -> Lea { dst = resolve_operand dst; src = resolve_operand src }
-    | Add { dst; src } -> Add { dst = resolve_operand dst; src = resolve_operand src }
-    | Sub { dst; src } -> Sub { dst = resolve_operand dst; src = resolve_operand src }
-    | Push { src } -> Push { src = resolve_operand src }
-    | Pop { dst } -> Pop { dst = resolve_operand dst }
-    | Cmp { src1; src2 } ->
-      Cmp { src1 = resolve_operand src1; src2 = resolve_operand src2 }
-    | Test { src1; src2; _ } ->
-      Test { src1 = resolve_operand src1; src2 = resolve_operand src2 }
+    | Lea { dst; src; s } -> Lea { dst = resolve_operand dst; src = resolve_operand src; s }
+    | Add { dst; src; s } -> Add { dst = resolve_operand dst; src = resolve_operand src; s }
+    | Sub { dst; src; s } -> Sub { dst = resolve_operand dst; src = resolve_operand src; s }
+    | Push { src; s } -> Push { src = resolve_operand src; s }
+    | Pop { dst; s } -> Pop { dst = resolve_operand dst; s }
+    | Cmp { src1; src2; s } ->
+      Cmp { src1 = resolve_operand src1; src2 = resolve_operand src2; s }
+    | Test { src1; src2; s } ->
+      Test { src1 = resolve_operand src1; src2 = resolve_operand src2; s }
     | Set { dst; cond } -> Set { dst = resolve_operand dst; cond }
     | Call p -> Call p
     | J { cond; src } -> J { cond; src }
@@ -57,7 +57,8 @@ end
 
 let create_prologue stack_layout =
   [ Flat.Instr.Sub
-      { dst = Reg (MReg.create Q RSP)
+      { s = Q ;
+        dst = Reg (MReg.create RSP)
       ; src = Imm (Int (Imm_int.of_int32 (Stack_layout.size stack_layout)))
       }
   ]
@@ -65,7 +66,7 @@ let create_prologue stack_layout =
 
 let create_epilogue stack_layout =
   [ Flat.Instr.Add
-      { dst = Reg (MReg.create Q RSP)
+      { s = Q; dst = Reg (MReg.create RSP)
       ; src = Imm (Int (Imm_int.of_int32 (Stack_layout.size stack_layout)))
       }
   ; Ret
@@ -80,7 +81,7 @@ let run_function ~func_index (fn : _ Function.t) =
     |> F.Iter.filter ~f:(fun reg ->
       List.mem ~equal:Mach_reg.equal Mach_reg.callee_saved reg)
     |> F.Iter.map ~f:(fun reg ->
-      MReg.create Q reg, Stack_builder.fresh_stack_slot stack_builder "spill_callee_saved")
+      MReg.create reg, Stack_builder.fresh_stack_slot stack_builder "spill_callee_saved")
     |> F.Iter.to_list
   in
   [%log.global.debug
@@ -98,7 +99,7 @@ let run_function ~func_index (fn : _ Function.t) =
       Vec.push
         flat'
         (Flat.Line.Instr
-           (Flat.Instr.Mov { dst = Operand.stack_local Q slot; src = Operand.Reg reg }));
+           (Flat.Instr.Mov { s = Q; dst = Operand.stack_local slot; src = Operand.Reg reg }));
       ());
     Vec.append_into ~into:flat' flat;
     (* reload callee saved *)
@@ -106,7 +107,7 @@ let run_function ~func_index (fn : _ Function.t) =
       Vec.push
         flat'
         (Flat.Line.Instr
-           (Flat.Instr.Mov { dst = Operand.Reg reg; src = Operand.stack_local Q slot }));
+           (Flat.Instr.Mov { s = Q; dst = Operand.Reg reg; src = Operand.stack_local slot }));
       ());
     Vec.freeze flat'
   in

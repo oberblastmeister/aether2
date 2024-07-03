@@ -5,12 +5,6 @@ module Stack_slot = Utils.Instr_types.Stack_slot
 module Control = Utils.Instr_types.Control
 module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
 
-module Reg_class = struct
-  type t =
-    | Int
-    | Float
-  [@@deriving compare, equal, sexp_of, variants]
-end
 
 module Size = struct
   type t =
@@ -24,10 +18,39 @@ module Size = struct
   ;;
 end
 
+module Reg_class = struct
+  type t =
+    | Int
+  [@@deriving hash, compare, equal, sexp, variants]
+
+  let of_mach_reg = function
+    | Mach_reg.RAX
+    | Mach_reg.RBX
+    | Mach_reg.RCX
+    | Mach_reg.RDX
+    | Mach_reg.RSI
+    | Mach_reg.RDI
+    | Mach_reg.RBP
+    | Mach_reg.RSP
+    | Mach_reg.R8
+    | Mach_reg.R9
+    | Mach_reg.R10
+    | Mach_reg.R11
+    | Mach_reg.R12
+    | Mach_reg.R13
+    | Mach_reg.R14
+    | Mach_reg.R15 -> Int
+
+  let scratch_reg_of_class = function
+    | Int -> Mach_reg.R11
+
+  let max_size = function
+    | Int -> Size.Q
+end
+
 module MReg = struct
   type t =
     { name : string option
-    ; reg_class : Reg_class.t
     ; reg : Mach_reg.t
     }
   [@@deriving equal, compare, hash]
@@ -38,7 +61,7 @@ module MReg = struct
     | Some name -> [%sexp (name : string), (reg : Mach_reg.t)]
   ;;
 
-  let create ?name reg = { name; reg }
+  let create ?name reg = { name; reg}
 end
 
 module Stack_instr = struct
@@ -141,26 +164,25 @@ end
 module AReg = struct
   type t =
     | Spilled of
-        { reg_class : Reg_class.t
+        { reg_class : Reg_class.t [@equal.ignore]
         ; name : Stack_slot.t
         }
-    | InReg of
-        { reg_class : Reg_class.t
-        ; name : string option [@equal.ignore]
-        ; reg : Mach_reg.t
-        }
+    | InReg of MReg.t
   [@@deriving equal, sexp_of, variants]
+
+  let reg_class = function
+    | Spilled { reg_class; _ } -> reg_class
+    | InReg { reg; _ } -> Reg_class.of_mach_reg reg
 
   let reg_val = function
     | InReg { reg; _ } -> Some reg
     | _ -> None
   ;;
 
-  let reg_class (Spilled { reg_class; _ } | InReg { reg_class; _ }) = reg_class
-  let create ?name reg = InReg { reg_class = Int; name; reg }
+  let create ?name reg = InReg { name; reg }
 
   let of_mreg (mreg : MReg.t) =
-    InReg { reg_class = mreg.reg_class; name = mreg.name; reg = mreg.reg }
+    InReg mreg
   ;;
 end
 
@@ -168,7 +190,7 @@ module VReg = struct
   (* make this a variant so we can have unnamed virtual registers *)
   module T = struct
     type t =
-      { reg_class : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
+      { reg_class : Reg_class.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
       ; name : Name.t
       }
     [@@deriving equal, compare, sexp, hash, fields]
@@ -181,6 +203,7 @@ module VReg = struct
   let create ?(reg_class = Reg_class.Int) name = { reg_class; name }
 end
 
+(* currently nested registers in addressing modes are assumed to by of size Q *)
 module Address = struct
   module Base = struct
     type 'r t =
@@ -256,7 +279,7 @@ module Address = struct
   ;;
 end
 
-module Mem = struct
+(* module Mem = struct
   type 'r t =
     { size : Size.t
     ; addr : 'r Address.t
@@ -265,35 +288,30 @@ module Mem = struct
 
   let iter_regs a = Address.iter_regs a.addr
   let map_addr t ~f = { t with addr = f t.addr }
-end
+end*)
 
 module Operand = struct
   type 'r t =
     | Imm of Imm.t
     | Reg of 'r
-    | Mem of 'r Mem.t
+    | Mem of 'r Address.t
   [@@deriving sexp_of, variants, map, fold, iter]
 
-  let mem size addr = Mem { size; addr }
-  let imm i = Imm (Imm.Int i)
-  let stack_off_end s i = mem s (Address.stack_off_end i)
-  let stack_local s name = mem s (Address.stack_local name)
-  let vreg s name = Reg (VReg.create s name)
+  let imm i = Imm (Int i)
+  let stack_off_end i = mem (Address.stack_off_end i)
+  let stack_local name = mem (Address.stack_local name)
+  let vreg name = Reg (VReg.create name)
   let iter_reg_val o ~f:k = reg_val o |> Option.iter ~f:k
   let iter_mem_val o ~f:k = mem_val o |> Option.iter ~f:k
-  let iter_mem_regs o ~f:k = (iter_mem_val @> Mem.iter_regs) o ~f:k
+  let iter_mem_regs o ~f:k = (iter_mem_val @> Address.iter_regs) o ~f:k
 
   let iter_any_regs o ~f:k =
     match o with
     | Reg r -> k r
-    | Mem m -> Mem.iter_regs m ~f:k
+    | Mem m -> Address.iter_regs m ~f:k
     | Imm _ -> ()
   ;;
 
-  let of_areg = function
-    | AReg.InReg { name; reg; s } -> Reg (MReg.create ?name s reg)
-    | AReg.Spilled { s; name } -> stack_local s name
-  ;;
 end
 
 module Block_call = struct
@@ -315,7 +333,8 @@ module Jump = struct
         ; j1 : 'r Block_call.t
         ; j2 : 'r Block_call.t
         }
-    | Ret of 'r Operand.t option
+    | Ret of
+      (Size.t * 'r Operand.t) option
   [@@deriving sexp_of, fold, map, iter]
 
   let map_regs i ~f = map f i
@@ -326,7 +345,7 @@ module Jump = struct
     | CondJump { j1; j2; _ } ->
       Block_call.iter_uses j1 ~f;
       Block_call.iter_uses j2 ~f
-    | Ret r -> Option.iter r ~f:(fun o -> Operand.iter_any_regs o ~f)
+    | Ret r -> Option.iter r ~f:(fun (_s, o) -> Operand.iter_any_regs o ~f)
   ;;
 
   let iter_block_calls j ~f:k =
@@ -549,14 +568,14 @@ module Instr = struct
     Mov
       { s
       ; dst = Reg (MReg.create ~name:stack_name.name reg)
-      ; src = Operand.mem s (Address.stack_local stack_name)
+      ; src = Operand.mem (Address.stack_local stack_name)
       }
   ;;
 
   let mov_to_stack_from_reg s (stack_name : Stack_slot.t) reg =
     Mov
       { s
-      ; dst = Operand.mem s (Address.stack_local stack_name)
+      ; dst = Operand.mem (Address.stack_local stack_name)
       ; src = Reg (MReg.create ~name:stack_name.name reg)
       }
   ;;

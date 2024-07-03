@@ -28,7 +28,7 @@ let remove_ssa (fn : _ Function.t) =
         let args = j.args in
         let to_block = Cfg.Graph.find_exn j.label graph in
         let params = Label.Table.find_exn params_of_label j.label in
-        let par_mov = List.zip_exn params args |> VInstr.Par_mov in
+        let par_mov = List.zip_exn params args |>List.map ~f:(fun (param, arg) -> todo [%here]) |> VInstr.Par_mov in
         to_block, par_mov
       in
       match block_calls with

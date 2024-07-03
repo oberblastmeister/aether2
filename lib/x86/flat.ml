@@ -3,11 +3,12 @@ open Utils.Instr_types
 module Address = Ast.Address
 module Op = Ast.Operand
 module MReg = Ast.MReg
+module Size = Ast.Size
 
 module Instr = struct
   type 'r t =
     | Mov of
-        { dst : 'r Op.t
+        { s : Size.t; dst : 'r Op.t
         ; src : 'r Op.t
         }
     | MovAbs of
@@ -15,25 +16,25 @@ module Instr = struct
         ; imm : Z.t
         }
     | Lea of
-        { dst : 'r Op.t
+        { s : Size.t; dst : 'r Op.t
         ; src : 'r Op.t
         }
     | Add of
-        { dst : 'r Op.t
+        { s : Size.t; dst : 'r Op.t
         ; src : 'r Op.t
         }
     | Sub of
-        { dst : 'r Op.t
+        { s : Size.t; dst : 'r Op.t
         ; src : 'r Op.t
         }
-    | Push of { src : 'r Op.t }
-    | Pop of { dst : 'r Op.t }
+    | Push of { s : Size.t; src : 'r Op.t }
+    | Pop of { s : Size.t; dst : 'r Op.t }
     | Cmp of
-        { src1 : 'r Op.t
+        { s : Size.t; src1 : 'r Op.t
         ; src2 : 'r Op.t
         }
     | Test of
-        { src1 : 'r Op.t
+        { s : Size.t; src1 : 'r Op.t
         ; src2 : 'r Op.t
         }
     | Set of
@@ -51,23 +52,23 @@ module Instr = struct
 
   let iter_operands ~on_use ~on_def i =
     match i with
-    | Mov { dst; src } ->
+    | Mov { dst; src; _ } ->
       on_use src;
       on_def dst
     | MovAbs { dst; _ } -> on_def dst
-    | Lea { dst; src } ->
+    | Lea { dst; src; _ } ->
       on_use src;
       on_def dst
-    | Add { dst; src } | Sub { dst; src } ->
+    | Add { dst; src; _ } | Sub { dst; src; _ } ->
       on_use src;
       on_use dst;
       on_def dst
-    | Push { src } -> on_use src
-    | Pop { dst } -> on_def dst
-    | Cmp { src1; src2 } ->
+    | Push { src; _ } -> on_use src
+    | Pop { dst; _ } -> on_def dst
+    | Cmp { src1; src2; _ } ->
       on_use src1;
       on_use src2
-    | Test { src1; src2 } ->
+    | Test { src1; src2; _ } ->
       on_use src1;
       on_use src2
     | Set { dst; _ } -> on_def dst
@@ -82,7 +83,7 @@ module Instr = struct
       i
       ~on_use:(fun op -> Op.iter_any_regs op ~f)
       ~on_def:(function
-        | Mem m -> Ast.Mem.iter_regs m ~f
+        | Mem m -> Ast.Address.iter_regs m ~f
         | _ -> ())
   ;;
 
@@ -103,15 +104,15 @@ module Instr = struct
 
   let mov_to_stack_from_reg s (stack_name : Stack_slot.t) reg =
     Mov
-      { dst = Op.mem s (Address.stack_local stack_name)
-      ; src = Reg (MReg.create ~name:stack_name.name s reg)
+      { s; dst = Mem (Address.stack_local stack_name)
+      ; src = Reg (MReg.create ~name:stack_name.name reg)
       }
   ;;
 
   let mov_to_reg_from_stack s reg (stack_name : Stack_slot.t) =
     Mov
-      { dst = Reg (MReg.create ~name:stack_name.name s reg)
-      ; src = Op.mem s (Address.stack_local stack_name)
+      { s; dst = Reg (MReg.create ~name:stack_name.name reg)
+      ; src = Mem (Address.stack_local stack_name)
       }
   ;;
 end

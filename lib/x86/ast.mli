@@ -4,12 +4,6 @@ module Label = Utils.Instr_types.Label
 module Stack_slot = Utils.Instr_types.Stack_slot
 module Mach_reg_set : module type of Data.Enum_set.Make (Mach_reg)
 
-module Reg_class : sig
-  type t =
-    | Int
-    | Float
-  [@@deriving compare, equal, sexp_of, variants]
-end
 
 module Size : sig
   type t =
@@ -20,16 +14,25 @@ module Size : sig
   val to_byte_size : t -> int
 end
 
+module Reg_class : sig
+  type t =
+    | Int
+  [@@deriving compare, equal, sexp_of, variants]
+
+  val of_mach_reg : Mach_reg.t -> t
+  val scratch_reg_of_class : t -> Mach_reg.t
+  val max_size : t -> Size.t
+end
+
 module MReg : sig
   type t =
-    { s : Size.t
-    ; name : string option
+    { name : string option
     ; reg : Mach_reg.t
     }
   [@@deriving equal, compare, hash]
 
   val sexp_of_t : t -> Sexp.t
-  val create : ?name:string -> Size.t -> Mach_reg.t -> t
+  val create : ?name:string -> Mach_reg.t -> t
 end
 
 module Stack_instr : sig
@@ -107,32 +110,28 @@ end
 module AReg : sig
   type t =
     | Spilled of
-        { s : Size.t [@equal.ignore]
+        { reg_class : Reg_class.t [@equal.ignore]
         ; name : Stack_slot.t
         }
-    | InReg of
-        { s : Size.t [@equal.ignore]
-        ; name : string option [@equal.ignore]
-        ; reg : Mach_reg.t
-        }
+    | InReg of MReg.t
   [@@deriving equal, sexp_of, variants]
 
   val reg_val : t -> Mach_reg.t option
-  val size : t -> Size.t
-  val create : ?name:string -> Size.t -> Mach_reg.t -> t
+  val reg_class : t -> Reg_class.t
+  val create : ?name:string -> Mach_reg.t -> t
   val of_mreg : MReg.t -> t
 end
 
 module VReg : sig
   type t =
-    { s : Size.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
+    { reg_class : Reg_class.t [@equal.ignore] [@compare.ignore] [@hash.ignore]
     ; name : Name.t
     }
   [@@deriving equal, compare, sexp, hash, fields]
 
   include Comparable.S with type t := t
 
-  val create : Size.t -> Name.t -> t
+  val create : ?reg_class:Reg_class.t -> Name.t -> t
 end
 
 module Address : sig
@@ -192,34 +191,21 @@ module Address : sig
   val iter_regs : 'r t -> f:('r -> unit) -> unit
 end
 
-module Mem : sig
-  type 'r t =
-    { size : Size.t
-    ; addr : 'r Address.t
-    }
-  [@@deriving sexp_of, map, fold, iter]
-
-  val iter_regs : 'a t -> f:('a -> unit) -> unit
-  val map_addr : 'a t -> f:('a Address.t -> 'b Address.t) -> 'b t
-end
-
 module Operand : sig
   type 'r t =
     | Imm of Imm.t
     | Reg of 'r
-    | Mem of 'r Mem.t
+    | Mem of 'r Address.t
   [@@deriving sexp_of, variants, map, fold, iter]
 
-  val mem : Size.t -> 'a Address.t -> 'a t
   val imm : Imm_int.t -> 'a t
-  val stack_off_end : Size.t -> int32 -> 'a t
-  val stack_local : Size.t -> Stack_slot.t -> 'a t
-  val vreg : Size.t -> Name.t -> VReg.t t
+  val stack_off_end : int32 -> 'a t
+  val stack_local : Stack_slot.t -> 'a t
+  val vreg : Name.t -> VReg.t t
   val iter_reg_val : 'a t -> f:('a -> unit) -> unit
-  val iter_mem_val : 'a t -> f:('a Mem.t -> unit) -> unit
+  val iter_mem_val : 'a t -> f:('a Address.t -> unit) -> unit
   val iter_mem_regs : 'a t -> f:('a -> unit) -> unit
   val iter_any_regs : 'a t -> f:('a -> unit) -> unit
-  val of_areg : AReg.t -> MReg.t t
 end
 
 module Block_call : sig
@@ -241,7 +227,8 @@ module Jump : sig
         ; j1 : 'r Block_call.t
         ; j2 : 'r Block_call.t
         }
-    | Ret of 'r Operand.t option
+    | Ret of
+      (Size.t * 'r Operand.t) option
   [@@deriving sexp_of, fold, map, iter]
 
   val map_regs : 'a t -> f:('a -> 'b) -> 'b t
@@ -281,7 +268,8 @@ module Instr : sig
   type 'r t =
     | NoOp
     | Mov of
-        { dst : 'r Operand.t
+        { s : Size.t
+        ; dst : 'r Operand.t
         ; src : 'r Operand.t
         }
     | MovZx of
@@ -291,39 +279,53 @@ module Instr : sig
         ; src : 'r Operand.t
         }
     | Lea of
-        { dst : 'r
+        { s : Size.t
+        ; dst : 'r
         ; src : 'r Address.t
         }
     | Add of
-        { dst : 'r Operand.t
+        { s : Size.t
+        ; dst : 'r Operand.t
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Sub of
-        { dst : 'r Operand.t
+        { s : Size.t
+        ; dst : 'r Operand.t
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
-    | Push of { src : 'r }
-    | Pop of { dst : 'r }
+    | Push of
+        { s : Size.t
+        ; src : 'r
+        }
+    | Pop of
+        { s : Size.t
+        ; dst : 'r
+        }
     | MovAbs of
-        { dst : 'r Operand.t
+        { (* dst size is always Q *)
+          dst : 'r Operand.t
         ; imm : Z.t
         }
     | Cmp of
-        { src1 : 'r Operand.t
+        { s : Size.t
+        ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Test of
-        { src1 : 'r Operand.t
+        { s : Size.t
+        ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
     | Set of
-        { cond : Cond.t
+        { (* dst size is always B *)
+          cond : Cond.t
         ; dst : 'r Operand.t
         }
     | Call of
-        { name : string
+        { (* dst size is always Q *)
+          name : string
         ; reg_args : (Mach_reg.t * 'r) list
         ; defines : Mach_reg.t list (* caller saved registers*)
         ; dst : ('r * Mach_reg.t) option

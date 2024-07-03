@@ -155,8 +155,8 @@ let apply_vreg cx (vreg : VReg.t) : AReg.t =
   match Ra.Allocation.find_exn cx.allocation vreg.name with
   | Spilled ->
     let stack_slot = Stack_builder.stack_slot_of_name cx.stack_builder vreg.name in
-    Spilled { s = vreg.s; name = stack_slot }
-  | InReg reg -> InReg { s = vreg.s; name = Some vreg.name.name; reg }
+    Spilled { reg_class = vreg.reg_class; name = stack_slot }
+  | InReg reg -> InReg { name = Some vreg.name.name; reg }
 ;;
 
 let apply_allocation_instr cx (instr : VReg.t Instr.t) =

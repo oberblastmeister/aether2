@@ -1,18 +1,18 @@
 open! O
 
 module Move : sig
-  type 'a t =
-    { dst : 'a
-    ; src : 'a
+  type ('a, 'o) t =
+    { dst : 'o
+    ; src : 'o
+    ; ann : 'a
     }
   [@@deriving sexp_of]
 
-  val create : dst:'a -> src:'a -> 'a t
+  val create : dst:'o -> src:'o -> ann:'a -> ('a, 'o) t
 end
 
 val convert
-  :  eq:('a -> 'a -> bool)
-  -> scratch:('a -> 'a)
-  -> 'a Move.t list
-  -> 'a Move.t list * bool
-(* -> ('b, [< Core.read ]) Vec.t * bool *)
+  :  eq:('o -> 'o -> bool)
+  -> scratch:('o -> 'o)
+  -> ('a, 'o) Move.t list
+  -> ('a, 'o) Move.t list * bool
