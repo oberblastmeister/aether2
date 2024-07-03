@@ -37,6 +37,11 @@ module Instr = struct
         ; dst : 'r Op.t
         ; src : 'r Op.t
         }
+    | Imul of
+        { s : Size.t
+        ; dst : 'r Op.t
+        ; src : 'r Op.t
+        }
     | Push of
         { s : Size.t
         ; src : 'r Op.t
@@ -77,7 +82,7 @@ module Instr = struct
     | Lea { dst; src; _ } ->
       on_use src;
       on_def dst
-    | Add { dst; src; _ } | Sub { dst; src; _ } ->
+    | Add { dst; src; _ } | Sub { dst; src; _ } | Imul { dst; src; _ } ->
       on_use src;
       on_use dst;
       on_def dst

@@ -5,7 +5,6 @@ module Stack_slot = Utils.Instr_types.Stack_slot
 module Control = Utils.Instr_types.Control
 module Mach_reg_set = Data.Enum_set.Make (Mach_reg)
 
-
 module Size = struct
   type t =
     | Q
@@ -19,9 +18,7 @@ module Size = struct
 end
 
 module Reg_class = struct
-  type t =
-    | Int
-  [@@deriving hash, compare, equal, sexp, variants]
+  type t = Int [@@deriving hash, compare, equal, sexp, variants]
 
   let of_mach_reg = function
     | Mach_reg.RAX
@@ -40,12 +37,15 @@ module Reg_class = struct
     | Mach_reg.R13
     | Mach_reg.R14
     | Mach_reg.R15 -> Int
+  ;;
 
   let scratch_reg_of_class = function
     | Int -> Mach_reg.R11
+  ;;
 
   let max_size = function
     | Int -> Size.Q
+  ;;
 end
 
 module MReg = struct
@@ -61,7 +61,7 @@ module MReg = struct
     | Some name -> [%sexp (name : string), (reg : Mach_reg.t)]
   ;;
 
-  let create ?name reg = { name; reg}
+  let create ?name reg = { name; reg }
 end
 
 module Stack_instr = struct
@@ -173,6 +173,7 @@ module AReg = struct
   let reg_class = function
     | Spilled { reg_class; _ } -> reg_class
     | InReg { reg; _ } -> Reg_class.of_mach_reg reg
+  ;;
 
   let reg_val = function
     | InReg { reg; _ } -> Some reg
@@ -180,10 +181,7 @@ module AReg = struct
   ;;
 
   let create ?name reg = InReg { name; reg }
-
-  let of_mreg (mreg : MReg.t) =
-    InReg mreg
-  ;;
+  let of_mreg (mreg : MReg.t) = InReg mreg
 end
 
 module VReg = struct
@@ -311,7 +309,6 @@ module Operand = struct
     | Mem m -> Address.iter_regs m ~f:k
     | Imm _ -> ()
   ;;
-
 end
 
 module Block_call = struct
@@ -333,8 +330,7 @@ module Jump = struct
         ; j1 : 'r Block_call.t
         ; j2 : 'r Block_call.t
         }
-    | Ret of
-      (Size.t * 'r Operand.t) option
+    | Ret of (Size.t * 'r Operand.t) option
   [@@deriving sexp_of, fold, map, iter]
 
   let map_regs i ~f = map f i
@@ -451,6 +447,12 @@ module Instr = struct
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
+    | Imul of
+        { s : Size.t
+        ; dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
     | Push of
         { s : Size.t
         ; src : 'r
@@ -519,7 +521,9 @@ module Instr = struct
       on_def @@ O.Reg dst;
       on_def @@ O.Reg dst;
       Address.iter_regs src ~f:(fun reg -> on_use (O.Reg reg))
-    | Sub { dst; src1; src2; _ } | Add { dst; src1; src2; _ } ->
+    | Sub { dst; src1; src2; _ }
+    | Add { dst; src1; src2; _ }
+    | Imul { dst; src1; src2; _ } ->
       on_def dst;
       on_use src1;
       on_use src2
@@ -582,6 +586,8 @@ module Instr = struct
 
   let mach_reg_defs i k =
     match i with
+    | Call { defines; _ } -> List.iter defines ~f:k
+    | Imul _ (* the two operand version of imul uses no machine registers *)
     | NoOp
     | Mov _
     | MovZx _
@@ -596,7 +602,6 @@ module Instr = struct
     | Set _
     | Jump _
     | Virt _ -> ()
-    | Call { defines; _ } -> List.iter defines ~f:k
   ;;
 end
 

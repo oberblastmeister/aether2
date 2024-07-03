@@ -41,6 +41,8 @@ end = struct
       Lea { dst = resolve_operand dst; src = resolve_operand src; s }
     | Add { dst; src; s } ->
       Add { dst = resolve_operand dst; src = resolve_operand src; s }
+    | Imul { dst; src; s } ->
+      Imul { dst = resolve_operand dst; src = resolve_operand src; s }
     | Sub { dst; src; s } ->
       Sub { dst = resolve_operand dst; src = resolve_operand src; s }
     | Push { src; s } -> Push { src = resolve_operand src; s }

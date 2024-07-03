@@ -50,6 +50,7 @@ module Bin_op : sig
   type t =
     | Add
     | Sub
+    | Mul
   [@@deriving sexp]
 end
 

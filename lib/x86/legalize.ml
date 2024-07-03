@@ -121,6 +121,7 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
       | None -> ());
      ()
    | Add { dst; src1; src2; s } -> legal3 s dst src1 src2 Flat.Instr.add
+   | Imul { dst; src1; src2; s } -> legal3 s dst src1 src2 Flat.Instr.imul
    | Sub { dst; src1; src2; s } -> legal3 s dst src1 src2 Flat.Instr.sub
    | Mov { s; dst; src } ->
      let src = legal_mem s dst src in
@@ -154,8 +155,7 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
              }
       | None -> ());
      ()
-   | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]
-   );
+   | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
   ()
 ;;
 

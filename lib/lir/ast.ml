@@ -22,6 +22,7 @@ module Bin_op = struct
   type t =
     | Add
     | Sub
+    | Mul
   [@@deriving sexp]
 end
 

@@ -140,7 +140,7 @@ let rec lower_call cx Call.{ name; args } dst =
 
 and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
   match expr with
-  | Bin { op; v1; v2; _ } ->
+  | Bin { ty; op; v1; v2; _ } ->
     (match op with
      | Bin_op.Add ->
        let dst = fresh_op cx "tmp" in
@@ -153,6 +153,12 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
        let src1 = lower_expr_op cx v1 in
        let src2 = lower_expr_op cx v2 in
        Cx.add cx (Sub { s = Q; dst; src1; src2 });
+       dst
+     | Mul ->
+       let dst = fresh_op cx "tmp" in
+       let src1 = lower_expr_op cx v1 in
+       let src2 = lower_expr_op cx v2 in
+       Cx.add cx (Imul { s = Q; dst; src1; src2 });
        dst)
   | Const { ty = Ty.U64 | Ty.I64; const } when is_some (X86.Imm_int.of_z const) ->
     let dst = fresh_op cx "tmp" in

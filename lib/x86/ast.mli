@@ -4,7 +4,6 @@ module Label = Utils.Instr_types.Label
 module Stack_slot = Utils.Instr_types.Stack_slot
 module Mach_reg_set : module type of Data.Enum_set.Make (Mach_reg)
 
-
 module Size : sig
   type t =
     | Q
@@ -15,9 +14,7 @@ module Size : sig
 end
 
 module Reg_class : sig
-  type t =
-    | Int
-  [@@deriving compare, equal, sexp_of, variants]
+  type t = Int [@@deriving compare, equal, sexp_of, variants]
 
   val of_mach_reg : Mach_reg.t -> t
   val scratch_reg_of_class : t -> Mach_reg.t
@@ -227,8 +224,7 @@ module Jump : sig
         ; j1 : 'r Block_call.t
         ; j2 : 'r Block_call.t
         }
-    | Ret of
-      (Size.t * 'r Operand.t) option
+    | Ret of (Size.t * 'r Operand.t) option
   [@@deriving sexp_of, fold, map, iter]
 
   val map_regs : 'a t -> f:('a -> 'b) -> 'b t
@@ -290,6 +286,13 @@ module Instr : sig
         ; src2 : 'r Operand.t
         }
     | Sub of
+        { s : Size.t
+        ; dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    (* two operand version, gets 64 bit result from two operands *)
+    | Imul of
         { s : Size.t
         ; dst : 'r Operand.t
         ; src1 : 'r Operand.t
