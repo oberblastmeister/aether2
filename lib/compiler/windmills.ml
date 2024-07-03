@@ -93,7 +93,8 @@ let%test_module _ =
       print_s [%sexp (res : (unit, string) Move.t list)];
       ();
       [%expect {|
-        (((dst c) (src b)) ((dst b) (src a)) ((dst d) (src a))) |}]
+        (((dst c) (src b) (ann ())) ((dst b) (src a) (ann ()))
+         ((dst d) (src a) (ann ()))) |}]
     ;;
 
     let%expect_test "simple scratch" =
@@ -103,8 +104,9 @@ let%test_module _ =
       ();
       [%expect
         {|
-        (((dst scratch) (src a)) ((dst d) (src a)) ((dst a) (src c))
-         ((dst c) (src b)) ((dst b) (src scratch))) |}]
+        (((dst scratch) (src a) (ann ())) ((dst d) (src a) (ann ()))
+         ((dst a) (src c) (ann ())) ((dst c) (src b) (ann ()))
+         ((dst b) (src scratch) (ann ()))) |}]
     ;;
 
     let%expect_test "multiple components" =
@@ -116,9 +118,10 @@ let%test_module _ =
       ();
       [%expect
         {|
-        (((dst scratch) (src rsi)) ((dst rdx) (src rsi)) ((dst rcx) (src rsi))
-         ((dst rsi) (src rdi)) ((dst rdi) (src scratch)) ((dst scratch) (src r9))
-         ((dst r9) (src r8)) ((dst r8) (src scratch))) |}]
+        (((dst scratch) (src rsi) (ann ())) ((dst rdx) (src rsi) (ann ()))
+         ((dst rcx) (src rsi) (ann ())) ((dst rsi) (src rdi) (ann ()))
+         ((dst rdi) (src scratch) (ann ())) ((dst scratch) (src r9) (ann ()))
+         ((dst r9) (src r8) (ann ())) ((dst r8) (src scratch) (ann ()))) |}]
     ;;
   end)
 ;;
