@@ -260,6 +260,7 @@ module Address = struct
   let stack_off_end i = stack_offset (End i)
   let stack_local name = stack_offset (Local name)
   let base base = Complex { base; index = None; offset = Int 0L }
+  let reg r = base (Reg r)
 
   let index_scale index scale =
     Complex { base = None; index = Some { index; scale }; offset = Int 0L }
@@ -276,17 +277,6 @@ module Address = struct
       Index.iter_regs index ~f
   ;;
 end
-
-(* module Mem = struct
-  type 'r t =
-    { size : Size.t
-    ; addr : 'r Address.t
-    }
-  [@@deriving sexp_of, map, fold, iter]
-
-  let iter_regs a = Address.iter_regs a.addr
-  let map_addr t ~f = { t with addr = f t.addr }
-end*)
 
 module Simple_operand = struct
   type 'r t =
@@ -542,7 +532,6 @@ module Instr = struct
     match i with
     | NoOp -> ()
     | Lea { dst; src; _ } ->
-      on_def @@ O.Reg dst;
       on_def @@ O.Reg dst;
       Address.iter_regs src ~f:(fun reg -> on_use (O.Reg reg))
     | Sub { dst; src1; src2; _ }

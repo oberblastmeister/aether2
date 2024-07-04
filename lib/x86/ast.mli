@@ -182,6 +182,7 @@ module Address : sig
   val stack_off_end : int32 -> 'a t
   val stack_local : Stack_slot.t -> 'a t
   val base : 'a Base.t -> 'a t
+  val reg : 'a -> 'a t
   val index_scale : 'a -> Scale.t -> 'a t
   val base_offset : 'a Base.t -> Imm.t -> 'a t
   val rip_relative : Imm.t -> 'a t

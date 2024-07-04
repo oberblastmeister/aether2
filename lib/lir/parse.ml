@@ -91,11 +91,11 @@ and parse_impure_expr st sexp =
     Impure_expr.Call { ty; call }
   | "load" ->
     let ty = Parser.item xs parse_ty in
-    let pointer = Parser.item xs (parse_expr st) in
-    Load { ty; pointer }
-  (* | "alloca" ->
+    let ptr = Parser.item xs (parse_expr st) in
+    Load { ty; ptr }
+  | "alloca" ->
     let size = Parser.item xs parse_int32 in
-    Alloca { size } *)
+    Alloca { size }
   | "idiv" ->
     let ty = Parser.item xs parse_ty in
     let v1 = Parser.item xs (parse_expr st) in
@@ -171,9 +171,9 @@ let parse_instr st sexp =
     instr_c (Control_instr.CondJump (v, j1, j2))
   | "store" ->
     let ty = Parser.item xs parse_ty in
-    let pointer = Parser.item xs (parse_expr st) in
+    let ptr = Parser.item xs (parse_expr st) in
     let expr = Parser.item xs (parse_expr st) in
-    instr_o (Store { ty; pointer; expr })
+    instr_o (Store { ty; ptr; expr })
   | _ -> Parser.parse_error [%message "unknown instruction" ~name:instr_name]
 ;;
 

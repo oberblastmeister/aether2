@@ -126,7 +126,10 @@ let check_impure_expr cx (expr : _ Impure_expr.t) =
     check_ty_equal ty (Expr.get_ty v2);
     check_expr cx v1;
     check_expr cx v2
-  | Impure_expr.Load _ -> todo [%here]
+  | Impure_expr.Load { ty = _; ptr } ->
+    check_ty_equal Ptr (Expr.get_ty ptr);
+    check_expr cx ptr;
+    ()
 ;;
 
 let check_instr cx (instr : _ Instr.t) =
@@ -143,7 +146,12 @@ let check_instr cx (instr : _ Instr.t) =
     check_expr cx expr;
     ()
   | VoidCall call -> check_call cx true Void call
-  | _ -> todo [%here]
+  | Instr.Store { ty; ptr; expr } ->
+    check_ty_equal ty (Expr.get_ty expr);
+    check_ty_equal Ptr (Expr.get_ty ptr);
+    check_expr cx ptr;
+    check_expr cx expr;
+    ()
 ;;
 
 let check_block_call cx (func : _ Function.t) (j : _ Block_call.t) =

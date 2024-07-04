@@ -80,17 +80,28 @@ let legalize_vinstr cx instr =
 let legalize_instr cx (instr : AReg.t Instr.t) =
   let open Ast.Instr in
   let force_register ~size o =
-    let reg = AReg.InReg { name = Some "scratch"; reg = Mach_reg.R11 } in
+    let reg = AReg.InReg (MReg.create ~name:"scratch" R11) in
     Cx.add cx @@ Mov { s = size; dst = Reg reg; src = to_op o };
     reg
   in
   let force_register_op size o = Operand.reg @@ force_register ~size o in
-  (* s is the size of o2 *)
-  let legal_mem s o1 o2 =
+  (* for instructions like test and cmp *)
+  let legal2 s o1 o2 =
     match o1, o2 with
-    | Operand.Mem _, Operand.Mem _ -> force_register_op s o2
-    | _ -> o2
+    (* memory can never be on the right *)
+    | _, Operand.Mem _ -> o1, force_register_op s o2
+    (* imm can never be on the left *)
+    | Operand.Imm _, _ -> force_register_op s o1, o2
+    | _ -> o1, o2
   in
+  let legal_mov s dst src =
+    match dst, src with
+    | Operand.Mem _, Operand.Mem _ -> force_register_op s src
+    | Operand.Imm _, _ ->
+      raise_s [%message "dst can't be imm" (dst : _ Operand.t) [%here]]
+    | _ -> src
+  in
+  (* for 3 operand read-modify-write instructions *)
   (* precondition: instruction must work on the same size for all three operands *)
   (* we have to use a scratch register here
      could try to implement it like this:
@@ -110,11 +121,6 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
     Cx.add cx @@ rmw ~s ~dst:(Operand.Reg (AReg.create Mach_reg.R11)) ~src:src2;
     Cx.add cx @@ Mov { s; dst; src = r11 }
   in
-  let flip_src src1 src2 =
-    match src1, src2 with
-    | Operand.Imm _, _ -> src2, src1
-    | _ -> src1, src2
-  in
   (match instr with
    | Instr.Virt instr -> legalize_vinstr cx instr
    | Jump (Jump j) -> Cx.add cx @@ Jmp { src = Cx.string_of_label cx j.label }
@@ -131,19 +137,17 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
    | Imul { dst; src1; src2; s } -> legal3 s dst src1 src2 Flat.Instr.imul
    | Sub { dst; src1; src2; s } -> legal3 s dst src1 src2 Flat.Instr.sub
    | Mov { s; dst; src } ->
-     let src = legal_mem s dst src in
+     let src = legal_mov s dst src in
      Cx.add cx @@ Mov { s; dst; src }
    | Cmp { s; src1; src2; _ } ->
-     let src2 = legal_mem s src1 src2 in
-     let src1, src2 = flip_src src1 src2 in
+     let src1, src2 = legal2 s src1 src2 in
      Cx.add cx @@ Cmp { s; src1; src2 }
    | Test { s; src1; src2; _ } ->
-     let src2 = legal_mem s src1 src2 in
-     let src1, src2 = flip_src src1 src2 in
+     let src1, src2 = legal2 s src1 src2 in
      Cx.add cx @@ Test { s; src1; src2 }
    | MovAbs { dst; imm } -> Cx.add cx @@ MovAbs { dst; imm }
    | MovZx { dst_size; src_size; dst; src } ->
-     let src = legal_mem src_size dst src in
+     let src = legal_mov src_size dst src in
      Cx.add cx @@ MovZx { dst_size; src_size; dst; src };
      ()
    | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst }
@@ -180,7 +184,9 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      Cx.add cx @@ Idiv { s; src = Reg (AReg.create R11) };
      Cx.add cx @@ Mov { s; dst; src = Reg (AReg.create Mach_reg.RAX) };
      ()
-   | NoOp | Lea _ | Push _ | Pop _ ->
+   | Lea { s; dst; src } -> Cx.add cx @@ Lea { s; dst = Reg dst; src = Mem src }
+   | NoOp -> ()
+   | Push _ | Pop _ ->
      raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
   ()
 ;;

@@ -83,8 +83,7 @@ let pretty_call_with_ty cx ty call =
 let pretty_impure_expr cx expr =
   match expr with
   | Impure_expr.Call { ty; call } -> pretty_call_with_ty cx ty call
-  | Load { ty; pointer } ->
-    Pretty.(list [ Atom "load"; pretty_ty ty; pretty_expr cx pointer ])
+  | Load { ty; ptr } -> Pretty.(list [ Atom "load"; pretty_ty ty; pretty_expr cx ptr ])
   | _ -> todo [%here]
 ;;
 
@@ -110,9 +109,8 @@ let pretty_instr cx i =
   | Instr.ImpureAssign { dst; expr } ->
     Pretty.(list [ Atom "set"; pretty_value dst; pretty_impure_expr cx expr ])
   | VoidCall call -> pretty_call_with_ty cx Void call
-  | Store { ty; pointer; expr } ->
-    Pretty.(
-      list [ Atom "store"; pretty_ty ty; pretty_expr cx pointer; pretty_expr cx expr ])
+  | Store { ty; ptr; expr } ->
+    Pretty.(list [ Atom "store"; pretty_ty ty; pretty_expr cx ptr; pretty_expr cx expr ])
 ;;
 
 let pretty_block cx (label : Label.t) (block : _ Block.t) =

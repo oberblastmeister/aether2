@@ -160,17 +160,12 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
        Cx.add cx (Imul { s = Q; dst; src1; src2 });
        dst)
   | Const { ty = Ty.I64; const } when is_some (X86.Imm_int.of_z const) ->
-    let dst = fresh_op cx "tmp" in
-    Cx.add cx (Mov { s = Q; dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) });
-    dst
+    X86.Operand.imm (X86.Imm_int.of_z_exn const)
   | Const { ty = Ty.I64; const } ->
     let dst = fresh_op cx "tmp" in
     Cx.add cx (MovAbs { dst; imm = const });
     dst
-  | Const { ty = Ty.I1; const; _ } ->
-    let dst = fresh_op cx "tmp" in
-    Cx.add cx (Mov { s = Q; dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) });
-    dst
+  | Const { ty = Ty.I1; const; _ } -> X86.Operand.imm (X86.Imm_int.of_z_exn const)
   | Const { ty = Ty.Void; _ } -> raise_s [%message "const can't be void" [%here]]
   | Cmp { ty; signed; op; v1; v2 } ->
     let tmp = fresh_op cx "tmp" in
@@ -209,15 +204,31 @@ and lower_impure_expr_reg cx expr =
     let dst = fresh_vreg cx "tmp" in
     lower_call cx call (Some (dst, X86.Mach_reg.ret));
     dst
-  | Load _ -> todo [%here]
-  | Alloca _ -> todo [%here]
-  | Udiv { ty; v1; v2 } ->
+  | Load { ty = _; ptr } ->
+    let dst = fresh_vreg cx "tmp" in
+    let ptr_reg = lower_expr_reg cx ptr in
+    Cx.add cx (Mov { s = Q; dst = Reg dst; src = Mem (X86.Address.reg ptr_reg) });
+    dst
+  | Alloca { size } ->
+    let dst = fresh_vreg cx "tmp" in
+    let stack_slot = X86.Stack_slot.create "alloca" cx.unique_stack_slot in
+    cx.unique_stack_slot <- X86.Stack_slot.Id.next cx.unique_stack_slot;
+    cx.stack_instrs
+    <- X86.Stack_instr.ReserveLocal { stack_slot; size } :: cx.stack_instrs;
+    Cx.add cx
+    @@ Lea
+         { s = Q
+         ; dst
+         ; src = Complex { base = Rsp; index = None; offset = Stack (Local stack_slot) }
+         };
+    dst
+  | Udiv { ty = _; v1; v2 } ->
     let dst = fresh_vreg cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
     Cx.add cx (Div { s = Q; dst = Reg dst; src1; src2 });
     dst
-  | Idiv { ty; v1; v2 } ->
+  | Idiv { ty = _; v1; v2 } ->
     let dst = fresh_vreg cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
@@ -237,7 +248,11 @@ and lower_instr cx instr =
       (Mov { s = value_size dst; dst = X86.Operand.Reg (vreg dst); src = Reg reg });
     ()
   | VoidCall call -> lower_call cx call None
-  | Store _ -> todo [%here]
+  | Store { ty = _; ptr; expr } ->
+    let ptr = lower_expr_reg cx ptr in
+    let expr = lower_expr_op cx expr in
+    Cx.add cx (Mov { s = Q; dst = Mem (X86.Address.reg ptr); src = expr });
+    ()
 
 and lower_block_call cx block_call =
   { X86.Block_call.label = block_call.Block_call.label

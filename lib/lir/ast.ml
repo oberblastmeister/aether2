@@ -129,7 +129,7 @@ module Impure_expr = struct
         }
     | Load of
         { ty : Ty.t
-        ; pointer : 'v Expr.t
+        ; ptr : 'v Expr.t
         }
     | Alloca of { size : int32 }
     | Call of
@@ -159,7 +159,7 @@ module Instr = struct
         }
     | Store of
         { ty : Ty.t
-        ; pointer : 'v Expr.t
+        ; ptr : 'v Expr.t
         ; expr : 'v Expr.t
         }
   [@@deriving sexp_of, fold, map, iter]

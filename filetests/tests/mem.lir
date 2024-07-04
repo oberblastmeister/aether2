@@ -1,0 +1,11 @@
+(define (entry) void
+  (block (start)
+    (set p1 (alloca 8))
+    (store i64 p1 (const i64 20))
+    (set p3 (alloca 16))
+    (set p2 (alloca 8))
+    (set r1 (load i64 p1))
+    (call void (assert_eq_u64 r1 (const i64 20)))
+    (ret)
+  )
+)
