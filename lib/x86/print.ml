@@ -166,7 +166,7 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
   | Pop { s; dst } -> i1 s b "pop" dst
   | Div { s; src } -> i1 s b "div" src
   | Idiv { s; src } -> i1 s b "idiv" src
-  | Cqto -> i0 b "cqto"
+  | Cqto -> i0 b "cqo"
 ;;
 
 let print_line b line =

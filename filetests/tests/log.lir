@@ -8,6 +8,8 @@
   (block (start)
     (set r (udiv i64 (const i64 45) (const i64 5)))
     (call void (assert_eq_u64 r (const i64 9)))
+    (set r (idiv i64 (const i64 -45) (const i64 5)))
+    (call void (assert_eq_u64 r (const i64 -9)))
     (ret)
   )
 )
