@@ -41,3 +41,4 @@ let rec pretty_value = function
 ;;
 
 let pretty = Pretty.pretty' (Pretty.Context.create ~pretty_value)
+let get_ty = Lir.Expr.get_ty_with Value.get_ty

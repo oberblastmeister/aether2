@@ -53,8 +53,6 @@ end
 
 module Cx = Context
 
-let ty_of_expr = Expr.get_ty_with Tir.Value.get_ty
-
 let ty_to_size = function
   | Ty.I1 -> X86.Size.B
   | Ty.I64 -> X86.Size.Q
@@ -64,7 +62,7 @@ let ty_to_size = function
 
 let value_size v = ty_to_size v.Value.ty
 
-let cmp_op_to_cond ty signed op =
+let cmp_op_to_cond signed op =
   match signed with
   | Signed.Unsigned ->
     (match op with
@@ -139,7 +137,7 @@ let rec lower_call cx Call.{ name; args } dst =
 
 and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
   match expr with
-  | Bin { ty; op; v1; v2; _ } ->
+  | Bin { ty = _; op; v1; v2; _ } ->
     (match op with
      | Bin_op.Add ->
        let dst = fresh_op cx "tmp" in
@@ -167,13 +165,13 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
     dst
   | Const { ty = Ty.I1; const; _ } -> X86.Operand.imm (X86.Imm_int.of_z_exn const)
   | Const { ty = Ty.Void; _ } -> raise_s [%message "const can't be void" [%here]]
-  | Cmp { ty; signed; op; v1; v2 } ->
+  | Cmp { ty = _; signed; op; v1; v2 } ->
     let tmp = fresh_op cx "tmp" in
     let dst = fresh_op cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
     Cx.add cx (Cmp { s = Q; src1; src2 });
-    Cx.add cx (Set { dst = tmp; cond = cmp_op_to_cond ty signed op });
+    Cx.add cx (Set { dst = tmp; cond = cmp_op_to_cond signed op });
     Cx.add cx (MovZx { dst_size = Q; src_size = B; dst; src = tmp });
     dst
   | Val (I { expr; _ }) -> lower_expr_op cx expr

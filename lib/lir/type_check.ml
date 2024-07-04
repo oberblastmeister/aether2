@@ -154,7 +154,7 @@ let check_instr cx (instr : _ Instr.t) =
     ()
 ;;
 
-let check_block_call cx (func : _ Function.t) (j : _ Block_call.t) =
+let check_block_call _cx (func : _ Function.t) (j : _ Block_call.t) =
   let block =
     match Cfg.Graph.find j.label func.graph with
     | Some block -> block
