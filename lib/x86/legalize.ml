@@ -40,33 +40,38 @@ let to_op = function
   | Operand.Imm imm -> Flat.Op.Imm imm
 ;;
 
-let legalize_par_mov movs =
+let legalize_par_mov' movs =
   let module W = Compiler.Windmills in
-  let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src ~ann:()) in
-  [%log.global.debug "movs before" (movs : (unit, AReg.t) W.Move.t list)];
+  let movs =
+    List.map movs ~f:(fun (dst, src) ->
+      W.Move.create ~dst:(Simple_operand.Reg dst) ~src ~ann:())
+  in
+  [%log.global.debug "movs before" (movs : (unit, AReg.t Simple_operand.t) W.Move.t list)];
   let movs, _did_use_scratch =
     W.convert
-      ~eq:[%equal: AReg.t]
-      ~scratch:(fun reg ->
-        AReg.InReg
-          { name = Some "par_mov_scratch"
-          ; reg = Reg_class.scratch_reg_of_class (AReg.reg_class reg)
-          })
+      ~eq:(fun op1 op2 ->
+        match op1, op2 with
+        | Simple_operand.Imm _, _ -> false
+        | _, Simple_operand.Imm _ -> false
+        | Simple_operand.Reg r1, Simple_operand.Reg r2 -> AReg.equal r1 r2)
+      ~scratch:(fun _reg ->
+        Simple_operand.Reg (AReg.InReg { name = Some "par_mov_scratch"; reg = R11 }))
       movs
   in
-  [%log.global.debug "movs after" (movs : (unit, AReg.t) W.Move.t list)];
+  [%log.global.debug "movs after" (movs : (unit, AReg.t Simple_operand.t) W.Move.t list)];
   let movs =
     List.map movs ~f:(fun { dst; src; ann = () } ->
-      Flat.Instr.Mov
-        { s = Reg_class.max_size (AReg.reg_class dst); dst = Reg dst; src = Reg src })
+      Flat.Instr.Mov { s = Q; dst = Operand.of_simple dst; src = Operand.of_simple src })
   in
   movs
 ;;
 
+let legalize_par_mov cx movs = List.iter ~f:(Cx.add cx) (legalize_par_mov' movs)
+
 let legalize_vinstr cx instr =
   match instr with
   | VInstr.Par_mov movs ->
-    let res = legalize_par_mov movs in
+    let res = legalize_par_mov' movs in
     List.iter res ~f:(Cx.add cx);
     ()
   | _ -> ()
@@ -144,8 +149,7 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
    | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst }
    | Call { name; reg_args; dst; _ } ->
      List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create mach_reg, reg)
-     |> legalize_par_mov
-     |> List.iter ~f:(Cx.add cx);
+     |> legalize_par_mov cx;
      Cx.add cx @@ Call { src = name };
      (match dst with
       | Some (dst, dst_reg) ->
@@ -158,24 +162,25 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
       | None -> ());
      ()
    | Div { s; dst; src1; src2 } ->
-    (* TODO: this is wrong, need to use legalize_par_mov here, in case src2 is allocated as rax *)
-     Cx.add cx @@ Mov { s; dst = Reg (AReg.create Mach_reg.RAX); src = src1 };
+     Cx.add cx @@ Mov { s; dst = Reg (AReg.create R11); src = src2 };
+     Cx.add cx @@ Mov { s; dst = Reg (AReg.create RAX); src = src1 };
      Cx.add cx
      @@ Mov
           { s
           ; dst = Reg (AReg.create Mach_reg.RDX)
           ; src = Imm (Int (Imm_int.of_int32 0l))
           };
-     Cx.add cx @@ Div { s; src = src2 };
+     Cx.add cx @@ Div { s; src = Reg (AReg.create R11) };
      Cx.add cx @@ Mov { s; dst; src = Reg (AReg.create Mach_reg.RAX) };
      ()
    | Idiv { s; dst; src1; src2 } ->
-     Cx.add cx @@ Mov { s; dst = Reg (AReg.create Mach_reg.RAX); src = src1 };
+     Cx.add cx @@ Mov { s; dst = Reg (AReg.create R11); src = src2 };
+     Cx.add cx @@ Mov { s; dst = Reg (AReg.create RAX); src = src1 };
      Cx.add cx @@ Cqto;
-     Cx.add cx @@ Idiv { s; src = src2 };
+     Cx.add cx @@ Idiv { s; src = Reg (AReg.create R11) };
      Cx.add cx @@ Mov { s; dst; src = Reg (AReg.create Mach_reg.RAX) };
      ()
-   | NoOp | Lea _ | Div _ | Idiv _ | Push _ | Pop _ ->
+   | NoOp | Lea _ | Push _ | Pop _ ->
      raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
   ()
 ;;
@@ -187,10 +192,11 @@ let legalize_block cx label (block : _ Block.t) =
 
 let legalize_function ~func_index (fn : _ Function.t) =
   let cx = Cx.create func_index in
-  let param_movs =
-    legalize_par_mov (List.map ~f:(fun (vreg, reg) -> vreg, AReg.of_mreg reg) fn.params)
-  in
-  List.iter param_movs ~f:(Cx.add cx);
+  legalize_par_mov
+    cx
+    (List.map
+       ~f:(fun (vreg, reg) -> vreg, Simple_operand.Reg (AReg.of_mreg reg))
+       fn.params);
   (* TODO: fix this shit, this should be turned into the stack ends *)
   let rsp = AReg.create Mach_reg.RSP in
   List.iter fn.stack_params

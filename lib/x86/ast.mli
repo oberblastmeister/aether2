@@ -192,6 +192,7 @@ module Simple_operand : sig
   type 'r t =
     | Imm of Imm.t
     | Reg of 'r
+  [@@deriving sexp_of, variants, map, fold, iter]
 end
 
 module Operand : sig
@@ -201,6 +202,7 @@ module Operand : sig
     | Mem of 'r Address.t
   [@@deriving sexp_of, variants, map, fold, iter]
 
+  val of_simple : 'r Simple_operand.t -> 'r t
   val imm : Imm_int.t -> 'a t
   val stack_off_end : int32 -> 'a t
   val stack_local : Stack_slot.t -> 'a t
@@ -214,7 +216,7 @@ end
 module Block_call : sig
   type 'r t =
     { label : Label.t
-    ; args : 'r list
+    ; args : 'r Simple_operand.t list
     }
   [@@deriving sexp_of, fold, map, iter]
 
@@ -251,13 +253,10 @@ module Precolored : sig
 end
 
 module VInstr : sig
-  (* TODO: allow operands in par mov source *)
-  (* TODO: put stack operations in separate type *)
   type 'r t =
     (* for ssa *)
     | Block_args of 'r list
-    (* | Par_mov of ('r Precolored.t * 'r Precolored.t) list *)
-    | Par_mov of ('r * 'r) list
+    | Par_mov of ('r * 'r Simple_operand.t) list
   [@@deriving sexp_of, variants, map]
 
   val map_regs : 'a t -> f:('a -> 'b) -> 'b t
@@ -306,9 +305,9 @@ module Instr : sig
         }
     | Div of
         { s : Size.t
-        ; dst : 'r Operand.t
-        ; src1 : 'r Operand.t
-        ; src2 : 'r Operand.t
+        ; dst : 'r Operand.t (* the quotient *)
+        ; src1 : 'r Operand.t (* the dividend *)
+        ; src2 : 'r Operand.t (* the divisor *)
         }
     | Idiv of
         { s : Size.t
@@ -347,7 +346,7 @@ module Instr : sig
     | Call of
         { (* dst size is always Q *)
           name : string
-        ; reg_args : (Mach_reg.t * 'r) list
+        ; reg_args : (Mach_reg.t * 'r Simple_operand.t) list
         ; defines : Mach_reg.t list (* caller saved registers*)
         ; dst : ('r * Mach_reg.t) option
         }

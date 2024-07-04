@@ -112,7 +112,7 @@ let categorize_args args =
 ;;
 
 let rec lower_call cx Call.{ name; args } dst =
-  let args = List.map ~f:(lower_expr_reg cx) args in
+  let args = List.map ~f:(lower_expr_simple_op cx) args in
   let args_with_reg, stack_args = categorize_args args in
   Cx.add_stack_instr cx
   @@ X86.Stack_instr.ReserveEnd
@@ -124,7 +124,7 @@ let rec lower_call cx Call.{ name; args } dst =
     @@ Mov
          { s = Q
          ; dst = X86.Operand.stack_off_end Int32.(of_int_exn i * 8l)
-         ; src = Reg arg
+         ; src = X86.Operand.of_simple arg
          };
     ());
   Cx.add
@@ -186,6 +186,15 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
   | Val (V v) -> Reg (vreg v)
   | _ -> todo [%here]
 
+and lower_expr_simple_op cx expr : _ X86.Simple_operand.t =
+  match lower_expr_op cx expr with
+  | Reg v -> X86.Simple_operand.Reg v
+  | Imm i -> Imm i
+  | op ->
+    let dst = fresh_vreg cx "tmp" in
+    Cx.add cx (Mov { s = Q; dst = Reg dst; src = op });
+    X86.Simple_operand.Reg dst
+
 and lower_expr_reg cx expr =
   match lower_expr_op cx expr with
   | Reg v -> v
@@ -232,7 +241,7 @@ and lower_instr cx instr =
 
 and lower_block_call cx block_call =
   { X86.Block_call.label = block_call.Block_call.label
-  ; args = List.map ~f:(lower_expr_reg cx) block_call.args
+  ; args = List.map ~f:(lower_expr_simple_op cx) block_call.args
   }
 
 and lower_block_args cx (block_args : Block_args.t) =

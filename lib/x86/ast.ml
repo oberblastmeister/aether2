@@ -292,6 +292,13 @@ module Simple_operand = struct
   type 'r t =
     | Imm of Imm.t
     | Reg of 'r
+  [@@deriving sexp_of, variants, map, fold, iter]
+
+  let iter_regs o ~f:k =
+    match o with
+    | Reg r -> k r
+    | Imm _ -> ()
+  ;;
 end
 
 module Operand = struct
@@ -300,6 +307,11 @@ module Operand = struct
     | Reg of 'r
     | Mem of 'r Address.t
   [@@deriving sexp_of, variants, map, fold, iter]
+
+  let of_simple = function
+    | Simple_operand.Imm i -> Imm i
+    | Reg r -> Reg r
+  ;;
 
   let imm i = Imm (Int i)
   let stack_off_end i = mem (Address.stack_off_end i)
@@ -320,11 +332,11 @@ end
 module Block_call = struct
   type 'r t =
     { label : Label.t
-    ; args : 'r list
+    ; args : 'r Simple_operand.t list
     }
   [@@deriving sexp_of, fold, map, iter]
 
-  let iter_uses (type r) (instr : r t) ~(f : r -> unit) = instr.args |> List.iter ~f
+  let iter_uses instr ~f = (List.iter @> Simple_operand.iter_regs) instr.args ~f
   let map_regs i ~f = map f i
 end
 
@@ -380,19 +392,13 @@ module Precolored = struct
 end
 
 module VInstr = struct
-  (* TODO: allow operands in par mov source *)
-  (* TODO: put stack operations in separate type *)
   type 'r t =
-    (* for calling conventions*)
-    (* | ReserveStackEnd of { size : int32 } *)
-    (* | ReserveStackLocal of
-        { name : Name.t
-        ; size : int32
-        } *)
     (* for ssa *)
     | Block_args of 'r list
-    (* | Par_mov of ('r Precolored.t * 'r Precolored.t) list *)
-    | Par_mov of ('r * 'r) list
+    (* should only be between registers of the same class
+       because registers of different classes can't effect each other anyways
+    *)
+    | Par_mov of ('r * 'r Simple_operand.t) list
   [@@deriving sexp_of, variants, map]
 
   let map_regs i ~f = map f i
@@ -403,7 +409,7 @@ module VInstr = struct
       (List.iter
        @> fun (x, y) ~f ->
        f x;
-       f y)
+       Simple_operand.iter_regs ~f y)
         movs
         ~f
     | Block_args regs -> List.iter regs ~f
@@ -417,7 +423,7 @@ module VInstr = struct
 
   let iter_uses i ~f =
     match i with
-    | Par_mov movs -> (List.iter @> F.Fold.of_fn snd) movs ~f
+    | Par_mov movs -> (List.iter @> F.Fold.of_fn snd @> Simple_operand.iter_regs) movs ~f
     | Block_args _ -> ()
   ;;
 end
@@ -502,7 +508,7 @@ module Instr = struct
     | Call of
         { (* dst size is always Q *)
           name : string
-        ; reg_args : (Mach_reg.t * 'r) list
+        ; reg_args : (Mach_reg.t * 'r Simple_operand.t) list
         ; defines : Mach_reg.t list (* caller saved registers*)
         ; dst : ('r * Mach_reg.t) option
         }
@@ -561,13 +567,15 @@ module Instr = struct
     | Push { src; _ } -> on_use @@ O.Reg src
     | Pop { dst; _ } -> on_def @@ O.Reg dst
     | Call { reg_args; dst; _ } ->
-      List.iter reg_args ~f:(fun (_, arg) -> on_use (Reg arg));
+      (List.iter @> F.Fold.of_fn snd @> Simple_operand.iter_regs) reg_args ~f:(fun arg ->
+        on_use (Reg arg));
       Option.iter dst ~f:(fun (dst, _) -> on_def (Reg dst));
       ()
     | Jump jump -> Jump.iter_uses jump ~f:(fun reg -> on_use (Reg reg))
     | Virt vinstr ->
       VInstr.iter_uses vinstr ~f:(fun reg -> on_use (Reg reg));
-      VInstr.iter_defs vinstr ~f:(fun reg -> on_def (Reg reg))
+      VInstr.iter_defs vinstr ~f:(fun reg -> on_def (Reg reg));
+      ()
   ;;
 
   let iter_operands i ~f = iter_operands_with i ~on_def:f ~on_use:f
