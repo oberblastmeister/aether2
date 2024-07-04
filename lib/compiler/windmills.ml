@@ -106,7 +106,7 @@ let%test_module _ =
       [%test_result: bool] did_use_scratch ~expect:false;
       print_s [%sexp (res : (unit, string) Move.t list)];
       [%expect {| (((dst d) (src b) (ann ())) ((dst b) (src a) (ann ()))) |}];
-      ();
+      ()
     ;;
 
     let%expect_test "simple scratch" =

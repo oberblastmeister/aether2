@@ -15,12 +15,20 @@ module Cx = struct
 
   let spill_reg cx reg =
     let spill_slot = Stack_builder.stack_slot_of_mach_reg cx.stack_builder reg in
-    add_instr cx @@ Flat.Instr.mov_to_stack_from_reg (Reg_class.max_size (Reg_class.of_mach_reg reg)) spill_slot reg
+    add_instr cx
+    @@ Flat.Instr.mov_to_stack_from_reg
+         (Reg_class.max_size (Reg_class.of_mach_reg reg))
+         spill_slot
+         reg
   ;;
 
   let reload_reg cx reg =
     let spill_slot = Stack_builder.stack_slot_of_mach_reg cx.stack_builder reg in
-    add_instr cx @@ Flat.Instr.mov_to_reg_from_stack (Reg_class.max_size (Reg_class.of_mach_reg reg)) reg spill_slot
+    add_instr cx
+    @@ Flat.Instr.mov_to_reg_from_stack
+         (Reg_class.max_size (Reg_class.of_mach_reg reg))
+         reg
+         spill_slot
   ;;
 end
 
@@ -71,7 +79,8 @@ let lower_instr cx instr =
   |> F.Iter.filter_map ~f:AReg.spilled_val
   |> F.Iter.iter ~f:(fun (`reg_class reg_class, `name spilled) ->
     let reg = List.Assoc.find_exn ~equal:Stack_slot.equal stack_slot_and_victim spilled in
-    Cx.add_instr cx @@ Flat.Instr.mov_to_reg_from_stack (Reg_class.max_size reg_class) reg spilled;
+    Cx.add_instr cx
+    @@ Flat.Instr.mov_to_reg_from_stack (Reg_class.max_size reg_class) reg spilled;
     ());
   (* use the victims instead of the stack slots *)
   let instr_with_victims =
@@ -91,7 +100,8 @@ let lower_instr cx instr =
       let victim =
         List.Assoc.find_exn ~equal:Stack_slot.equal stack_slot_and_victim name
       in
-      Cx.add_instr cx @@ Flat.Instr.mov_to_stack_from_reg (Reg_class.max_size reg_class) name victim;
+      Cx.add_instr cx
+      @@ Flat.Instr.mov_to_stack_from_reg (Reg_class.max_size reg_class) name victim;
       ()
     | _ -> ());
   (* reload victims *)

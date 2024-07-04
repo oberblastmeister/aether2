@@ -39,7 +39,14 @@ let stack_slot_of_mach_reg cx reg =
   | None ->
     let stack_slot = fresh_stack_slot cx "spill_mach_reg" in
     Hashtbl.add_exn cx.stack_slot_of_mach_reg ~key:reg ~data:stack_slot;
-    cx.stack_instrs <- ReserveLocal { stack_slot; size = Int.to_int32_exn(Size.to_byte_size (Reg_class.max_size (Reg_class.of_mach_reg reg)) )} :: cx.stack_instrs;
+    cx.stack_instrs
+    <- ReserveLocal
+         { stack_slot
+         ; size =
+             Int.to_int32_exn
+               (Size.to_byte_size (Reg_class.max_size (Reg_class.of_mach_reg reg)))
+         }
+       :: cx.stack_instrs;
     stack_slot
 ;;
 

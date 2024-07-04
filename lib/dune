@@ -14,5 +14,13 @@
    ppx_deriving.fold
    ppx_jane
    -log-source-position))
- (libraries core algaeff folds higher_kinded aether_data aether_entity zarith int_repr)
+ (libraries
+  core
+  algaeff
+  folds
+  higher_kinded
+  aether_data
+  aether_entity
+  zarith
+  int_repr)
  (ocamlopt_flags -S))
