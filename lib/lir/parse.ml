@@ -72,6 +72,7 @@ let rec parse_expr st sexp =
        Expr.Cmp { ty; op; v1; v2 }
      | "add" -> parse_bin Bin_op.Add st xs
      | "sub" -> parse_bin Sub st xs
+     | "mul" -> parse_bin Mul st xs
      | _ -> Parser.parse_error [%message "unknown op" ~name])
 
 and parse_impure_expr st sexp =

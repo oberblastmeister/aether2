@@ -84,7 +84,7 @@ let print_mreg cx s (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg s mreg.reg
 let print_imm cx imm =
   match imm with
   | Imm.Int i -> Cx.add cx @@ Imm_int.to_string i
-  | imm -> raise_s [%message "could not print imm" (imm : Imm.t)]
+  | Imm.Stack _ -> raise_s [%message "could not print stack imm" (imm : Imm.t)]
 ;;
 
 let string_of_scale = function
@@ -159,7 +159,10 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
   | Call { src } -> bprintf b "\tcall\t%s" src
   | MovZx { dst_size; src_size; dst; src } ->
     bprintf b "\tmovzx\t%a, %a" (op dst_size) dst (op src_size) src
-  | _ -> raise_s [%message "could not print instr" (instr : MReg.t Flat.Instr.t) [%here]]
+  | Imul { s; dst; src } -> i2_s s b "imul" dst src
+  | Lea { s; dst; src } -> i2_s s b "lea" dst src
+  | Push { s; src } -> i1 s b "push" src
+  | Pop { s; dst } -> i1 s b "pop" dst
 ;;
 
 let print_line b line =

@@ -40,10 +40,11 @@ let rec pretty_expr cx expr =
   | Expr.Bin { ty; op; v1; v2 } ->
     Pretty.(
       list
-        [ (match op with
-           | Add -> Atom "add"
-           | Sub -> Atom "sub"
-           | _ -> todo [%here])
+        [ Atom
+            (match op with
+             | Add -> "add"
+             | Sub -> "sub"
+             | Mul -> "mul")
         ; pretty_ty ty
         ; pretty_expr cx v1
         ; pretty_expr cx v2
@@ -108,7 +109,6 @@ let pretty_instr cx i =
   | Store { ty; pointer; expr } ->
     Pretty.(
       list [ Atom "store"; pretty_ty ty; pretty_expr cx pointer; pretty_expr cx expr ])
-  | _ -> todo [%here]
 ;;
 
 let pretty_block cx (label : Label.t) (block : _ Block.t) =
