@@ -16,10 +16,10 @@ let pretty_label (label : Label.t) = pretty_name_id label
 let pretty_value (value : Value.t) = pretty_name value.name
 
 let pretty_ty = function
-  | Ty.U64 -> Pretty.(Atom "u64")
-  | Ty.U1 -> Pretty.(Atom "u1")
+  | Ty.I1 -> Pretty.(Atom "u1")
   | Ty.I64 -> Atom "i64"
   | Void -> Atom "void"
+  | Ptr -> Atom "ptr"
 ;;
 
 let pretty_value_typed (value : Value.t) =
@@ -51,10 +51,14 @@ let rec pretty_expr cx expr =
         ])
   | Expr.Const { ty; const } ->
     Pretty.(list [ atom "const"; pretty_ty ty; Atom (Z.to_string_hum const) ])
-  | Expr.Cmp { ty; op; v1; v2 } ->
+  | Expr.Cmp { ty; signed; op; v1; v2 } ->
     Pretty.(
       list
-        [ atom "cmp"
+        [ atom
+            ((match signed with
+              | Signed -> "i"
+              | Unsigned -> "u")
+             ^ "cmp")
         ; pretty_ty ty
         ; Atom (cmp_op_to_string op)
         ; pretty_expr cx v1

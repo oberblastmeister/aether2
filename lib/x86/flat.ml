@@ -42,6 +42,14 @@ module Instr = struct
         ; dst : 'r Op.t
         ; src : 'r Op.t
         }
+    | Div of
+        { s : Size.t
+        ; src : 'r Op.t
+        }
+    | Idiv of
+        { s : Size.t
+        ; src : 'r Op.t
+        }
     | Push of
         { s : Size.t
         ; src : 'r Op.t
@@ -71,6 +79,7 @@ module Instr = struct
         }
     | Jmp of { src : string }
     | Ret
+    | Cqto
   [@@deriving sexp_of, map, iter, variants]
 
   let iter_operands ~on_use ~on_def i =
@@ -86,6 +95,7 @@ module Instr = struct
       on_use src;
       on_use dst;
       on_def dst
+    | Div { src; _ } | Idiv { src; _ } -> on_use src
     | Push { src; _ } -> on_use src
     | Pop { dst; _ } -> on_def dst
     | Cmp { src1; src2; _ } ->
@@ -95,7 +105,7 @@ module Instr = struct
       on_use src1;
       on_use src2
     | Set { dst; _ } -> on_def dst
-    | Call _ | J _ | Jmp _ | Ret -> ()
+    | Call _ | J _ | Jmp _ | Ret | Cqto -> ()
   ;;
 
   let iter_op_uses i k = iter_operands ~on_use:k ~on_def:(Fn.const ()) i

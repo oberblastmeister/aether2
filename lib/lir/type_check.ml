@@ -70,22 +70,22 @@ let check_call cx is_void (ty : Ty.t) Call.{ name; args } =
   ()
 ;;
 
-let check_ty_bin_op ty op =
+let check_ty_bin_op ty =
   match ty with
-  | Ty.U64 | I64 -> ()
-  | _ -> error [%message "type not supported" (ty : Ty.t) (op : Bin_op.t)]
+  | Ty.I64 -> ()
+  | _ -> error [%message "type not supported" (ty : Ty.t)]
 ;;
 
 let check_ty_cmp_op ty op =
   match ty with
-  | Ty.U64 | I64 -> ()
+  | Ty.I64 -> ()
   | _ -> error [%message "type not supported" (ty : Ty.t) (op : Cmp_op.t)]
 ;;
 
 let rec check_expr cx (expr : Value.t Expr.t) =
   match expr with
-  | Bin { ty; v1; v2; op } ->
-    check_ty_bin_op ty op;
+  | Bin { ty; v1; v2; op = _ } ->
+    check_ty_bin_op ty;
     check_ty_equal ty (Expr.get_ty v1);
     check_ty_equal ty (Expr.get_ty v2);
     check_expr cx v1;
@@ -93,20 +93,18 @@ let rec check_expr cx (expr : Value.t Expr.t) =
     ()
   | Const { ty; const } ->
     (match ty with
-     | Void -> error [%message "cannot use const with unit" (const : Z.t)]
-     | U1 ->
+     | I1 ->
        assert_s
-         Z.(of_int 0 <= const && const <= of_int 1)
-         [%message "U1 constant out of range" (const : Z.t)]
-     | U64 ->
-       assert_s
-         Z.(of_int 0 <= const && const <= shift_left (of_int 1) 64 - of_int 1)
-         [%message "U64 constant out of range" (const : Z.t)]
+         Z.(of_int (-1) <= const && const <= of_int 1)
+         [%message "I1 constant out of range" (const : Z.t)]
      | I64 ->
        assert_s
-         Z.(of_int64 Int64.min_value <= const && const <= of_int64 Int64.max_value)
-         [%message "I64 constant out of range" (const : Z.t)])
-  | Cmp { ty; v1; v2; op } ->
+         Z.(
+           of_int64 Int64.min_value <= const
+           && const <= shift_left (of_int 1) 64 - of_int 1)
+         [%message "I64 constant out of range" (const : Z.t)]
+     | Void | Ptr -> error [%message "cannot use const with ty" (const : Z.t) (ty : Ty.t)])
+  | Cmp { ty; signed = _; v1; v2; op } ->
     check_ty_cmp_op ty op;
     check_ty_equal ty (Expr.get_ty v1);
     check_ty_equal ty (Expr.get_ty v2);
@@ -122,7 +120,13 @@ let check_impure_expr cx (expr : _ Impure_expr.t) =
   | Call { ty; call } ->
     check_call cx false ty call;
     ()
-  | _ -> todo [%here]
+  | Idiv { ty; v1; v2 } | Udiv { ty; v1; v2 } ->
+    check_ty_bin_op ty;
+    check_ty_equal ty (Expr.get_ty v1);
+    check_ty_equal ty (Expr.get_ty v2);
+    check_expr cx v1;
+    check_expr cx v2
+  | Impure_expr.Load _ -> todo [%here]
 ;;
 
 let check_instr cx (instr : _ Instr.t) =

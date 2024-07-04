@@ -17,13 +17,13 @@ let result_of_status = function
 
 let test_header =
   {|
-(extern (assert_eq_u64 u64 u64) void)
+(extern (assert_eq_u64 i64 i64) void)
 
 (extern (assert_eq_i64 i64 i64) void)
 
-(extern (assert_eq_u1 u1 u1) void)
+(extern (assert_eq_u1 i1 i1) void)
 
-(extern (print_u64 u64) void)
+(extern (print_u64 i64) void)
 
 (extern (print_i64 i64) void)
 |}

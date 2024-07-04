@@ -45,7 +45,9 @@ let convert ~eq ~scratch (par_move : _ Move.t list) =
             did_use_scratch := true;
             let t = scratch par_move.(j).src in
             (* Vec.push sequential @@ move ~dst:t ~src:par_move.(j).src; *)
-            Vec.push sequential { Move.dst = t; src = par_move.(j).src; ann = par_move.(j).ann };
+            Vec.push
+              sequential
+              { Move.dst = t; src = par_move.(j).src; ann = par_move.(j).ann };
             (* j now should move from the temp because we are about to overwrite j below *)
             par_move.(j) <- { (par_move.(j)) with src = t }
           | Moved -> ());
@@ -84,7 +86,8 @@ let%test_module _ =
     let convert par_move = convert ~eq:String.equal ~scratch:(Fn.const scratch) par_move
 
     let pmov dsts srcs =
-      List.zip_exn dsts srcs |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src ~ann:())
+      List.zip_exn dsts srcs
+      |> List.map ~f:(fun (dst, src) -> Move.create ~dst ~src ~ann:())
     ;;
 
     let%expect_test "simple no scratch" =
@@ -92,9 +95,18 @@ let%test_module _ =
       [%test_result: bool] did_use_scratch ~expect:false;
       print_s [%sexp (res : (unit, string) Move.t list)];
       ();
-      [%expect {|
+      [%expect
+        {|
         (((dst c) (src b) (ann ())) ((dst b) (src a) (ann ()))
          ((dst d) (src a) (ann ()))) |}]
+    ;;
+
+    let%expect_test "two" =
+      let res, did_use_scratch = convert (pmov [ b; d ] [ a; b ]) in
+      [%test_result: bool] did_use_scratch ~expect:false;
+      print_s [%sexp (res : (unit, string) Move.t list)];
+      [%expect {| (((dst d) (src b) (ann ())) ((dst b) (src a) (ann ()))) |}];
+      ();
     ;;
 
     let%expect_test "simple scratch" =

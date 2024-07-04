@@ -50,7 +50,7 @@ end
 
 module MReg = struct
   type t =
-    { name : string option
+    { name : string option [@equal.ignore] [@compare.ignore] [@hash.ignore]
     ; reg : Mach_reg.t
     }
   [@@deriving equal, compare, hash]
@@ -145,7 +145,7 @@ end
 
 module Ty = struct
   type t =
-    | U1
+    | I1
     | U64
   [@@deriving equal, compare, sexp, hash, variants]
 end
@@ -287,6 +287,12 @@ end
   let iter_regs a = Address.iter_regs a.addr
   let map_addr t ~f = { t with addr = f t.addr }
 end*)
+
+module Simple_operand = struct
+  type 'r t =
+    | Imm of Imm.t
+    | Reg of 'r
+end
 
 module Operand = struct
   type 'r t =
@@ -453,6 +459,18 @@ module Instr = struct
         ; src1 : 'r Operand.t
         ; src2 : 'r Operand.t
         }
+    | Div of
+        { s : Size.t
+        ; dst : 'r Operand.t (* the quotient *)
+        ; src1 : 'r Operand.t (* the dividend *)
+        ; src2 : 'r Operand.t (* the divisor *)
+        }
+    | Idiv of
+        { s : Size.t
+        ; dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
     | Push of
         { s : Size.t
         ; src : 'r
@@ -523,7 +541,9 @@ module Instr = struct
       Address.iter_regs src ~f:(fun reg -> on_use (O.Reg reg))
     | Sub { dst; src1; src2; _ }
     | Add { dst; src1; src2; _ }
-    | Imul { dst; src1; src2; _ } ->
+    | Imul { dst; src1; src2; _ }
+    | Div { dst; src1; src2; _ }
+    | Idiv { dst; src1; src2; _ } ->
       on_def dst;
       on_use src1;
       on_use src2
@@ -587,6 +607,11 @@ module Instr = struct
   let mach_reg_defs i k =
     match i with
     | Call { defines; _ } -> List.iter defines ~f:k
+    | Div _ | Idiv _ ->
+      k Mach_reg.RAX;
+      k Mach_reg.RDX;
+      k Mach_reg.RDX;
+      ()
     | Imul _ (* the two operand version of imul uses no machine registers *)
     | NoOp
     | Mov _

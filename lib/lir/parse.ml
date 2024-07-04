@@ -14,11 +14,10 @@ let create_state () =
 
 let parse_ty =
   Parser.atom (function
-    | "u64" -> Ty.U64
     | "i64" -> Ty.I64
-    | "u1" -> Ty.U1
+    | "i1" -> Ty.I1
     | "void" -> Ty.Void
-    | _ -> Parser.parse_error [%message "unknown type"])
+    | ty -> Parser.parse_error [%message "unknown type" (ty : string)])
 ;;
 
 let parse_label st = Parser.atom (fun s -> Intern_table.name_of_key st.label_intern s)
@@ -64,12 +63,18 @@ let rec parse_expr st sexp =
              Parser.parse_error [%message "couldn't parse number" ~s]))
        in
        Expr.Const { ty; const }
-     | "cmp" ->
+     | "icmp" ->
        let ty = Parser.item xs parse_ty in
        let op = Parser.item xs @@ Parser.atom parse_cmp_op in
        let v1 = Parser.item xs (parse_expr st) in
        let v2 = Parser.item xs (parse_expr st) in
-       Expr.Cmp { ty; op; v1; v2 }
+       Expr.Cmp { ty; op; signed = Signed; v1; v2 }
+     | "ucmp" ->
+       let ty = Parser.item xs parse_ty in
+       let op = Parser.item xs @@ Parser.atom parse_cmp_op in
+       let v1 = Parser.item xs (parse_expr st) in
+       let v2 = Parser.item xs (parse_expr st) in
+       Expr.Cmp { ty; op; signed = Unsigned; v1; v2 }
      | "add" -> parse_bin Bin_op.Add st xs
      | "sub" -> parse_bin Sub st xs
      | "mul" -> parse_bin Mul st xs
@@ -91,6 +96,16 @@ and parse_impure_expr st sexp =
   (* | "alloca" ->
     let size = Parser.item xs parse_int32 in
     Alloca { size } *)
+  | "idiv" ->
+    let ty = Parser.item xs parse_ty in
+    let v1 = Parser.item xs (parse_expr st) in
+    let v2 = Parser.item xs (parse_expr st) in
+    Idiv { ty; v1; v2 }
+  | "udiv" ->
+    let ty = Parser.item xs parse_ty in
+    let v1 = Parser.item xs (parse_expr st) in
+    let v2 = Parser.item xs (parse_expr st) in
+    Udiv { ty; v1; v2 }
   | name -> raise_s [%message "unknown impure expr" (name : string)]
 
 and parse_call st sexp =

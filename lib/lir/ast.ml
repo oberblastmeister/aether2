@@ -11,10 +11,10 @@ end
 
 module Ty = struct
   type t =
-    | U1
-    | U64
+    | I1
     | I64
     | Void
+    | Ptr
   [@@deriving equal, compare, hash, sexp]
 end
 
@@ -56,6 +56,13 @@ end
 
 module ValueMap = Entity.Map.Make (Value)
 
+module Signed = struct
+  type t =
+    | Signed
+    | Unsigned
+  [@@deriving equal, compare, hash, sexp]
+end
+
 module Expr = struct
   type 'v t =
     | Bin of
@@ -71,6 +78,7 @@ module Expr = struct
     | Cmp of
         { ty : Ty.t
         ; op : Cmp_op.t
+        ; signed : Signed.t
         ; v1 : 'v t
         ; v2 : 'v t
         }
@@ -80,7 +88,7 @@ module Expr = struct
   let get_ty_with f = function
     | Bin { ty; _ } | Const { ty; _ } -> ty
     | Val v -> f v
-    | Cmp _ -> U1
+    | Cmp _ -> I1
   ;;
 
   let get_ty = get_ty_with (fun v -> v.Value.ty)
@@ -109,6 +117,16 @@ end
 
 module Impure_expr = struct
   type 'v t =
+    | Udiv of
+        { ty : Ty.t
+        ; v1 : 'v Expr.t
+        ; v2 : 'v Expr.t
+        }
+    | Idiv of
+        { ty : Ty.t
+        ; v1 : 'v Expr.t
+        ; v2 : 'v Expr.t
+        }
     | Load of
         { ty : Ty.t
         ; pointer : 'v Expr.t
@@ -121,8 +139,8 @@ module Impure_expr = struct
   [@@deriving sexp_of, fold, map, iter]
 
   let get_ty = function
-    | Load { ty; _ } | Call { ty; _ } -> ty
-    | Alloca _ -> U64
+    | Load { ty; _ } | Call { ty; _ } | Udiv { ty; _ } | Idiv { ty; _ } -> ty
+    | Alloca _ -> Ptr
   ;;
 
   let iter_uses i ~f = iter f i

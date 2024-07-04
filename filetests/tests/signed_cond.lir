@@ -3,7 +3,7 @@
     (set bruh1 (const i64 -3))
     (set bruh1 (add i64 bruh1 (const i64 4)))
     (set bruh1 (add i64 bruh1 (const i64 -5)))
-    (cond_jump (cmp i64 lt bruh1 (const i64 -3)) (then) (else))
+    (cond_jump (icmp i64 lt bruh1 (const i64 -3)) (then) (else))
   )
   (block (then)
     (set r (const i64 -1))
@@ -17,11 +17,11 @@
     (call void (assert_eq_i64 r (const i64 -1)))
     (call void
       (assert_eq_u1
-        (cmp i64 gt
+        (icmp i64 gt
           (const i64 -12)
           (const i64 -13)
         )
-        (const u1 1)
+        (const i1 1)
       )
     )
     (ret)

@@ -43,6 +43,7 @@ let to_op = function
 let legalize_par_mov movs =
   let module W = Compiler.Windmills in
   let movs = List.map movs ~f:(fun (dst, src) -> W.Move.create ~dst ~src ~ann:()) in
+  [%log.global.debug "movs before" (movs : (unit, AReg.t) W.Move.t list)];
   let movs, _did_use_scratch =
     W.convert
       ~eq:[%equal: AReg.t]
@@ -53,6 +54,7 @@ let legalize_par_mov movs =
           })
       movs
   in
+  [%log.global.debug "movs after" (movs : (unit, AReg.t) W.Move.t list)];
   let movs =
     List.map movs ~f:(fun { dst; src; ann = () } ->
       Flat.Instr.Mov
@@ -155,7 +157,26 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
              }
       | None -> ());
      ()
-   | instr -> raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
+   | Div { s; dst; src1; src2 } ->
+    (* TODO: this is wrong, need to use legalize_par_mov here, in case src2 is allocated as rax *)
+     Cx.add cx @@ Mov { s; dst = Reg (AReg.create Mach_reg.RAX); src = src1 };
+     Cx.add cx
+     @@ Mov
+          { s
+          ; dst = Reg (AReg.create Mach_reg.RDX)
+          ; src = Imm (Int (Imm_int.of_int32 0l))
+          };
+     Cx.add cx @@ Div { s; src = src2 };
+     Cx.add cx @@ Mov { s; dst; src = Reg (AReg.create Mach_reg.RAX) };
+     ()
+   | Idiv { s; dst; src1; src2 } ->
+     Cx.add cx @@ Mov { s; dst = Reg (AReg.create Mach_reg.RAX); src = src1 };
+     Cx.add cx @@ Cqto;
+     Cx.add cx @@ Idiv { s; src = src2 };
+     Cx.add cx @@ Mov { s; dst; src = Reg (AReg.create Mach_reg.RAX) };
+     ()
+   | NoOp | Lea _ | Div _ | Idiv _ | Push _ | Pop _ ->
+     raise_s [%message "can't legalize instr" (instr : _ Instr.t) [%here]]);
   ()
 ;;
 

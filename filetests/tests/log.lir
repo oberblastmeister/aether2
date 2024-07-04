@@ -1,0 +1,13 @@
+(define (log [x i64] [n i64]) i64
+  (block (start)
+    (ret (const i64 0))
+  )
+)
+
+(define (entry) void
+  (block (start)
+    (set r (udiv i64 (const i64 45) (const i64 5)))
+    (call void (assert_eq_u64 r (const i64 9)))
+    (ret)
+  )
+)

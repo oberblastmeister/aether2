@@ -159,7 +159,7 @@ type value_id = Value.t Union_find.t
 
 let simplify_phis (phis : Value.t Phi.t list) =
   (* todo, only need to create a unification variable for each phi dest, not every value *)
-  (* some PhiValues will not be actuall phi destinations, therefore cannot change *)
+  (* some PhiValues will not be actual phi destinations, therefore cannot change *)
   let subst = Value.Hashtbl.create () in
   let phis_with_id : value_id Phi.t list =
     (List.map & Phi.map)

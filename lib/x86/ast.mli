@@ -88,7 +88,7 @@ end
 
 module Ty : sig
   type t =
-    | U1
+    | I1
     | U64
   [@@deriving equal, compare, sexp, hash, variants]
 end
@@ -186,6 +186,12 @@ module Address : sig
   val base_offset : 'a Base.t -> Imm.t -> 'a t
   val rip_relative : Imm.t -> 'a t
   val iter_regs : 'r t -> f:('r -> unit) -> unit
+end
+
+module Simple_operand : sig
+  type 'r t =
+    | Imm of Imm.t
+    | Reg of 'r
 end
 
 module Operand : sig
@@ -293,6 +299,18 @@ module Instr : sig
         }
     (* two operand version, gets 64 bit result from two operands *)
     | Imul of
+        { s : Size.t
+        ; dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    | Div of
+        { s : Size.t
+        ; dst : 'r Operand.t
+        ; src1 : 'r Operand.t
+        ; src2 : 'r Operand.t
+        }
+    | Idiv of
         { s : Size.t
         ; dst : 'r Operand.t
         ; src1 : 'r Operand.t

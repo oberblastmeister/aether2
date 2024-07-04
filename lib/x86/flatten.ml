@@ -56,6 +56,9 @@ end = struct
     | J { cond; src } -> J { cond; src }
     | Jmp { src } -> Jmp { src }
     | Ret -> Ret
+    | Div { s; src } -> Div { s; src = resolve_operand src }
+    | Idiv { s; src } -> Idiv { s; src = resolve_operand src }
+    | Cqto -> Cqto
   ;;
 
   let resolve_function stack_layout fn =
@@ -96,8 +99,10 @@ let run_function ~func_index (fn : _ Function.t) =
   [%log.global.debug
     (allocation : Reg_alloc.Allocation.t) (callee_saved : (MReg.t * Stack_slot.t) list)];
   let fn = Reg_alloc.apply_allocation_function ~allocation ~stack_builder fn in
+  [%log.global.debug "after apply_allocation_function" (fn : AReg.t Function.t)];
   let fn = Remove_ssa.remove_ssa fn in
   let flat = Legalize.legalize_function ~func_index fn in
+  [%log.global.debug "legalized" (flat : AReg.t Flat.Program.t)];
   let flat = Spill_flat.lower_function stack_builder flat in
   let stack_instrs = fn.stack_instrs @ Stack_builder.get_stack_instrs stack_builder in
   let stack_layout = Stack_layout.create stack_instrs in

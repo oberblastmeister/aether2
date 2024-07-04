@@ -56,31 +56,30 @@ module Cx = Context
 let ty_of_expr = Expr.get_ty_with Tir.Value.get_ty
 
 let ty_to_size = function
-  | Ty.U1 -> X86.Size.B
-  | Ty.U64 -> X86.Size.Q
+  | Ty.I1 -> X86.Size.B
   | Ty.I64 -> X86.Size.Q
+  | Ty.Ptr -> X86.Size.Q
   | Void -> raise_s [%message "void has no size"]
 ;;
 
 let value_size v = ty_to_size v.Value.ty
 
-let cmp_op_to_cond ty op =
-  match ty with
-  | Ty.U1 | Ty.U64 ->
+let cmp_op_to_cond ty signed op =
+  match signed with
+  | Signed.Unsigned ->
     (match op with
      | Cmp_op.Gt -> X86.Cond.A
      | Ge -> X86.Cond.AE
      | Eq -> X86.Cond.E
      | Lt -> X86.Cond.B
      | Le -> X86.Cond.BE)
-  | Ty.I64 ->
+  | Signed.Signed ->
     (match op with
      | Gt -> X86.Cond.G
      | Ge -> X86.Cond.GE
      | Eq -> X86.Cond.E
      | Lt -> X86.Cond.L
      | Le -> X86.Cond.LE)
-  | Void -> raise_s [%message "cannot use void with cond"]
 ;;
 
 let fresh_name (cx : Context.t) (name : string) : Name.t =
@@ -160,31 +159,32 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
        let src2 = lower_expr_op cx v2 in
        Cx.add cx (Imul { s = Q; dst; src1; src2 });
        dst)
-  | Const { ty = Ty.U64 | Ty.I64; const } when is_some (X86.Imm_int.of_z const) ->
+  | Const { ty = Ty.I64; const } when is_some (X86.Imm_int.of_z const) ->
     let dst = fresh_op cx "tmp" in
     Cx.add cx (Mov { s = Q; dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) });
     dst
-  | Const { ty = Ty.U64 | Ty.I64; const } ->
+  | Const { ty = Ty.I64; const } ->
     let dst = fresh_op cx "tmp" in
     Cx.add cx (MovAbs { dst; imm = const });
     dst
-  | Const { ty = Ty.U1; const; _ } ->
+  | Const { ty = Ty.I1; const; _ } ->
     let dst = fresh_op cx "tmp" in
     Cx.add cx (Mov { s = Q; dst; src = X86.Operand.imm (X86.Imm_int.of_z_exn const) });
     dst
   | Const { ty = Ty.Void; _ } -> raise_s [%message "const can't be void" [%here]]
-  | Cmp { ty; op; v1; v2 } ->
+  | Cmp { ty; signed; op; v1; v2 } ->
     let tmp = fresh_op cx "tmp" in
     let dst = fresh_op cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
     Cx.add cx (Cmp { s = Q; src1; src2 });
-    Cx.add cx (Set { dst = tmp; cond = cmp_op_to_cond ty op });
+    Cx.add cx (Set { dst = tmp; cond = cmp_op_to_cond ty signed op });
     Cx.add cx (MovZx { dst_size = Q; src_size = B; dst; src = tmp });
     dst
   | Val (I { expr; _ }) -> lower_expr_op cx expr
   | Val (I' { expr; _ }) -> Reg (lower_impure_expr_reg cx expr)
   | Val (V v) -> Reg (vreg v)
+  | _ -> todo [%here]
 
 and lower_expr_reg cx expr =
   match lower_expr_op cx expr with
@@ -202,6 +202,18 @@ and lower_impure_expr_reg cx expr =
     dst
   | Load _ -> todo [%here]
   | Alloca _ -> todo [%here]
+  | Udiv { ty; v1; v2 } ->
+    let dst = fresh_vreg cx "tmp" in
+    let src1 = lower_expr_op cx v1 in
+    let src2 = lower_expr_op cx v2 in
+    Cx.add cx (Div { s = Q; dst = Reg dst; src1; src2 });
+    dst
+  | Idiv { ty; v1; v2 } ->
+    let dst = fresh_vreg cx "tmp" in
+    let src1 = lower_expr_op cx v1 in
+    let src2 = lower_expr_op cx v2 in
+    Cx.add cx (Idiv { s = Q; dst = Reg dst; src1; src2 });
+    dst
 
 and lower_instr cx instr =
   match instr with

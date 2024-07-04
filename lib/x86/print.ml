@@ -133,6 +133,7 @@ let print_operand s b (operand : _ Operand.t) =
 ;;
 
 let op = print_operand
+let i0 b s = bprintf b "\t%s" s
 let i1 size b s x = bprintf b "\t%s\t%a" s (op size) x
 let i2_s size cx s x y = bprintf cx "\t%s\t%a, %a" s (op size) x (op size) y
 
@@ -155,7 +156,7 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
       dst
       (fun b i -> Buffer.add_string b (Z.to_string_hum i))
       imm
-  | Ret -> bprintf b "\tret"
+  | Ret -> i0 b "ret"
   | Call { src } -> bprintf b "\tcall\t%s" src
   | MovZx { dst_size; src_size; dst; src } ->
     bprintf b "\tmovzx\t%a, %a" (op dst_size) dst (op src_size) src
@@ -163,6 +164,9 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
   | Lea { s; dst; src } -> i2_s s b "lea" dst src
   | Push { s; src } -> i1 s b "push" src
   | Pop { s; dst } -> i1 s b "pop" dst
+  | Div { s; src } -> i1 s b "div" src
+  | Idiv { s; src } -> i1 s b "idiv" src
+  | Cqto -> i0 b "cqto"
 ;;
 
 let print_line b line =

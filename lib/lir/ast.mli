@@ -11,10 +11,10 @@ end
 
 module Ty : sig
   type t =
-    | U1
-    | U64
+    | I1
     | I64
     | Void
+    | Ptr
   [@@deriving equal, compare, hash, sexp]
 end
 
@@ -54,6 +54,13 @@ module Bin_op : sig
   [@@deriving sexp]
 end
 
+module Signed : sig
+  type t =
+    | Signed
+    | Unsigned
+  [@@deriving equal, compare, hash, sexp]
+end
+
 module Expr : sig
   type 'v t =
     | Bin of
@@ -69,6 +76,7 @@ module Expr : sig
     | Cmp of
         { ty : Ty.t
         ; op : Cmp_op.t
+        ; signed : Signed.t
         ; v1 : 'v t
         ; v2 : 'v t
         }
@@ -92,6 +100,16 @@ end
 
 module Impure_expr : sig
   type 'v t =
+    | Udiv of
+        { ty : Ty.t
+        ; v1 : 'v Expr.t
+        ; v2 : 'v Expr.t
+        }
+    | Idiv of
+        { ty : Ty.t
+        ; v1 : 'v Expr.t
+        ; v2 : 'v Expr.t
+        }
     | Load of
         { ty : Ty.t
         ; pointer : 'v Expr.t

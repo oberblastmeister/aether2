@@ -46,7 +46,7 @@ let%test_module _ =
       print_s [%sexp (uses : Lir.Value.t list)];
       [%expect
         {|
-    (((name f.4) (ty U1)) ((name z.3) (ty U64)) ((name e.1) (ty U64))
+    (((name f.4) (ty I1)) ((name z.3) (ty U64)) ((name e.1) (ty U64))
      ((name r.2) (ty U64)) ((name one.5) (ty U64)) ((name e.1) (ty U64))
      ((name b.0) (ty U64)) ((name r.2) (ty U64))) |}]
     ;;
