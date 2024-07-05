@@ -6,6 +6,10 @@ module T = struct
         { span : Span.t
         ; value : string
         }
+    | Keyword of
+        { span : Span.t
+        ; value : string
+        }
     | List of
         { span : Span.t
         ; items : t list
@@ -24,6 +28,8 @@ module Token = struct
     | LBrace
     | RBrace
     | Atom of string
+    | Keyword of string
+    | Error of string
   [@@deriving sexp, compare, equal]
 end
 

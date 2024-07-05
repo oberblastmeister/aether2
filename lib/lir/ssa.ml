@@ -261,7 +261,14 @@ let convert_function (fn : Vir.Function.t) =
   { fn with graph }
 ;;
 
-let convert (program : Vir.Program.t) =
-  let program = (Field.map Program.Fields.funcs & List.map) ~f:convert_function program in
+let convert_decl decl =
+  match decl with
+  | Decl.Func func -> Decl.Func (convert_function func)
+  | Decl.Func_def func_def -> Decl.Func_def func_def
+  | Decl.Global global -> Decl.Global global
+;;
+
+let convert (program : Vir.Module.t) =
+  let program = Module.map_decls ~f:convert_decl program in
   program
 ;;

@@ -1,4 +1,4 @@
-(define (entry) void
+(define (entry) : void
   (block (start)
     (set x (const i64 2))
     (set zero (const i64 0))

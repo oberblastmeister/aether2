@@ -45,7 +45,7 @@ struct
     type t = V.t Lir.Function.t [@@deriving sexp_of]
   end
 
-  module Program = struct
-    type t = V.t Lir.Program.t [@@deriving sexp_of]
+  module Module = struct
+    type t = V.t Lir.Module.t [@@deriving sexp_of]
   end
 end

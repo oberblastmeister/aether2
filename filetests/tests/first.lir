@@ -1,4 +1,4 @@
-(define (another [param1 i64] [param2 i64]) void
+(define (another [param1 : i64] [param2 : i64]) : void
   (block (start)
     (set one (const i64 1))
     (set two (const i64 1))
@@ -9,7 +9,7 @@
   )
 )
 
-(define (entry) void
+(define (entry) : void
   (block (start)
     (set bruh1 (const i64 124))
     (set bruh2 (const i64 14))

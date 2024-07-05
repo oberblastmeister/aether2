@@ -9,6 +9,14 @@ module type Value = sig
   include Base.Comparable.S with type t := t
 end
 
+module Linkage : sig
+  type t =
+    | Export
+    | Preemptible
+    | Local
+  [@@deriving sexp_of]
+end
+
 module Ty : sig
   type t =
     | I1
@@ -290,6 +298,7 @@ end
 module Mut_function : sig
   type 'v t =
     { name : string
+    ; linkage : Linkage.t
     ; mutable graph : 'v Graph.t
     ; ty : Named_function_ty.t
     ; mutable unique_label : Label.Id.t
@@ -314,6 +323,7 @@ end
 module Function : sig
   type 'v t =
     { name : string
+    ; linkage : Linkage.t
     ; graph : 'v Graph.t
     ; ty : Named_function_ty.t
     ; unique_label : Label.Id.t
@@ -331,12 +341,47 @@ module Function : sig
   val with_mut : 'v t -> ('v Mut_function.t -> unit) -> 'v t
 end
 
-module Program : sig
-  type 'v t =
-    { funcs : 'v Function.t list
-    ; externs : Extern.t list
+module Function_def : sig
+  type t =
+    { name : string
+    ; linkage : Linkage.t
+    ; ty : Named_function_ty.t
     }
-  [@@deriving sexp_of, fields, map]
+  [@@deriving sexp_of]
+end
 
-  val map_functions : 'v t -> f:('v Function.t list -> 'u Function.t list) -> 'u t
+module Global_data : sig
+  type t =
+    | Const of Z.t
+    | Bytes of string
+    | Global of string
+  [@@deriving sexp_of]
+end
+
+module Global : sig
+  type t =
+    { name : string
+    ; linkage : Linkage.t
+    ; data : Global_data.t
+    }
+  [@@deriving sexp_of]
+end
+
+module Decl : sig
+  type 'v t =
+    | Func of 'v Function.t
+    | Func_def of Function_def.t
+    | Global of Global.t
+  [@@deriving sexp_of]
+
+  val name : 'v t -> string
+  val iter_func : 'v t -> f:('v Function.t -> unit) -> unit
+end
+
+module Module : sig
+  type 'v t = { decls : 'v Decl.t list } [@@deriving sexp_of, fields, map]
+
+  val map_decls : 'v t -> f:('v Decl.t -> 'u Decl.t) -> 'u t
+  val map_functions : 'v t -> f:('v Function.t -> 'u Function.t) -> 'u t
+  val iter_decls : 'v t -> f:('v Decl.t -> unit) -> unit
 end

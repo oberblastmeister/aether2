@@ -1,1 +1,1 @@
-val split : Vir.Program.t -> Vir.Program.t
+val split : Vir.Module.t -> Vir.Module.t

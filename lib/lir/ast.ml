@@ -9,6 +9,14 @@ module type Value = sig
   include Base.Comparable.S with type t := t
 end
 
+module Linkage = struct
+  type t =
+    | Export
+    | Preemptible
+    | Local
+  [@@deriving sexp_of]
+end
+
 module Ty = struct
   type t =
     | I1
@@ -465,6 +473,7 @@ end
 module Mut_function = struct
   type 'v t =
     { name : string
+    ; linkage : Linkage.t
     ; mutable graph : 'v Graph.t
     ; ty : Named_function_ty.t
     ; mutable unique_label : Label.Id.t
@@ -499,6 +508,7 @@ end
 module Function = struct
   type 'v t =
     { name : string
+    ; linkage : Linkage.t
     ; graph : 'v Graph.t
     ; ty : Named_function_ty.t
     ; unique_label : Label.Id.t
@@ -517,6 +527,7 @@ module Function = struct
 
   let thaw fn =
     { Mut_function.name = fn.name
+    ; linkage = fn.linkage
     ; ty = fn.ty
     ; graph = fn.graph
     ; unique_label = fn.unique_label
@@ -526,6 +537,7 @@ module Function = struct
 
   let freeze fn =
     { name = fn.Mut_function.name
+    ; linkage = fn.linkage
     ; ty = fn.ty
     ; graph = fn.graph
     ; unique_label = fn.unique_label
@@ -540,12 +552,63 @@ module Function = struct
   ;;
 end
 
-module Program = struct
-  type 'v t =
-    { funcs : 'v Function.t list
-    ; externs : Extern.t list
+module Function_def = struct
+  type t =
+    { name : string
+    ; linkage : Linkage.t
+    ; ty : Named_function_ty.t
     }
-  [@@deriving sexp_of, fields, map]
+  [@@deriving sexp_of]
+end
 
-  let map_functions p ~f = { p with funcs = f p.funcs }
+module Global_data = struct
+  type t =
+    | Const of Z.t
+    | Bytes of string
+    | Global of string
+  [@@deriving sexp_of]
+end
+
+module Global = struct
+  type t =
+    { name : string
+    ; linkage : Linkage.t
+    ; data : Global_data.t
+    }
+  [@@deriving sexp_of]
+end
+
+module Decl = struct
+  type 'v t =
+    | Func of 'v Function.t
+    | Func_def of Function_def.t
+    | Global of Global.t
+  [@@deriving sexp_of, map]
+
+  let map_function decl ~f =
+    match decl with
+    | Func func -> Func (f func)
+    | Func_def ty -> Func_def ty
+    | Global x -> Global x
+  ;;
+
+  let name = function
+    | Func func -> func.name
+    | Func_def func_def -> func_def.name
+    | Global global -> global.name
+  ;;
+
+  let iter_func decl ~f =
+    match decl with
+    | Func func -> f func
+    | _ -> ()
+  ;;
+end
+
+module Module = struct
+  type 'v t = { decls : 'v Decl.t list } [@@deriving sexp_of, fields, map]
+
+  let map_decls { decls } ~f = { decls = List.map decls ~f }
+  let map_functions modul ~f = (map_decls & Decl.map_function) modul ~f
+  let iter_decls { decls } ~f = List.iter decls ~f
 end

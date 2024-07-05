@@ -23,7 +23,7 @@ let pretty_ty = function
 ;;
 
 let pretty_value_typed (value : Value.t) =
-  Pretty.brack_list [ pretty_name value.name; pretty_ty value.ty ]
+  Pretty.brack_list [ pretty_name value.name; Atom ":"; pretty_ty value.ty ]
 ;;
 
 let cmp_op_to_string = function
@@ -84,7 +84,11 @@ let pretty_impure_expr cx expr =
   match expr with
   | Impure_expr.Call { ty; call } -> pretty_call_with_ty cx ty call
   | Load { ty; ptr } -> Pretty.(list [ Atom "load"; pretty_ty ty; pretty_expr cx ptr ])
-  | _ -> todo [%here]
+  | Impure_expr.Udiv { ty; v1; v2 } ->
+    Pretty.(list [ Atom "udiv"; pretty_ty ty; pretty_expr cx v1; pretty_expr cx v2 ])
+  | Idiv { ty; v1; v2 } ->
+    Pretty.(list [ Atom "idiv"; pretty_ty ty; pretty_expr cx v1; pretty_expr cx v2 ])
+  | Alloca { size } -> Pretty.(list [ Atom "alloca"; Atom (Int32.to_string_hum size) ])
 ;;
 
 let pretty_instr_control cx i =
@@ -141,6 +145,7 @@ let pretty_function cx (fn : _ Function.t) =
     @@ List.concat
          [ [ Atom "define"
            ; list ([ Atom fn.name ] @ List.map ~f:pretty_value_typed fn.ty.params)
+           ; Atom ":"
            ; pretty_ty fn.ty.return
            ]
          ; [ Ann IndentLine ]
@@ -148,9 +153,15 @@ let pretty_function cx (fn : _ Function.t) =
          ])
 ;;
 
-let pretty' cx (program : _ Program.t) =
-  program.funcs
-  |> List.map ~f:(pretty_function cx)
+let pretty_decl cx decl =
+  match decl with
+  | Decl.Func func -> pretty_function cx func
+  | _ -> todo [%here]
+;;
+
+let pretty' cx (program : _ Module.t) =
+  program.decls
+  |> List.map ~f:(pretty_decl cx)
   |> List.map ~f:Pretty.to_string
   |> String.concat ~sep:"\n\n"
 ;;

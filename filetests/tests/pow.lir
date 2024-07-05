@@ -1,4 +1,8 @@
-(define (pow [x i64] [n i64]) i64
+; (define testing : i64)
+; (define testing 13423 : i64)
+; (define (pow [x : i64] [n : i64]) : i64)
+
+(define (pow [x : i64] [n : i64]) : i64
   (block (start)
     (set r (const i64 1))
     (jump (loop))
@@ -18,7 +22,7 @@
   )
 )
 
-(define (entry) void
+(define (entry) : void
   (block (start)
     (set r (call i64 (pow (const i64 -1) (const i64 2))))
     (call void (assert_eq_i64 (const i64 1) r))

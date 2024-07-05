@@ -1,4 +1,6 @@
-(define (entry) void
+; (define (testing int))
+
+(define (entry) : void
   (block (start)
     (set bruh1 (const i64 -3))
     (set bruh1 (add i64 bruh1 (const i64 4)))

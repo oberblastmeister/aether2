@@ -1,4 +1,4 @@
-(define (if [x i64] [y i64]) i64
+(define (if [x : i64] [y : i64]) : i64
   (block (start)
     (set nine (const i64 9))
     (set f (ucmp i64 gt x nine))
@@ -20,7 +20,7 @@
   )
 )
 
-(define (entry) void
+(define (entry) : void
   (block (start)
     (set x (const i64 2))
     (set y (const i64 123))

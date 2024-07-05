@@ -20,12 +20,16 @@ let is_control_char c =
 ;;
 
 let tokenize s : SpannedToken.t list =
+  let len = String.length s in
   let rec go pos =
-    if pos >= String.length s
+    if pos >= len
     then []
     else (
       let c = s.[pos] in
       match c with
+      | ';' ->
+        let pos = take_while_from ~f:(fun c -> Char.(c <> '\n')) ~pos s in
+        go pos
       | '(' ->
         ({ span = Span.single pos; token = LParen } : SpannedToken.t) :: go (pos + 1)
       | ')' -> { span = Span.single pos; token = RParen } :: go (pos + 1)
@@ -33,6 +37,18 @@ let tokenize s : SpannedToken.t list =
       | ']' -> { span = Span.single pos; token = RBrack } :: go (pos + 1)
       | '{' -> { span = Span.single pos; token = LBrace } :: go (pos + 1)
       | '}' -> { span = Span.single pos; token = RBrace } :: go (pos + 1)
+      | '#' when pos + 1 < len && Char.(s.[pos + 1] = ':') ->
+        let pos = pos + 2 in
+        if pos < len
+        then (
+          let pos' = take_while_from ~pos ~f:(fun c -> not (Char.is_whitespace c)) s in
+          let tok = String.slice s pos pos' in
+          if String.is_empty tok
+          then
+            { span = { start = pos; stop = pos' }; token = Error "empty keyword" }
+            :: go pos'
+          else { span = { start = pos; stop = pos' }; token = Keyword tok } :: go pos')
+        else [ { span = Span.single pos; token = Error "unexpected eof" } ]
       | c when Char.is_whitespace c -> go (pos + 1)
       | _ ->
         let pos' = take_while_from ~pos ~f:(fun c -> not (is_control_char c)) s in
@@ -112,6 +128,7 @@ let parse_tokens ts =
        | LBrack -> parse_list span RBrack ts
        | LBrace -> parse_list span RBrace ts
        | Atom value -> Ok (Atom { span; value }, ts)
+       | Keyword value -> Ok (Keyword { span; value }, ts)
        | _ -> unexpected_token token ts)
   and parse_list start_span close ts =
     let%bind xs, ts = parse_many ts in
@@ -145,6 +162,7 @@ let parse_single s = tokenize s |> parse_tokens_single
 let span = function
   | Atom { span; _ } -> span
   | List { span; _ } -> span
+  | Keyword { span; _ } -> span
 ;;
 
 let%expect_test _ =

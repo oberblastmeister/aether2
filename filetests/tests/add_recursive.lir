@@ -1,4 +1,4 @@
-(define (repeated_add [count i64] [x i64]) i64
+(define (repeated_add [count : i64] [x : i64]) : i64
   (block (start)
     (set zero (const i64 0))
     (set res (const i64 0))
@@ -17,7 +17,7 @@
   )
 )
 
-(define (entry) void
+(define (entry) : void
   (block (start)
     (set count (const i64 10))
     (set x (const i64 20))

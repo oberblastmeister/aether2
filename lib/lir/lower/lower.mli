@@ -1,4 +1,4 @@
 open! O
 module Tir = Tir
 
-val run : Vir.Program.t -> Tir.Program.t
+val run : Vir.Module.t -> Tir.Module.t

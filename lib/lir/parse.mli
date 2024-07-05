@@ -1,4 +1,4 @@
 open! O
 open Ast
 
-val parse : string -> Name.t Program.t Or_error.t
+val parse : string -> Name.t Module.t Or_error.t

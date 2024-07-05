@@ -1,4 +1,4 @@
-(define (fib [n i64]) i64
+(define (fib [n : i64]) : i64
   (block (start)
     (cond_jump (ucmp i64 eq n (const i64 0)) (return_0) (next))
   )
@@ -24,7 +24,7 @@
   )
 ) 
 
-(define (entry) void
+(define (entry) : void
   (block (start)
     (set r (call i64 (fib (const i64 20))))
     (call void (assert_eq_u64 (const i64 6765) r))

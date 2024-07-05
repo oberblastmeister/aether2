@@ -1,4 +1,4 @@
 open! O
 open Ast
 
-val elaborate : Name.t Program.t -> Value.t Program.t Or_error.t
+val elaborate : Name.t Module.t -> Value.t Module.t Or_error.t

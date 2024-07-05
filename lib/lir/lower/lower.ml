@@ -116,4 +116,4 @@ let lower_fn (fn : Vir.Function.t) =
   Lir.Function.map_graph fn ~f:(fun graph -> Cfg.Graph.set_blocks_alist blocks graph)
 ;;
 
-let run program = (Lir.Program.map_functions & List.map) program ~f:lower_fn
+let run program = Lir.Module.map_functions program ~f:lower_fn

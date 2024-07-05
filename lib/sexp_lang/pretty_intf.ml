@@ -17,6 +17,7 @@ module T = struct
   type t =
     | List of t list * Delim.t
     | Atom of string
+    | Keyword of string
     | Ann of ann
   [@@deriving equal, compare, sexp]
 end

@@ -309,7 +309,15 @@ let lower_function (fn : Tir.Function.t) =
   }
 ;;
 
-let lower (prog : Tir.Program.t) =
-  let functions = List.map ~f:lower_function prog.funcs in
+let lower_decl decl =
+  match decl with
+  | Decl.Func func -> [ lower_function func ]
+  | _ -> []
+;;
+
+let lower (modul : Tir.Module.t) =
+  let functions =
+    F.Iter.to_list (Module.iter_decls modul) |> List.concat_map ~f:lower_decl
+  in
   { X86.Program.functions }
 ;;

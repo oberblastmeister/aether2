@@ -52,8 +52,5 @@ let split_fn_with ~f (fn : Vir.Function.t) =
       else ()))
 ;;
 
-let split_with ~f prog =
-  (Program.map_functions & List.map) prog ~f:(fun fn -> split_fn_with ~f fn)
-;;
-
+let split_with ~f prog = Module.map_functions prog ~f:(fun fn -> split_fn_with ~f fn)
 let split = split_with ~f:(fun _ -> true)

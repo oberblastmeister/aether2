@@ -1,11 +1,14 @@
-(define (entry) void
+(define (entry) : void
   (block (start)
-    (set p1 (alloca 8))
+    (set p1 (alloca 16))
     (store i64 p1 (const i64 20))
+    (store i64 (add ptr p1 (const i64 8)) (const i64 29))
     (set p3 (alloca 16))
     (set p2 (alloca 8))
     (set r1 (load i64 p1))
+    (set r2 (load i64 (add ptr p1 (const i64 8))))
     (call void (assert_eq_u64 r1 (const i64 20)))
+    (call void (assert_eq_u64 r2 (const i64 29)))
     (ret)
   )
 )

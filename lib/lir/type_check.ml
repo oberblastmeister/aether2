@@ -2,7 +2,7 @@ open O
 open Ast
 
 (* we don't need to put temps in here because they are already handled by the elaboration phase *)
-type context = { func_tys : Function_ty.t String.Map.t } [@@deriving sexp_of]
+type context = { decls : Value.t Decl.t String.Map.t } [@@deriving sexp_of]
 
 exception Exn of Error.t
 
@@ -19,23 +19,34 @@ let handle f =
   | x -> Ok x
 ;;
 
-let create_context (program : _ Program.t) =
-  let func_tys = String.Map.empty in
-  let func_tys =
-    List.fold_left program.funcs ~init:func_tys ~f:(fun funcs func ->
-      match Map.add funcs ~key:func.name ~data:(Named_function_ty.to_anon func.ty) with
-      | `Ok funcs -> funcs
-      | `Duplicate ->
-        error [%message "duplicate function name" ~name:(func.name : string)])
+let create_context (modul : _ Module.t) =
+  let decls =
+    F.Iter.to_list (Module.iter_decls modul)
+    |> List.map ~f:(fun decl -> Decl.name decl, decl)
+    |> String.Map.of_alist
   in
-  let func_tys =
-    List.fold_left program.externs ~init:func_tys ~f:(fun funcs extern ->
-      match Map.add funcs ~key:extern.name ~data:extern.ty with
-      | `Ok funcs -> funcs
-      | `Duplicate ->
-        error [%message "duplicate function name" ~name:(extern.name : string)])
+  let decls =
+    match decls with
+    | `Duplicate_key name -> error [%message "duplicate name " ~name]
+    | `Ok x -> x
   in
-  { func_tys }
+  (*
+     let func_tys = String.Map.empty in
+     let func_tys =
+     List.fold_left program.funcs ~init:func_tys ~f:(fun funcs func ->
+     match Map.add funcs ~key:func.name ~data:(Named_function_ty.to_anon func.ty) with
+     | `Ok funcs -> funcs
+     | `Duplicate ->
+     error [%message "duplicate function name" ~name:(func.name : string)])
+     in
+     let func_tys =
+     List.fold_left program.externs ~init:func_tys ~f:(fun funcs extern ->
+     match Map.add funcs ~key:extern.name ~data:extern.ty with
+     | `Ok funcs -> funcs
+     | `Duplicate ->
+     error [%message "duplicate function name" ~name:(extern.name : string)])
+     in *)
+  { decls }
 ;;
 
 let check_ty_equal ty1 ty2 =
@@ -55,12 +66,17 @@ let check_args params (args : Value.t Expr.t list) =
   ()
 ;;
 
+let find_func_ty cx name =
+  match Map.find cx.decls name with
+  | None -> error [%message "could not find name" (name : string)]
+  | Some (Func func) -> func.ty
+  | Some (Func_def func_def) -> func_def.ty
+  | Some decl -> error [%message "decl was not a func" (name : string) (decl : _ Decl.t)]
+;;
+
 let check_call cx is_void (ty : Ty.t) Call.{ name; args } =
-  let func_ty =
-    match Map.find cx.func_tys name with
-    | Some func_ty -> func_ty
-    | None -> error [%message "unknown function" (name : string)]
-  in
+  let func_ty = find_func_ty cx name in
+  let func_ty = Named_function_ty.to_anon func_ty in
   (match is_void, ty with
    | false, Void ->
      error [%message "cannot assign the result of function that returns void"]
@@ -84,6 +100,16 @@ let check_ty_cmp_op ty op =
 
 let rec check_expr cx (expr : Value.t Expr.t) =
   match expr with
+  | Bin { ty = Ptr; v1; v2; op = Add | Sub } ->
+    check_expr cx v1;
+    check_expr cx v2;
+    let ty1 = Expr.get_ty v1 in
+    let ty2 = Expr.get_ty v2 in
+    (match ty1, ty2 with
+     | Ptr, I64 | I64, Ptr -> ()
+     | _ -> error [%message "invalid pointer operations" (ty1 : Ty.t) (ty2 : Ty.t)]);
+    ()
+  | Bin { ty = Ptr; op = Mul; _ } -> raise_s [%message "invalid pointer operations"]
   | Bin { ty; v1; v2; op = _ } ->
     check_ty_bin_op ty;
     check_ty_equal ty (Expr.get_ty v1);
@@ -216,10 +242,16 @@ let check_func cx (func : _ Function.t) =
   ()
 ;;
 
-let check_program program =
-  let cx = create_context program in
-  List.iter program.funcs ~f:(check_func cx);
+let check_decl cx decl =
+  match decl with
+  | Decl.Func func -> check_func cx func
+  | Func_def _ | Global _ -> ()
+;;
+
+let check_module modul =
+  let cx = create_context modul in
+  List.iter modul.decls ~f:(check_decl cx);
   ()
 ;;
 
-let run program = handle (fun () -> check_program program)
+let run program = handle (fun () -> check_module program)

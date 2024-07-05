@@ -65,13 +65,17 @@ let elaborate_function (fn : Name.t Function.t) : Value.t Function.t =
 
 let elaborate_single fn = run (fun () -> elaborate_function fn)
 
-let elaborate_program (program : Name.t Program.t) =
-  let new_funcs = List.map ~f:elaborate_function program.funcs in
-  { program with funcs = new_funcs }
+let elaborate_decl decl =
+  match decl with
+  | Decl.Func func -> Decl.Func (elaborate_function func)
+  | Func_def func_def -> Func_def func_def
+  | Global global -> Global global
 ;;
 
-let elaborate (program : Name.t Program.t) : Value.t Program.t Or_error.t =
-  run (fun () -> elaborate_program program)
+let elaborate_module (modul : Name.t Module.t) = Module.map_decls ~f:elaborate_decl modul
+
+let elaborate (program : Name.t Module.t) : Value.t Module.t Or_error.t =
+  run (fun () -> elaborate_module program)
 ;;
 
 let%expect_test _ =

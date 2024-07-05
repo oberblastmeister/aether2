@@ -32,4 +32,6 @@ module Check = Compiler.Check_ssa.Make (struct
     end
   end)
 
-let check program = Check.check_list program.Program.funcs
+let check modul =
+  Check.check_list (F.Fold.to_list (Module.iter_decls @> Decl.iter_func) modul)
+;;

@@ -39,6 +39,7 @@ let print_to_buffer sexp =
   let buffer = Buffer.create 10 in
   let rec go indent = function
     | Atom s -> Buffer.add_string buffer s
+    | Keyword s -> Buffer.add_string buffer ("#:" ^ s)
     | List (items, delim) ->
       Buffer.add_char buffer (char_of_open_delim delim);
       go_list indent items;

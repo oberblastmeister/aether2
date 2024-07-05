@@ -1,4 +1,4 @@
-(define (f [a i64] [b i64] [c i64] [d i64] [e i64] [f i64] [g i64] [h i64]) void
+(define (f [a : i64] [b : i64] [c : i64] [d : i64] [e : i64] [f : i64] [g : i64] [h : i64]) : void
   (block (start)
     (call void (print_u64 a))
     (call void (print_u64 b))
@@ -12,7 +12,7 @@
   )
 )
 
-(define (entry) void
+(define (entry) : void
   (block (start)
     (call void (f (const i64 0) (const i64 1) (const i64 2) (const i64 3) (const i64 4) (const i64 5) (const i64 6) (const i64 7)))
     (ret)

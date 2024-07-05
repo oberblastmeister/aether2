@@ -30,11 +30,13 @@ let run f =
 let with_span (span : Span.t) f = R.scope (const span) f
 let parse_error message = raise (Error (Single { span = R.read (); message }))
 
-let atom f = function
+let atom f sexp =
+  match sexp with
   | Cst.Atom s -> with_span s.span (fun () -> f s.value)
-  | Cst.List l ->
-    R.scope (const l.span) (fun () ->
-      parse_error [%message "expected atom" ~got:(l.items : Cst.t list)])
+  | List _ | Keyword _ ->
+    R.scope
+      (const (Cst.span sexp))
+      (fun () -> parse_error [%message "expected atom" ~got:(sexp : Cst.t)])
 ;;
 
 let string = atom Fn.id
@@ -42,7 +44,7 @@ let string = atom Fn.id
 let list sexp f =
   match sexp with
   | Cst.List x -> R.scope (const x.span) (fun () -> f x.items)
-  | Cst.Atom x -> parse_error [%message "expected list" ~got:(x.value : string)]
+  | Cst.Atom _ | Keyword _ -> parse_error [%message "expected list" ~got:(sexp : Cst.t)]
 ;;
 
 let list_ref sexp f = list sexp (fun xs -> f (ref xs))
