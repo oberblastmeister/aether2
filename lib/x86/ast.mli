@@ -83,6 +83,8 @@ module Imm : sig
   type t =
     | Int of Imm_int.t
     | Label of string
+    | LabelGot of string
+    | LabelPlt of string
     | Stack of Stack_off.t
   [@@deriving sexp_of, map, fold]
 end
@@ -348,6 +350,7 @@ module Instr : sig
     | Call of
         { (* dst size is always Q *)
           name : string
+        ; use_plt : bool
         ; reg_args : (Mach_reg.t * 'r Simple_operand.t) list
         ; defines : Mach_reg.t list (* caller saved registers*)
         ; dst : ('r * Mach_reg.t) option
@@ -427,7 +430,7 @@ module Section : sig
     | Data
     | Rodata
   [@@deriving sexp_of, equal, compare]
-  
+
   val to_string : t -> string
 end
 

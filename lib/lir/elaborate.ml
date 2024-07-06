@@ -51,7 +51,7 @@ let collect_types (fn : Name.t Function.t) =
 
 let elaborate_function (fn : Name.t Function.t) : Value.t Function.t =
   let ty_of_name = collect_types fn in
-  (F.Map.of_map Function.map) fn ~f:(fun name : Value.t ->
+  Function.map_values fn ~f:(fun name : Value.t ->
     { name
     ; ty =
         Map.find ty_of_name name

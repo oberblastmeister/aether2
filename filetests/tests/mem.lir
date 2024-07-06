@@ -1,8 +1,10 @@
-; (global testing (const i64 "asfdasfdasdf"))
-; (global #:align 1234 testing (bytes 1234 0 0 0))
-
-(global #:align 8 testing (bytes 12 0 0 0 0 0 0 0))
+(global #:align 8 #:linkage preemptible testing (bytes 12 0 0 0 0 0 0 0))
 (global #:align 1 str (string '';fapsdf2#hello))
+
+(define #:linkage preemptible (puts [s : ptr]) : void)
+
+; 65 is 'A'
+(global #:align 1 my_string (bytes 65 65 65 65 65 65 65 65 65 65 0))
 
 (define (entry) : void
   (block (start)
@@ -18,6 +20,11 @@
     (set p4 (global testing))
     (set r3 (load i64 p4))
     (call void (assert_eq_u64 r3 (const i64 12)))
+    (set my_string (global my_string))
+    (call void (puts my_string))
+    (call void (puts my_string))
+    (call void (puts my_string))
+    (call void (puts my_string))
     (ret)
   )
 )

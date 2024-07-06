@@ -84,6 +84,8 @@ let print_mreg cx s (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg s mreg.reg
 let print_imm cx imm =
   match imm with
   | Imm.Label l -> Cx.add cx l
+  | Imm.LabelGot l -> Cx.add cx (l ^ "@GOTPCREL")
+  | Imm.LabelPlt l -> Cx.add cx (l ^ "@PLT")
   | Imm.Int i -> Cx.add cx @@ Imm_int.to_string i
   | Imm.Stack _ -> raise_s [%message "could not print stack imm" (imm : Imm.t)]
 ;;
@@ -160,7 +162,8 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
       (fun b i -> Buffer.add_string b (Z.to_string_hum i))
       imm
   | Ret -> i0 b "ret"
-  | Call { src } -> bprintf b "\tcall\t%s" src
+  | Call { src; use_plt = true } -> bprintf b "\tcall\t%s@PLT" src
+  | Call { src; use_plt = false } -> bprintf b "\tcall\t%s" src
   | MovZx { dst_size; src_size; dst; src } ->
     bprintf b "\tmovzx\t%a, %a" (op dst_size) dst (op src_size) src
   | Imul { s; dst; src } -> i2_s s b "imul" dst src

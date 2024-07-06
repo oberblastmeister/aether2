@@ -14,7 +14,7 @@ module Linkage = struct
     | Export
     | Preemptible
     | Local
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, equal, compare]
 end
 
 module Ty = struct
@@ -521,6 +521,8 @@ module Function = struct
     }
   [@@deriving sexp_of, fields, map]
 
+  let map_values fn ~f = map f fn
+  
   let map_graph fn ~f = { fn with graph = f fn.graph }
   (* let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn *)
 
@@ -601,6 +603,10 @@ module Decl = struct
     | Func func -> func.name
     | Func_def func_def -> func_def.name
     | Global global -> global.name
+  ;;
+
+  let linkage = function
+    | Func { linkage; _ } | Func_def { linkage; _ } | Global { linkage; _ } -> linkage
   ;;
 
   let iter_func decl ~f =

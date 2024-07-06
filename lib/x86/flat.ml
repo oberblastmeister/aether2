@@ -5,6 +5,7 @@ module Op = Ast.Operand
 module MReg = Ast.MReg
 module Size = Ast.Size
 
+(* TODO: make call and jmp and others take labels *)
 module Instr = struct
   type 'r t =
     | Mov of
@@ -72,7 +73,10 @@ module Instr = struct
         { cond : Cond.t
         ; dst : 'r Op.t
         }
-    | Call of { src : string }
+    | Call of
+        { src : string
+        ; use_plt : bool
+        }
     | J of
         { cond : Cond.t
         ; src : string

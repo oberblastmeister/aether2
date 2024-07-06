@@ -14,7 +14,7 @@ module Linkage : sig
     | Export
     | Preemptible
     | Local
-  [@@deriving sexp_of]
+  [@@deriving sexp_of, equal, compare]
 end
 
 module Ty : sig
@@ -92,7 +92,7 @@ module Expr : sig
         { ty : Ty.t option
         ; v : 'v
         }
-  [@@deriving sexp_of, fold, map, iter]
+  [@@deriving sexp_of]
 
   val get_val_exn : 'v t -> 'v
   val get_ty_with' : (Ty.t option -> 'v -> Ty.t) -> 'v t -> Ty.t
@@ -106,7 +106,7 @@ module Call : sig
     { name : string
     ; args : 'v Expr.t list
     }
-  [@@deriving sexp_of, fold, map, iter]
+  [@@deriving sexp_of]
 end
 
 module Impure_expr : sig
@@ -131,7 +131,7 @@ module Impure_expr : sig
         ; call : 'v Call.t
         }
     | Global of { name : string }
-  [@@deriving sexp_of, fold, map, iter]
+  [@@deriving sexp_of]
 
   val get_ty : 'v t -> Ty.t
   val iter_uses : ('v, 'v t) F.Fold.t
@@ -146,7 +146,7 @@ module Block_call : sig
     { label : Label.t
     ; args : 'v Expr.t list
     }
-  [@@deriving sexp_of, fields, fold, map, iter]
+  [@@deriving sexp_of, fields]
 
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
 end
@@ -156,7 +156,7 @@ module Control_instr : sig
     | Jump of 'v Block_call.t
     | CondJump of ('v Expr.t * 'v Block_call.t * 'v Block_call.t)
     | Ret of 'v Expr.t option
-  [@@deriving sexp_of, fold, map, iter]
+  [@@deriving sexp_of]
 
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
   val iter_block_calls : ('v Block_call.t, 'v t) F.Fold.t
@@ -183,7 +183,7 @@ module Instr : sig
         ; ptr : 'v Expr.t
         ; expr : 'v Expr.t
         }
-  [@@deriving sexp_of, fold, map, iter]
+  [@@deriving sexp_of]
 
   val has_side_effect : 'v t -> bool
   val map_uses : 'v t -> f:('v -> 'u) -> 'u t
@@ -257,7 +257,7 @@ module Block : sig
     ; body : 'v Instr.t list
     ; exit : 'v Control_instr.t
     }
-  [@@deriving fields, map, sexp_of]
+  [@@deriving fields, sexp_of]
 
   val map_exit : 'v t -> f:('v Control_instr.t -> 'v Control_instr.t) -> 'v t
 
@@ -333,11 +333,11 @@ module Function : sig
     ; unique_label : Label.Id.t
     ; unique_name : Name.Id.t
     }
-  [@@deriving sexp_of, fields, map]
+  [@@deriving sexp_of, fields]
 
   val map_graph : 'v t -> f:('v Graph.t -> 'u Graph.t) -> 'u t
 
-  (* val map_blocks : 'v t -> f:('v Block.t Label.Map.t -> 'u Block.t Label.Map.t) -> 'u t *)
+  val map_values : 'v t -> f:('v -> 'u) -> 'u t
   val iter_blocks : 'v t -> 'v Block.t F.Iter.t
   val iter_instrs_forward : ('v Some_instr.t, 'v t) F.Fold.t
   val thaw : 'v t -> 'v Mut_function.t
@@ -379,11 +379,12 @@ module Decl : sig
   [@@deriving sexp_of]
 
   val name : 'v t -> string
+  val linkage : 'v t -> Linkage.t
   val iter_func : 'v t -> f:('v Function.t -> unit) -> unit
 end
 
 module Module : sig
-  type 'v t = { decls : 'v Decl.t list } [@@deriving sexp_of, fields, map]
+  type 'v t = { decls : 'v Decl.t list } [@@deriving sexp_of, fields]
 
   val map_decls : 'v t -> f:('v Decl.t -> 'u Decl.t) -> 'u t
   val map_functions : 'v t -> f:('v Function.t -> 'u Function.t) -> 'u t

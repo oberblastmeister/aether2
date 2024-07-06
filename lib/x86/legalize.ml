@@ -151,10 +151,10 @@ let legalize_instr cx (instr : AReg.t Instr.t) =
      Cx.add cx @@ MovZx { dst_size; src_size; dst; src };
      ()
    | Set { cond; dst } -> Cx.add cx @@ Set { cond; dst }
-   | Call { name; reg_args; dst; _ } ->
+   | Call { name; reg_args; dst; use_plt; _ } ->
      List.map reg_args ~f:(fun (mach_reg, reg) -> AReg.create mach_reg, reg)
      |> legalize_par_mov cx;
-     Cx.add cx @@ Call { src = name };
+     Cx.add cx @@ Call { src = name; use_plt };
      (match dst with
       | Some (dst, dst_reg) ->
         Cx.add cx

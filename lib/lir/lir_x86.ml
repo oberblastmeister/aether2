@@ -112,6 +112,14 @@ let fresh_op cx (name : string) =
 
 let vreg (v : Value.t) = X86.VReg.create v.name
 
+let op_to_reg cx = function
+  | X86.Operand.Reg reg -> reg
+  | op ->
+    let dst = fresh_vreg cx "tmp" in
+    Cx.add cx (Mov { s = Q; dst = Reg dst; src = op });
+    dst
+;;
+
 let categorize_args args =
   let registers = X86.Mach_reg.args in
   let args_with_reg, remaining = List.zip_with_remainder args registers in
@@ -123,6 +131,7 @@ let categorize_args args =
   args_with_reg, stack_args
 ;;
 
+(* TODO: handle linkage for calls *)
 let rec lower_call cx Call.{ name; args } dst =
   let args = List.map ~f:(lower_expr_simple_op cx) args in
   let args_with_reg, stack_args = categorize_args args in
@@ -139,10 +148,12 @@ let rec lower_call cx Call.{ name; args } dst =
          ; src = X86.Operand.of_simple arg
          };
     ());
+  let linkage = Map.find cx.mod_cx.decl_map name |> Option.value_exn |> Decl.linkage in
   Cx.add
     cx
     (Call
        { name
+       ; use_plt = Linkage.equal linkage Linkage.Preemptible
        ; reg_args = List.map ~f:(fun (x, y) -> y, x) args_with_reg
        ; defines = X86.Mach_reg.caller_saved_without_r11
        ; dst
@@ -210,16 +221,55 @@ and lower_expr_reg cx expr =
     Cx.add cx (Mov { s = Q; dst = Reg dst; src = op });
     dst
 
-and lower_impure_expr_reg cx expr =
+and lower_global (cx : Context.t) name : _ X86.Operand.t =
+  let global_decl = Map.find_exn cx.mod_cx.decl_map name in
+  match global_decl with
+  | Decl.Global global_decl ->
+    (match global_decl.linkage with
+     | Export | Local ->
+       let dst = fresh_vreg cx "tmp" in
+       Cx.add
+         cx
+         (Lea
+            { s = Q
+            ; dst
+            ; src = Complex { base = Rip; index = None; offset = Label name }
+            });
+       Reg dst
+     | Preemptible -> Mem (Complex { base = Rip; index = None; offset = LabelGot name }))
+  | Decl.Func { linkage; _ } | Decl.Func_def { linkage; _ } ->
+    (match linkage with
+     | Export | Local ->
+       let dst = fresh_vreg cx "tmp" in
+       Cx.add
+         cx
+         (Lea
+            { s = Q
+            ; dst
+            ; src = Complex { base = Rip; index = None; offset = Label name }
+            });
+       Reg dst
+     | Preemptible ->
+       let dst = fresh_vreg cx "tmp" in
+       Cx.add
+         cx
+         (Lea
+            { s = Q
+            ; dst
+            ; src = Complex { base = Rip; index = None; offset = LabelPlt name }
+            });
+       Reg dst)
+
+and lower_impure_expr_op cx expr : _ X86.Operand.t =
   match expr with
   | Impure_expr.Call { call; _ } ->
     let dst = fresh_vreg cx "tmp" in
     lower_call cx call (Some (dst, X86.Mach_reg.ret));
-    dst
+    Reg dst
   | Load { ty = _; ptr } ->
-    let dst = fresh_vreg cx "tmp" in
+    let dst = fresh_op cx "tmp" in
     let ptr_reg = lower_expr_reg cx ptr in
-    Cx.add cx (Mov { s = Q; dst = Reg dst; src = Mem (X86.Address.reg ptr_reg) });
+    Cx.add cx (Mov { s = Q; dst; src = Mem (X86.Address.reg ptr_reg) });
     dst
   | Alloca { size } ->
     let dst = fresh_vreg cx "tmp" in
@@ -233,38 +283,24 @@ and lower_impure_expr_reg cx expr =
          ; dst
          ; src = Complex { base = Rsp; index = None; offset = Stack (Local stack_slot) }
          };
-    dst
+    Reg dst
   | Udiv { ty = _; v1; v2 } ->
-    let dst = fresh_vreg cx "tmp" in
+    let dst = fresh_op cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
-    Cx.add cx (Div { s = Q; dst = Reg dst; src1; src2 });
+    Cx.add cx (Div { s = Q; dst; src1; src2 });
     dst
   | Idiv { ty = _; v1; v2 } ->
-    let dst = fresh_vreg cx "tmp" in
+    let dst = fresh_op cx "tmp" in
     let src1 = lower_expr_op cx v1 in
     let src2 = lower_expr_op cx v2 in
-    Cx.add cx (Idiv { s = Q; dst = Reg dst; src1; src2 });
+    Cx.add cx (Idiv { s = Q; dst; src1; src2 });
     dst
-  | Global global ->
-    let global_decl = Map.find_exn cx.mod_cx.decl_map global.name in
-    let global_decl =
-      match global_decl with
-      | Decl.Global g -> g
-      | _ -> raise_s [%message "global_decl is not a global" [%here]]
-    in
-    (match global_decl.linkage with
-     | Export | Local ->
-       let dst = fresh_vreg cx "tmp" in
-       Cx.add
-         cx
-         (Lea
-            { s = Q
-            ; dst
-            ; src = Complex { base = Rip; index = None; offset = Label global.name }
-            });
-       dst
-     | _ -> todo [%here])
+  | Global { name } -> lower_global cx name
+
+and lower_impure_expr_reg cx expr =
+  let op = lower_impure_expr_op cx expr in
+  op_to_reg cx op
 
 and lower_instr cx instr =
   match instr with

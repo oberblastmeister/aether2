@@ -10,6 +10,8 @@ end = struct
     match imm with
     | Imm.Int i -> Imm.Int i
     | Label s -> Label s
+    | LabelGot s -> LabelGot s
+    | LabelPlt s -> LabelPlt s
     | Stack (End i) -> Int (Imm_int.of_int32 (Stack_layout.end_offset stack i))
     | Stack (Local name) -> Int (Imm_int.of_int32 (Stack_layout.local_offset stack name))
     | Stack (Start i) -> Int (Imm_int.of_int32 (Stack_layout.start_offset stack i))
