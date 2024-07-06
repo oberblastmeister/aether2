@@ -64,7 +64,7 @@ let rec pretty_expr cx expr =
         ; pretty_expr cx v1
         ; pretty_expr cx v2
         ])
-  | Expr.Val v -> pretty_value v
+  | Expr.Val { v; _ } -> pretty_value v
 ;;
 
 let pretty_block_call cx ({ label; args } : _ Block_call.t) =

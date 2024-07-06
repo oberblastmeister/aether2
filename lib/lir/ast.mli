@@ -88,13 +88,16 @@ module Expr : sig
         ; v1 : 'v t
         ; v2 : 'v t
         }
-    | Val of 'v
+    | Val of
+        { ty : Ty.t option
+        ; v : 'v
+        }
   [@@deriving sexp_of, fold, map, iter]
 
   val get_val_exn : 'v t -> 'v
+  val get_ty_with' : (Ty.t option -> 'v -> Ty.t) -> 'v t -> Ty.t
   val get_ty_with : ('v -> Ty.t) -> 'v t -> Ty.t
   val get_ty : Value.t t -> Ty.t
-  val get_ty_exn : 'v t -> Ty.t
   val iter_uses : ('v, 'v t) F.Fold.t
 end
 
@@ -363,6 +366,8 @@ module Global : sig
     { name : string
     ; linkage : Linkage.t
     ; data : Global_data.t
+    ; align : int option
+    ; ty : Ty.t
     }
   [@@deriving sexp_of]
 end

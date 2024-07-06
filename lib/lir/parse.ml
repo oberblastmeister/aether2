@@ -75,16 +75,17 @@ let take_keywords name keywords =
 
 let rec parse_expr st sexp =
   match sexp with
-  | Sexp_lang.Cst.Atom s -> Expr.Val (Intern_table.name_of_key st.name_intern s.value)
+  | Sexp_lang.Cst.Atom s ->
+    Expr.Val { ty = None; v = Intern_table.name_of_key st.name_intern s.value }
   | Keyword { value; _ } -> Parser.parse_error [%message "did not expect keyword" value]
   | List list ->
     let xs = ref list.items in
     let name = Parser.item xs parse_ident in
     (match name with
-     (* | "val" ->
+     | "val" ->
        let ty = Parser.item xs parse_ty in
        let v = Parser.item xs (parse_var st) in
-       Expr.Val { v } *)
+       Expr.Val { ty = Some ty; v }
      | "const" ->
        let ty = Parser.item xs parse_ty in
        let const =
@@ -173,7 +174,13 @@ let parse_instr st sexp =
     let expr = Parser.item xs (Parser.either (parse_expr st) (parse_impure_expr st)) in
     (match expr with
      | First expr ->
-       let ty = Expr.get_ty_exn expr in
+       let ty =
+         Expr.get_ty_with'
+           (fun ty _ ->
+             Option.value_or_thunk ty ~default:(fun () ->
+               Parser.parse_error [%message "set with val must have ty"]))
+           expr
+       in
        instr_o (Assign { dst = { Value.name; ty }; expr })
      | Second expr ->
        let ty = Impure_expr.get_ty expr in
@@ -287,8 +294,7 @@ let parse_decl sexp =
     (match name_or_list with
      | Keyword { value; _ } ->
        Parser.parse_error [%message "expected name or list" (value : string)]
-     | Atom { value; _ } -> 
-        todo [%here]
+     | Atom { value; _ } -> todo [%here]
      | List { items; _ } ->
        let xs = ref items in
        let name, params =

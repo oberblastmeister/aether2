@@ -29,8 +29,7 @@ module X86 = struct
   include X86.Ast
 end
 
-module Module_context = struct
-end
+module Module_context = struct end
 
 module Context = struct
   type t =
@@ -177,9 +176,9 @@ and lower_expr_op cx (expr : Tir.Value.t Expr.t) : X86.VReg.t X86.Operand.t =
     Cx.add cx (Set { dst = tmp; cond = cmp_op_to_cond signed op });
     Cx.add cx (MovZx { dst_size = Q; src_size = B; dst; src = tmp });
     dst
-  | Val (I { expr; _ }) -> lower_expr_op cx expr
-  | Val (I' { expr; _ }) -> Reg (lower_impure_expr_reg cx expr)
-  | Val (V v) -> Reg (vreg v)
+  | Val { v = I { expr; _ }; _ } -> lower_expr_op cx expr
+  | Val { v = I' { expr; _ }; _ } -> Reg (lower_impure_expr_reg cx expr)
+  | Val { v = V v; _ } -> Reg (vreg v)
   | _ -> todo [%here]
 
 and lower_expr_simple_op cx expr : _ X86.Simple_operand.t =

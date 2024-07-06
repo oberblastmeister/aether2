@@ -90,15 +90,19 @@ module Expr = struct
         ; v1 : 'v t
         ; v2 : 'v t
         }
-    | Val of 'v
+    | Val of
+        { ty : Ty.t option
+        ; v : 'v
+        }
   [@@deriving sexp_of, fold, map, iter]
 
-  let get_ty_with f = function
+  let get_ty_with' f = function
     | Bin { ty; _ } | Const { ty; _ } -> ty
-    | Val v -> f v
+    | Val { ty; v } -> f ty v
     | Cmp _ -> I1
   ;;
 
+  let get_ty_with f = get_ty_with' (fun _ty v -> f v)
   let get_ty = get_ty_with (fun v -> v.Value.ty)
 
   let get_ty_exn v =
@@ -106,7 +110,7 @@ module Expr = struct
   ;;
 
   let get_val_exn = function
-    | Val v -> v
+    | Val { v; _ } -> v
     | e -> raise_s [%message "expected value expression" ~got:(e : _ t)]
   ;;
 

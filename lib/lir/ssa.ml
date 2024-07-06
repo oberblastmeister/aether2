@@ -100,7 +100,7 @@ let convert_naive (fn : Vir.Function.t) : Vir.Function.t =
           args =
             Cfg.Dataflow.Fact_base.find_exn liveness block_call.label
             |> Set.to_list
-            |> List.map ~f:(fun v -> Expr.Val v)
+            |> List.map ~f:(fun v -> Expr.Val { ty = None; v })
         })
     in
     { block with entry = new_entry_instr; exit = new_exit_instr }
@@ -231,7 +231,7 @@ let put_phis (phis : Value.t Phi.t list) (graph : Vir.Graph.t) =
           args =
             (* lift this value into an Expr.t *)
             (* also see the Expr.get_val_exn later on *)
-            call_args |> List.map ~f:(fun v -> Expr.Val v)
+            call_args |> List.map ~f:(fun v -> Expr.Val { ty = None; v })
         })
     in
     { block with entry; exit })
