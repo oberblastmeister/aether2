@@ -2,6 +2,7 @@
 ; (global #:align 1234 testing (bytes 1234 0 0 0))
 
 (global #:align 8 testing (bytes 12 0 0 0 0 0 0 0))
+(global #:align 1 str (string '';fapsdf2#hello))
 
 (define (entry) : void
   (block (start)

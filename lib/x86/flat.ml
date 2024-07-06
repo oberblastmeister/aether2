@@ -162,6 +162,7 @@ module Line = struct
     | Type of string * string
     | Comment of string
     | Section of string
+    | String of string
     | Byte of char
   [@@deriving sexp_of, map, iter]
 
@@ -169,6 +170,7 @@ module Line = struct
     | Instr i -> Instr (f i)
     | Label l -> Label l
     | Global g -> Global g
+    | String s -> String s
     | Type (a, b) -> Type (a, b)
     | Comment c -> Comment c
     | Section s -> Section s

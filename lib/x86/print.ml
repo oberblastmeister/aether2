@@ -181,6 +181,7 @@ let print_line b line =
    | Align i -> bprintf b "\t.align\t%d" i
    | Comment s -> bprintf b "# %s" s
    | Byte c -> bprintf b "\t.byte\t%d" (Char.to_int c)
+   | String s -> bprintf b "\t.string\t\"%s\"" s
    | Global s -> bprintf b "\t.globl\t%s" s);
   Buffer.add_char b '\n'
 ;;

@@ -148,12 +148,22 @@ let group_data_decls_by_section data_decls =
     Section.compare d1.Data_decl.section d2.section)
 ;;
 
+let escape_string s =
+  let buf = Buffer.create (String.length s) in
+  String.iter s ~f:(fun c ->
+    if Char.is_alphanum c
+    then Buffer.add_char buf c
+    else Buffer.add_string buf (Printf.sprintf "\\%03o" (Char.to_int c));
+    ());
+  Buffer.contents buf
+;;
+
 let add_data_decl flat (data_decl : Data_decl.t) =
   Vec.push flat (Flat.Line.Align data_decl.align);
   Vec.push flat (Flat.Line.Label data_decl.name);
   match data_decl.data with
   | String s ->
-    todo [%here];
+    Vec.push flat (Flat.Line.String (escape_string s));
     ()
   | Bytes b ->
     String.iter b ~f:(fun c -> Vec.push flat (Flat.Line.Byte c));
