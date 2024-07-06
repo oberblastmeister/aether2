@@ -1,3 +1,8 @@
+; (global testing (const i64 "asfdasfdasdf"))
+; (global #:align 1234 testing (bytes 1234 0 0 0))
+
+(global #:align 8 testing (bytes 12 0 0 0 0 0 0 0))
+
 (define (entry) : void
   (block (start)
     (set p1 (alloca 16))
@@ -9,6 +14,9 @@
     (set r2 (load i64 (add ptr p1 (const i64 8))))
     (call void (assert_eq_u64 r1 (const i64 20)))
     (call void (assert_eq_u64 r2 (const i64 29)))
+    (set p4 (global testing))
+    (set r3 (load i64 p4))
+    (call void (assert_eq_u64 r3 (const i64 12)))
     (ret)
   )
 )

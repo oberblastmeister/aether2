@@ -1,5 +1,10 @@
 open! O
 
+let monoid_concat ~empty ~combine = function
+  | [] -> empty
+  | x :: xs -> List.fold_left xs ~init:x ~f:combine
+;;
+
 let rec unsnoc_list xs =
   let open! Option.Let_syntax in
   match xs with

@@ -23,7 +23,26 @@ let parse_ty =
 
 let parse_label st = Parser.atom (fun s -> Intern_table.name_of_key st.label_intern s)
 let parse_var st = Parser.atom (fun s -> Intern_table.name_of_key st.name_intern s)
-let parse_int32 = Parser.atom Int32.of_string
+
+let parse_int32 =
+  Parser.atom (fun s ->
+    Int32.of_string_opt s
+    |> Option.value_or_thunk ~default:(fun () ->
+      Parser.parse_error [%message "couldn't parse number" ~s]))
+;;
+
+let parse_int =
+  Parser.atom (fun s ->
+    Int.of_string_opt s
+    |> Option.value_or_thunk ~default:(fun () ->
+      Parser.parse_error [%message "couldn't parse number" ~s]))
+;;
+
+let parse_pow2 i =
+  if Int.is_pow2 i
+  then i
+  else Parser.parse_error [%message "alignment must be a power of 2" (i : int)]
+;;
 
 let parse_lit s =
   Parser.atom (fun s' ->
@@ -73,6 +92,19 @@ let take_keywords name keywords =
   , Map.find keywords name |> Option.map ~f:List1.to_list |> Option.value ~default:[] )
 ;;
 
+let parse_const xs =
+  let xs = ref xs in
+  let ty = Parser.item xs parse_ty in
+  let const =
+    Parser.item xs
+    @@ Parser.atom (fun s ->
+      Z.of_string_opt s
+      |> Option.value_or_thunk ~default:(fun () ->
+        Parser.parse_error [%message "couldn't parse number" ~s]))
+  in
+  ty, const
+;;
+
 let rec parse_expr st sexp =
   match sexp with
   | Sexp_lang.Cst.Atom s ->
@@ -87,14 +119,7 @@ let rec parse_expr st sexp =
        let v = Parser.item xs (parse_var st) in
        Expr.Val { ty = Some ty; v }
      | "const" ->
-       let ty = Parser.item xs parse_ty in
-       let const =
-         Parser.item xs
-         @@ Parser.atom (fun s ->
-           Z.of_string_opt s
-           |> Option.value_or_thunk ~default:(fun () ->
-             Parser.parse_error [%message "couldn't parse number" ~s]))
-       in
+       let ty, const = parse_const !xs in
        Expr.Const { ty; const }
      | "icmp" ->
        let ty = Parser.item xs parse_ty in
@@ -139,6 +164,9 @@ and parse_impure_expr st sexp =
     let v1 = Parser.item xs (parse_expr st) in
     let v2 = Parser.item xs (parse_expr st) in
     Udiv { ty; v1; v2 }
+  | "global" ->
+    let name = Parser.item xs parse_ident in
+    Global { name }
   | name -> raise_s [%message "unknown impure expr" (name : string)]
 
 and parse_call st sexp =
@@ -275,28 +303,82 @@ let parse_some o msg =
   | None -> Parser.parse_error [%message "expected Some " (msg : Sexp.t)]
 ;;
 
-let parse_global_data sexp = todo [%here]
+let parse_byte x =
+  let byte = parse_int x in
+  Char.of_int byte
+  |> Option.value_or_thunk ~default:(fun () ->
+    Parser.parse_error [%message "could not convert int to char" (byte : int)])
+;;
 
-let parse_decl sexp =
+let parse_global_data s sexp =
+  let@ xs = Parser.list_ref sexp in
+  let instr_name = Parser.item xs @@ Parser.string in
+  match instr_name with
+  | "bytes" ->
+    let xs = !xs in
+    let bytes = List.map xs ~f:parse_byte in
+    let bytes = String.of_list bytes in
+    Global_data.Bytes bytes
+  | "string" ->
+    let span = Sexp_lang.Cst.span sexp in
+    let string_source = String.slice s span.start span.stop in
+    let string_source =
+      String.chop_prefix string_source ~prefix:"(string" |> Option.value_exn
+    in
+    let string_source =
+      String.chop_suffix string_source ~suffix:")" |> Option.value_exn
+    in
+    let string_source = String.strip ~drop:Char.is_whitespace string_source in
+    Global_data.String string_source
+  | _ -> Parser.parse_error [%message "unknown global data" instr_name]
+;;
+
+let take_linkage keywords =
+  let keywords, linkage = take_keywords "linkage" keywords in
+  let linkage =
+    List.hd linkage
+    |> Option.map ~f:(fun sexp -> Parser.atom parse_linkage sexp)
+    |> Option.value ~default:Linkage.Export
+  in
+  keywords, linkage
+;;
+
+let take_align keywords =
+  let keywords, align = take_keywords "align" keywords in
+  let align =
+    List.hd align
+    |> Option.map ~f:(fun i -> parse_int i |> parse_pow2)
+    |> Option.value_or_thunk ~default:(fun () ->
+      Parser.parse_error [%message "alignment required"])
+  in
+  keywords, align
+;;
+
+let parse_global s xs =
+  let xs = ref xs in
+  let keywords = parse_keywords xs in
+  let keywords, linkage = take_linkage keywords in
+  let keywords, align = take_align keywords in
+  let name = Parser.item xs parse_ident in
+  let data = Parser.optional_item !xs (parse_global_data s) in
+  Global.{ name; linkage; align; data }
+;;
+
+let parse_decl s sexp =
   let st = create_state () in
   let@ xs = Parser.list_ref sexp in
   let decl_name = Parser.item xs @@ Parser.string in
   match decl_name with
+  | "global" -> Decl.Global (parse_global s !xs)
   | "define" ->
     let keywords = parse_keywords xs in
-    let _keywords, linkage = take_keywords "linkage" keywords in
-    let linkage =
-      List.hd linkage
-      |> Option.map ~f:(fun sexp -> Parser.atom parse_linkage sexp)
-      |> Option.value ~default:Linkage.Export
-    in
+    let keywords, linkage = take_linkage keywords in
     let@ name_or_list = Parser.item xs in
+    (* raise_s (Sexp_lang.Cst.sexp_of_t name_or_list); *)
     (match name_or_list with
-     | Keyword { value; _ } ->
-       Parser.parse_error [%message "expected name or list" (value : string)]
-     | Atom { value; _ } -> todo [%here]
+     | Keyword { value; _ } | Atom { value; _ } ->
+       Parser.parse_error [%message "expected list" (value : string)]
      | List { items; _ } ->
-       let xs = ref items in
        let name, params =
          let xs = ref items in
          let name = Parser.item xs parse_ident in
@@ -321,15 +403,15 @@ let parse_decl sexp =
   | _ -> raise_s [%message "didn't know how to parse declaration" decl_name]
 ;;
 
-let parse_decls xs = Parser.rest xs parse_decl
+let parse_decls s xs = Parser.rest xs (parse_decl s)
 (* let empty_program : _ Module.t = { funcs = []; externs = [] } *)
 
 (* let reverse_program (program : _ Module.t) =
   { program with funcs = List.rev program.funcs; externs = List.rev program.externs }
 ;; *)
 
-let parse_program xs =
-  let decls = parse_decls xs in
+let parse_program s xs =
+  let decls = parse_decls s xs in
   { Module.decls }
 ;;
 
@@ -337,7 +419,7 @@ let parse s =
   let open Result.Let_syntax in
   let%bind sexp = Sexp_lang.Cst.parse s in
   let%bind program =
-    Sexp_lang.Parser.run (fun () -> parse_program sexp)
+    Sexp_lang.Parser.run (fun () -> parse_program s sexp)
     |> Result.map_error ~f:Parser.Error.to_error
   in
   return program

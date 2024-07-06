@@ -148,11 +148,12 @@ module Impure_expr = struct
         { ty : Ty.t
         ; call : 'v Call.t
         }
+    | Global of { name : string }
   [@@deriving sexp_of, fold, map, iter]
 
   let get_ty = function
     | Load { ty; _ } | Call { ty; _ } | Udiv { ty; _ } | Idiv { ty; _ } -> ty
-    | Alloca _ -> Ptr
+    | Alloca _ | Global _ -> Ptr
   ;;
 
   let iter_uses i ~f = iter f i
@@ -567,9 +568,8 @@ end
 
 module Global_data = struct
   type t =
-    | Const of Z.t
     | Bytes of string
-    | Global of string
+    | String of string
   [@@deriving sexp_of]
 end
 
@@ -577,9 +577,8 @@ module Global = struct
   type t =
     { name : string
     ; linkage : Linkage.t
-    ; data : Global_data.t
-    ; align : int option
-    ; ty : Ty.t
+    ; data : Global_data.t option
+    ; align : int (* must be a power of two *)
     }
   [@@deriving sexp_of]
 end
@@ -617,4 +616,15 @@ module Module = struct
   let map_decls { decls } ~f = { decls = List.map decls ~f }
   let map_functions modul ~f = (map_decls & Decl.map_function) modul ~f
   let iter_decls { decls } ~f = List.iter decls ~f
+
+  let get_decl_map modul =
+    let res =
+      F.Iter.to_list (iter_decls modul)
+      |> List.map ~f:(fun decl -> Decl.name decl, decl)
+      |> String.Map.of_alist
+    in
+    match res with
+    | `Ok map -> Ok map
+    | `Duplicate_key name -> Error name
+  ;;
 end

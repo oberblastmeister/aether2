@@ -157,10 +157,12 @@ module Line = struct
   type 'r t =
     | Instr of 'r Instr.t
     | Label of string
+    | Align of int
     | Global of string
     | Type of string * string
     | Comment of string
-    | SectionText
+    | Section of string
+    | Byte of char
   [@@deriving sexp_of, map, iter]
 
   let map_instr ~f = function
@@ -169,7 +171,9 @@ module Line = struct
     | Global g -> Global g
     | Type (a, b) -> Type (a, b)
     | Comment c -> Comment c
-    | SectionText -> SectionText
+    | Section s -> Section s
+    | Align i -> Align i
+    | Byte b -> Byte b
   ;;
 end
 

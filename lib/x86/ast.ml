@@ -139,6 +139,7 @@ end
 module Imm = struct
   type t =
     | Int of Imm_int.t
+    | Label of string
     | Stack of Stack_off.t
   [@@deriving sexp_of, map, fold]
 end
@@ -709,9 +710,56 @@ module Function = struct
   let map_blocks fn ~f = { fn with graph = Cfg.Graph.map fn.graph ~f }
 end
 
-module Program = struct
-  type 'r t = { functions : 'r Function.t list } [@@deriving sexp_of, fields]
+module Section = struct
+  type t =
+    | Text
+    | Data
+    | Rodata
+  [@@deriving sexp_of, equal, compare]
+  
+  let to_string = function
+  | Text -> ".text"
+  | Data -> ".data"
+  | Rodata -> ".rodata"
+end
 
-  let map_functions program ~f = { functions = List.map program.functions ~f }
+module Data_item = struct
+  type t =
+    | String of string
+    | Bytes of string
+  [@@deriving sexp_of]
+end
+
+module Data_decl = struct
+  type t =
+    { name : string
+    ; section : Section.t
+    ; align : int
+    ; data : Data_item.t
+    }
+  [@@deriving sexp_of]
+end
+
+module Program = struct
+  type 'r t =
+    { functions : 'r Function.t list
+    ; data_decls : Data_decl.t list
+    }
+  [@@deriving sexp_of, fields]
+
+  let of_function f = { functions = [ f ]; data_decls = [] }
+  let of_data_decl d = { functions = []; data_decls = [ d ] }
+
+  let map_functions program ~f =
+    { functions = List.map program.functions ~f; data_decls = program.data_decls }
+  ;;
+
   let iter_functions program ~f = List.iter program.functions ~f
+  let empty_program = { functions = []; data_decls = [] }
+
+  let combine_program program1 program2 =
+    { functions = program1.functions @ program2.functions
+    ; data_decls = program1.data_decls @ program2.data_decls
+    }
+  ;;
 end

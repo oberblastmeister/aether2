@@ -89,6 +89,7 @@ let pretty_impure_expr cx expr =
   | Idiv { ty; v1; v2 } ->
     Pretty.(list [ Atom "idiv"; pretty_ty ty; pretty_expr cx v1; pretty_expr cx v2 ])
   | Alloca { size } -> Pretty.(list [ Atom "alloca"; Atom (Int32.to_string_hum size) ])
+  | Global { name } -> Pretty.(list [ Atom "global"; Atom name ])
 ;;
 
 let pretty_instr_control cx i =

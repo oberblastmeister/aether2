@@ -82,6 +82,7 @@ end
 module Imm : sig
   type t =
     | Int of Imm_int.t
+    | Label of string
     | Stack of Stack_off.t
   [@@deriving sexp_of, map, fold]
 end
@@ -420,9 +421,44 @@ module Function : sig
   (* val map_blocks : 'a t -> f:('a Block.t -> 'b Block.t) -> 'b t *)
 end
 
-module Program : sig
-  type 'r t = { functions : 'r Function.t list } [@@deriving sexp_of, fields]
+module Section : sig
+  type t =
+    | Text
+    | Data
+    | Rodata
+  [@@deriving sexp_of, equal, compare]
+  
+  val to_string : t -> string
+end
 
+module Data_item : sig
+  type t =
+    | String of string
+    | Bytes of string
+  [@@deriving sexp_of]
+end
+
+module Data_decl : sig
+  type t =
+    { name : string
+    ; section : Section.t
+    ; align : int
+    ; data : Data_item.t
+    }
+  [@@deriving sexp_of]
+end
+
+module Program : sig
+  type 'r t =
+    { functions : 'r Function.t list
+    ; data_decls : Data_decl.t list
+    }
+  [@@deriving sexp_of, fields]
+
+  val empty_program : 'a t
+  val of_function : 'a Function.t -> 'a t
+  val of_data_decl : Data_decl.t -> 'a t
   val map_functions : 'a t -> f:('a Function.t -> 'b Function.t) -> 'b t
   val iter_functions : 'a t -> f:('a Function.t -> unit) -> unit
+  val combine_program : 'a t -> 'a t -> 'a t
 end

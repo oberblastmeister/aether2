@@ -130,6 +130,7 @@ module Impure_expr : sig
         { ty : Ty.t
         ; call : 'v Call.t
         }
+    | Global of { name : string }
   [@@deriving sexp_of, fold, map, iter]
 
   val get_ty : 'v t -> Ty.t
@@ -355,9 +356,8 @@ end
 
 module Global_data : sig
   type t =
-    | Const of Z.t
     | Bytes of string
-    | Global of string
+    | String of string
   [@@deriving sexp_of]
 end
 
@@ -365,9 +365,8 @@ module Global : sig
   type t =
     { name : string
     ; linkage : Linkage.t
-    ; data : Global_data.t
-    ; align : int option
-    ; ty : Ty.t
+    ; data : Global_data.t option
+    ; align : int
     }
   [@@deriving sexp_of]
 end
@@ -389,4 +388,5 @@ module Module : sig
   val map_decls : 'v t -> f:('v Decl.t -> 'u Decl.t) -> 'u t
   val map_functions : 'v t -> f:('v Function.t -> 'u Function.t) -> 'u t
   val iter_decls : 'v t -> f:('v Decl.t -> unit) -> unit
+  val get_decl_map : 'v t -> ('v Decl.t String.Map.t, string) result
 end

@@ -121,9 +121,7 @@ let lower_function stack_builder (fn : _ Flat.Program.t) =
   let cx = Cx.create stack_builder in
   Vec.iter fn ~f:(function
     | Flat.Line.Instr instr -> lower_instr cx instr
-    | Label l -> Cx.add cx @@ Flat.Line.Label l
-    | Comment s -> Cx.add cx @@ Comment s
-    | Line.Global _ | Line.Type (_, _) | Line.SectionText -> todo [%here]);
+    | i -> Cx.add cx @@ Flat.Line.map_instr i ~f:(fun _ -> todo [%here]));
   Vec.shrink_to_fit cx.instrs;
   let instrs = Vec.freeze cx.instrs in
   instrs

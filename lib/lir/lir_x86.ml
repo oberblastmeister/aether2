@@ -29,18 +29,30 @@ module X86 = struct
   include X86.Ast
 end
 
-module Module_context = struct end
+module Module_context = struct
+  type t = { decl_map : Tir.Value.t Decl.t String.Map.t }
+
+  let create modul =
+    { decl_map =
+        Module.get_decl_map modul
+        |> Result.map_error ~f:(fun s -> Failure ("duplicate name: " ^ s))
+        |> Result.ok_exn
+    }
+  ;;
+end
 
 module Context = struct
   type t =
-    { instrs : (X86.VReg.t X86.Instr.t, Perms.Read_write.t) Vec.t
+    { mod_cx : Module_context.t
+    ; instrs : (X86.VReg.t X86.Instr.t, Perms.Read_write.t) Vec.t
     ; mutable unique_name : Name.Id.t
     ; mutable stack_instrs : X86.Stack_instr.t list
     ; mutable unique_stack_slot : X86.Stack_slot.Id.t
     }
 
-  let create (fn : Tir.Function.t) =
-    { instrs = Vec.create ()
+  let create mod_cx (fn : Tir.Function.t) =
+    { mod_cx
+    ; instrs = Vec.create ()
     ; unique_name = fn.unique_name
     ; unique_stack_slot = X86.Stack_slot.Id.of_int 0
     ; stack_instrs = []
@@ -234,6 +246,25 @@ and lower_impure_expr_reg cx expr =
     let src2 = lower_expr_op cx v2 in
     Cx.add cx (Idiv { s = Q; dst = Reg dst; src1; src2 });
     dst
+  | Global global ->
+    let global_decl = Map.find_exn cx.mod_cx.decl_map global.name in
+    let global_decl =
+      match global_decl with
+      | Decl.Global g -> g
+      | _ -> raise_s [%message "global_decl is not a global" [%here]]
+    in
+    (match global_decl.linkage with
+     | Export | Local ->
+       let dst = fresh_vreg cx "tmp" in
+       Cx.add
+         cx
+         (Lea
+            { s = Q
+            ; dst
+            ; src = Complex { base = Rip; index = None; offset = Label global.name }
+            });
+       dst
+     | _ -> todo [%here])
 
 and lower_instr cx instr =
   match instr with
@@ -292,8 +323,8 @@ let lower_block cx (block : Tir.Block.t) =
 
 let lower_graph cx graph = Cfg.Graph.map graph ~f:(fun block -> lower_block cx block)
 
-let lower_function (fn : Tir.Function.t) =
-  let cx = Context.create fn in
+let lower_function mod_cx (fn : Tir.Function.t) =
+  let cx = Context.create mod_cx fn in
   let params, stack_params = categorize_args fn.ty.params in
   let params =
     List.map params ~f:(fun (value, mach_reg) -> vreg value, X86.MReg.create mach_reg)
@@ -311,15 +342,38 @@ let lower_function (fn : Tir.Function.t) =
   }
 ;;
 
-let lower_decl decl =
+let lower_decl mod_cx decl =
   match decl with
-  | Decl.Func func -> [ lower_function func ]
-  | _ -> []
+  | Decl.Func func ->
+    let func = lower_function mod_cx func in
+    X86.Program.of_function func
+  | Decl.Global global ->
+    (match global.data with
+     | None -> X86.Program.empty_program
+     | Some global_data ->
+       let data =
+         X86.Data_decl.
+           { name = global.name
+           ; section = X86.Section.Data
+           ; align = global.align
+           ; data =
+               (match global_data with
+                | Global_data.String s -> X86.Data_item.String s
+                | Global_data.Bytes a -> X86.Data_item.Bytes a)
+           }
+       in
+       X86.Program.of_data_decl data)
+  | _ -> X86.Program.empty_program
 ;;
 
 let lower (modul : Tir.Module.t) =
-  let functions =
-    F.Iter.to_list (Module.iter_decls modul) |> List.concat_map ~f:lower_decl
+  let mod_cx = Module_context.create modul in
+  let program =
+    F.Iter.to_list (Module.iter_decls modul)
+    |> List.map ~f:(lower_decl mod_cx)
+    |> List_ext.monoid_concat
+         ~empty:X86.Program.empty_program
+         ~combine:X86.Program.combine_program
   in
-  { X86.Program.functions }
+  program
 ;;

@@ -53,9 +53,17 @@ let item list_ref f =
   match !list_ref with
   | [] -> parse_error [%message "unexpected empty list"]
   | x :: xs ->
-    let res = R.scope (const (Cst.span x)) (fun () -> f x) in
     list_ref := xs;
+    let res = R.scope (const (Cst.span x)) (fun () -> f x) in
     res
+;;
+
+let next list_ref =
+  match !list_ref with
+  | [] -> parse_error [%message "unexpected empty list"]
+  | x :: xs ->
+    list_ref := xs;
+    x
 ;;
 
 let optional_item list f =

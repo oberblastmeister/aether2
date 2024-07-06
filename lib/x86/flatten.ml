@@ -9,6 +9,7 @@ end = struct
   let resolve_imm stack imm =
     match imm with
     | Imm.Int i -> Imm.Int i
+    | Label s -> Label s
     | Stack (End i) -> Int (Imm_int.of_int32 (Stack_layout.end_offset stack i))
     | Stack (Local name) -> Int (Imm_int.of_int32 (Stack_layout.local_offset stack name))
     | Stack (Start i) -> Int (Imm_int.of_int32 (Stack_layout.start_offset stack i))
@@ -142,12 +143,37 @@ let run_function ~func_index (fn : _ Function.t) =
   Vec.freeze flat'
 ;;
 
+let group_data_decls_by_section data_decls =
+  List.sort_and_group data_decls ~compare:(fun d1 d2 ->
+    Section.compare d1.Data_decl.section d2.section)
+;;
+
+let add_data_decl flat (data_decl : Data_decl.t) =
+  Vec.push flat (Flat.Line.Align data_decl.align);
+  Vec.push flat (Flat.Line.Label data_decl.name);
+  match data_decl.data with
+  | String s ->
+    todo [%here];
+    ()
+  | Bytes b ->
+    String.iter b ~f:(fun c -> Vec.push flat (Flat.Line.Byte c));
+    ()
+;;
+
 let run (program : _ Program.t) =
   let res_program = Vec.create () in
-  Vec.push res_program Flat.Line.SectionText;
+  Vec.push res_program (Flat.Line.Section ".text");
   List.iteri program.functions ~f:(fun func_index fn ->
     let flat = run_function ~func_index fn in
     Vec.append_into ~into:res_program flat;
+    ());
+  let data_decls_groups = group_data_decls_by_section program.data_decls in
+  List.iter data_decls_groups ~f:(fun data_decl_group ->
+    let section = (List.hd_exn data_decl_group).section in
+    Vec.push res_program (Flat.Line.Section (Section.to_string section));
+    List.iter data_decl_group ~f:(fun data_decl ->
+      add_data_decl res_program data_decl;
+      ());
     ());
   Vec.shrink_to_fit res_program;
   Vec.freeze res_program

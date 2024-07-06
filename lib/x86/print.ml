@@ -83,6 +83,7 @@ let print_mreg cx s (mreg : MReg.t) = Cx.add cx @@ string_of_mach_reg s mreg.reg
 
 let print_imm cx imm =
   match imm with
+  | Imm.Label l -> Cx.add cx l
   | Imm.Int i -> Cx.add cx @@ Imm_int.to_string i
   | Imm.Stack _ -> raise_s [%message "could not print stack imm" (imm : Imm.t)]
 ;;
@@ -108,7 +109,9 @@ let print_address cx (address : _ Address.t) =
        Cx.add cx " + ";
        print_mreg cx Q (MReg.create RSP);
        ()
-     | Rip -> todo [%here]
+     | Rip ->
+       Cx.add cx " + rip";
+       ()
      | Reg r ->
        Cx.add cx " + ";
        print_mreg cx Q r;
@@ -172,10 +175,12 @@ let print_instr b (instr : MReg.t Flat.Instr.t) =
 let print_line b line =
   (match line with
    | Flat.Line.Instr instr -> print_instr b instr
-   | SectionText -> bprintf b "\t.text"
+   | Section s -> bprintf b "\t%s" s
    | Type (s, ty) -> bprintf b "\t.type\t%s,%s" s ty
    | Label l -> bprintf b "%s:" l
+   | Align i -> bprintf b "\t.align\t%d" i
    | Comment s -> bprintf b "# %s" s
+   | Byte c -> bprintf b "\t.byte\t%d" (Char.to_int c)
    | Global s -> bprintf b "\t.globl\t%s" s);
   Buffer.add_char b '\n'
 ;;

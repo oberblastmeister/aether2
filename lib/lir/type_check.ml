@@ -21,14 +21,9 @@ let handle f =
 
 let create_context (modul : _ Module.t) =
   let decls =
-    F.Iter.to_list (Module.iter_decls modul)
-    |> List.map ~f:(fun decl -> Decl.name decl, decl)
-    |> String.Map.of_alist
-  in
-  let decls =
-    match decls with
-    | `Duplicate_key name -> error [%message "duplicate name " ~name]
-    | `Ok x -> x
+    match Module.get_decl_map modul with
+    | Error name -> error [%message "duplicate name " ~name]
+    | Ok x -> x
   in
   (*
      let func_tys = String.Map.empty in
@@ -72,6 +67,14 @@ let find_func_ty cx name =
   | Some (Func func) -> func.ty
   | Some (Func_def func_def) -> func_def.ty
   | Some decl -> error [%message "decl was not a func" (name : string) (decl : _ Decl.t)]
+;;
+
+let find_global cx name =
+  match Map.find cx.decls name with
+  | None -> error [%message "could not find name" (name : string)]
+  | Some (Global global) -> global
+  | Some decl ->
+    error [%message "decl was not a global" (name : string) (decl : _ Decl.t)]
 ;;
 
 let check_call cx is_void (ty : Ty.t) Call.{ name; args } =
@@ -145,6 +148,9 @@ let check_impure_expr cx (expr : _ Impure_expr.t) =
   | Alloca _ -> ()
   | Call { ty; call } ->
     check_call cx false ty call;
+    ()
+  | Global { name } ->
+    let _global = find_global cx name in
     ()
   | Idiv { ty; v1; v2 } | Udiv { ty; v1; v2 } ->
     check_ty_bin_op ty;
