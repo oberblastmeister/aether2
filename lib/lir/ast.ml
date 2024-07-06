@@ -574,6 +574,8 @@ module Global = struct
     { name : string
     ; linkage : Linkage.t
     ; data : Global_data.t
+    ; align : int option
+    ; ty : Ty.t
     }
   [@@deriving sexp_of]
 end

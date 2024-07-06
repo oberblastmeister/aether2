@@ -268,6 +268,8 @@ let parse_some o msg =
   | None -> Parser.parse_error [%message "expected Some " (msg : Sexp.t)]
 ;;
 
+let parse_global_data sexp = todo [%here]
+
 let parse_decl sexp =
   let st = create_state () in
   let@ xs = Parser.list_ref sexp in
@@ -281,28 +283,35 @@ let parse_decl sexp =
       |> Option.map ~f:(fun sexp -> Parser.atom parse_linkage sexp)
       |> Option.value ~default:Linkage.Export
     in
-    let name, params =
-      let@ x = Parser.item xs in
-      let@ xs = Parser.list_ref x in
-      let name = Parser.item xs parse_ident in
-      let params = Parser.rest !xs (parse_value st) in
-      name, params
-    in
-    let _ = Parser.item xs (parse_lit ":") in
-    let return = Parser.item xs parse_ty in
-    let ty = { Named_function_ty.params; return } in
-    (match !xs with
-     | [] -> Decl.Func_def { name; linkage; ty }
-     | xs ->
-       let graph = parse_graph st xs in
-       Decl.Func
-         { name
-         ; linkage
-         ; ty
-         ; graph
-         ; unique_label = Intern_table.get_next_id st.label_intern
-         ; unique_name = Intern_table.get_next_id st.name_intern
-         })
+    let@ name_or_list = Parser.item xs in
+    (match name_or_list with
+     | Keyword { value; _ } ->
+       Parser.parse_error [%message "expected name or list" (value : string)]
+     | Atom { value; _ } -> 
+        todo [%here]
+     | List { items; _ } ->
+       let xs = ref items in
+       let name, params =
+         let xs = ref items in
+         let name = Parser.item xs parse_ident in
+         let params = Parser.rest !xs (parse_value st) in
+         name, params
+       in
+       let _ = Parser.item xs (parse_lit ":") in
+       let return = Parser.item xs parse_ty in
+       let ty = { Named_function_ty.params; return } in
+       (match !xs with
+        | [] -> Decl.Func_def { name; linkage; ty }
+        | xs ->
+          let graph = parse_graph st xs in
+          Decl.Func
+            { name
+            ; linkage
+            ; ty
+            ; graph
+            ; unique_label = Intern_table.get_next_id st.label_intern
+            ; unique_name = Intern_table.get_next_id st.name_intern
+            }))
   | _ -> raise_s [%message "didn't know how to parse declaration" decl_name]
 ;;
 

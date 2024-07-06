@@ -29,6 +29,9 @@ module X86 = struct
   include X86.Ast
 end
 
+module Module_context = struct
+end
+
 module Context = struct
   type t =
     { instrs : (X86.VReg.t X86.Instr.t, Perms.Read_write.t) Vec.t
