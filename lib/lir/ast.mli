@@ -336,7 +336,6 @@ module Function : sig
   [@@deriving sexp_of, fields]
 
   val map_graph : 'v t -> f:('v Graph.t -> 'u Graph.t) -> 'u t
-
   val map_values : 'v t -> f:('v -> 'u) -> 'u t
   val iter_blocks : 'v t -> 'v Block.t F.Iter.t
   val iter_instrs_forward : ('v Some_instr.t, 'v t) F.Fold.t

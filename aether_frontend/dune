@@ -1,7 +1,13 @@
 (include_subdirs qualified)
 
+(menhir
+  (modules parser_generated)
+  (flags --external-tokens Token --table))
+  
+(ocamllex lexer)
+
 (library
- (name aether2)
+ (name aether_frontend)
  (inline_tests)
  (flags
   ; turn pattern matching into error 
@@ -14,12 +20,4 @@
    ppx_deriving.fold
    ppx_jane
    -log-source-position))
- (libraries
-  core
-  algaeff
-  folds
-  higher_kinded
-  aether_data
-  aether_entity
-  zarith
-  int_repr))
+ (libraries core folds menhirLib))

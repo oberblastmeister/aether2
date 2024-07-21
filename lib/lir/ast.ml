@@ -522,7 +522,6 @@ module Function = struct
   [@@deriving sexp_of, fields, map]
 
   let map_values fn ~f = map f fn
-  
   let map_graph fn ~f = { fn with graph = f fn.graph }
   (* let map_blocks fn = (map_graph & Cfg.Graph.map_blocks) fn *)
 

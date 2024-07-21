@@ -1,8 +1,10 @@
-(lang dune 3.10)
+(lang dune 3.13)
 
 (name aether2)
 
 (generate_opam_files true)
+
+(using menhir 3.0)
 
 (source
  (github username/reponame))

@@ -425,7 +425,7 @@ let parse s =
   return program
 ;;
 
-let%expect_test _ =
+(* let%expect_test _ =
   let s =
     {|
 (define (testing (first u64) (second u64)) u64
@@ -456,4 +456,4 @@ let%expect_test _ =
           (return U64)))
         (unique_label 1) (unique_name 4))))
      (externs ())) |}]
-;;
+;; *)

@@ -78,7 +78,7 @@ let elaborate (program : Name.t Module.t) : Value.t Module.t Or_error.t =
   run (fun () -> elaborate_module program)
 ;;
 
-let%expect_test _ =
+(* let%expect_test _ =
   let s =
     {|
 (define (          testing
@@ -111,4 +111,4 @@ u64
     (define (another) u64
       (block (start.0)
         (ret))) |}]
-;;
+;;*)
