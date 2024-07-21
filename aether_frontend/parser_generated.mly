@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    modify the grammar, you should check that this is still the case. *)
 
 %{
+open Core
 module Declarator = Declarator.Make (Context)
 open Declarator
 open Context
@@ -178,35 +179,30 @@ open Context
    By convention, [X?] is syntactic sugar for [option(X)]. *)
 
 %inline ioption(X):
-| /* nothing */
-| X
-    {}
+| (* nothing *) { None }
+| x=X { Some x }
 
 option(X):
-| o = ioption(X)
-    { o }
+| o = ioption(X) { o }
 
 (* By convention, [X*] is syntactic sugar for [list(X)]. *)
 
 list(X):
-| /* nothing */
-| X list(X)
-    {}
+| (* nothing *) { [] }
+| x=X xs=list(X) { x :: xs }
 
 (* A list of A's and B's that contains exactly one A: *)
 
 list_eq1(A, B):
-| A B*
-| B list_eq1(A, B)
-    {}
+| x=A xs=B* { x :: xs }
+| x=B xs=list_eq1(A, B) { x :: xs }
 
 (* A list of A's and B's that contains at least one A: *)
 
 list_ge1(A, B):
-| A B*
-| A list_ge1(A, B)
-| B list_ge1(A, B)
-    {}
+| x=A xs=B* { x :: xs }
+| x=A xs=list_ge1(A, B) { x :: xs }
+| x=B xs=list_ge1(A, B) { x :: xs }
 
 (* A list of A's, B's and C's that contains exactly one A and exactly one B: *)
 
@@ -454,11 +450,11 @@ declaration:
    standard, deprived of "typedef" and of type specifiers. *)
 
 declaration_specifier:
-| storage_class_specifier (* deprived of "typedef" *)
-| type_qualifier
-| function_specifier
-| alignment_specifier
-    {}
+ (* deprived of "typedef" *)
+| s=storage_class_specifier { Ast.StorageSpec s }
+| s=type_qualifier { Ast.QualSpec s }
+| s=function_specifier { Ast.FuncSpec s }
+| alignment_specifier { raise_s [%sexp [%here]] }
 
 (* [declaration_specifiers] requires that at least one type specifier be
    present, and, if a unique type specifier is present, then no other type
@@ -479,16 +475,16 @@ declaration_specifier:
    [declaration_specifiers] forbids the ["typedef"] keyword. *)
 
 declaration_specifiers:
-| list_eq1(type_specifier_unique,    declaration_specifier)
-| list_ge1(type_specifier_nonunique, declaration_specifier)
+| list_eq1(t=type_specifier_unique { Ast.TypeSpec t },    declaration_specifier)
+| list_ge1(t=type_specifier_nonunique { Ast.TypeSpec t }, declaration_specifier)
     {}
 
 (* [declaration_specifiers_typedef] is analogous to [declaration_specifiers],
    but requires the ["typedef"] keyword to be present (exactly once). *)
 
 declaration_specifiers_typedef:
-| list_eq1_eq1("typedef", type_specifier_unique,    declaration_specifier)
-| list_eq1_ge1("typedef", type_specifier_nonunique, declaration_specifier)
+| list_eq1_eq1("typedef" { None }, t=type_specifier_unique { Some (Ast.TypeSpec t) }, s=declaration_specifier { Some s })
+| list_eq1_ge1("typedef" { None }, t=type_specifier_nonunique { Some (Ast.TypeSpec t) }, s=declaration_specifier { Some s })
     {}
 
 (* The parameter [declarator] in [init_declarator_list] and [init_declarator]
@@ -517,27 +513,25 @@ storage_class_specifier:
 (* A type specifier which can appear together with other type specifiers. *)
 
 type_specifier_nonunique:
-| "char"
-| "short"
-| "int"
-| "long"
-| "float"
-| "double"
-| "signed"
-| "unsigned"
-| "_Complex"
-    {}
+| "char" { Ast.Char }
+| "short" { Ast.Short }
+| "int" { Ast.Int }
+| "long" { Ast.Long }
+| "float" { Ast.Float }
+| "double" { Ast.Double }
+| "signed" { Ast.Signed }
+| "unsigned" { Ast.Unsigned }
+| "_Complex" { raise_s [%sexp [%here]] }
 
 (* A type specifier which cannot appear together with other type specifiers. *)
 
 type_specifier_unique:
-| "void"
-| "_Bool"
-| atomic_type_specifier
-| struct_or_union_specifier
-| enum_specifier
-| typedef_name_spec
-    {}
+| "void" { Ast.Void }
+| "_Bool" { Ast.Bool }
+| atomic_type_specifier { raise_s [%sexp [%here]] }
+| struct_or_union_specifier { raise_s [%sexp [%here]] }
+| enum_specifier { raise_s [%sexp [%here]] }
+| typedef_name_spec { raise_s [%sexp [%here]] }
 
 struct_or_union_specifier:
 | struct_or_union general_identifier? "{" struct_declaration_list "}"
@@ -555,7 +549,8 @@ struct_declaration_list:
     {}
 
 struct_declaration:
-| specifier_qualifier_list struct_declarator_list? ";"
+// | specifier_qualifier_list struct_declarator_list? ";"
+| declaration_specifiers struct_declarator_list? ";"
 | static_assert_declaration
     {}
 
@@ -564,8 +559,8 @@ struct_declaration:
    same constraint as [declaration_specifiers] (see above). *)
 
 specifier_qualifier_list:
-| list_eq1(type_specifier_unique,    type_qualifier | alignment_specifier {})
-| list_ge1(type_specifier_nonunique, type_qualifier | alignment_specifier {})
+| list_eq1(type_specifier_unique {},    type_qualifier | alignment_specifier {})
+| list_ge1(type_specifier_nonunique {}, type_qualifier | alignment_specifier {})
     {}
 
 struct_declarator_list:
@@ -603,20 +598,18 @@ atomic_type_specifier:
     {}
 
 type_qualifier:
-| "const"
-| "restrict"
-| "volatile"
-| "_Atomic"
-    {}
+| "const" { Ast.Const : Ast.qual_spec }
+| "restrict" { Ast.Restrict }
+| "volatile" { Ast.Volatile }
+| "_Atomic" { Ast.Atomic }
 
 function_specifier:
-  "inline" | "_Noreturn"
-    {}
+  | "inline" { Ast.Inline }
+  | "_Noreturn" { Ast.Noreturn }
 
 alignment_specifier:
-| "_Alignas" "(" type_name ")"
-| "_Alignas" "(" constant_expression ")"
-    {}
+| "_Alignas" "(" type_name ")" { raise_s [%sexp [%here]] }
+| "_Alignas" "(" constant_expression ")" { raise_s [%sexp [%here]] }
 
 declarator:
 | ioption(pointer) d=direct_declarator
