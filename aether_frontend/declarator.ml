@@ -1,3 +1,5 @@
+open! Core
+
 (*
    Jacques-Henri Jourdan, Inria Paris
    François Pottier, Inria Paris

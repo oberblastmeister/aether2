@@ -6,6 +6,7 @@ type storage_spec =
   | ThreadLocal
   | Auto
   | Register
+  | Typedef
 [@@deriving sexp_of]
 
 type qual_spec =
@@ -81,6 +82,23 @@ and field = Field of { specs : spec list } [@@deriving sexp_of]
 and decl_name =
   { name : string
   ; ty : decl_type
+  }
+[@@deriving sexp_of]
+
+(* The base type and the storage are common to all names. Each name might
+ * contain type or storage modifiers *)
+(* e.g.: int x, y; *)
+(* like name_group, except the declared variables are allowed to have initializers *)
+(* e.g.: int x=1, y=2; *)
+and init_name_group =
+  { specs : spec list
+  ; init_names : init_name list
+  }
+[@@deriving sexp_of]
+
+and init_name =
+  { decl_name : decl_name
+  ; init_expr : init_expr
   }
 [@@deriving sexp_of]
 
@@ -186,6 +204,7 @@ and for_clause =
 [@@deriving sexp_of]
 
 and decl =
+  | DeclDef of init_name_group
   | FunDecl of
       { specs : spec list
       ; decl_name : decl_name
@@ -194,3 +213,5 @@ and decl =
       ; span : Span.t
       }
 [@@deriving sexp_of]
+
+let map_decl_name_ty (decl_name : decl_name) ~f = { decl_name with ty = f decl_name.ty }

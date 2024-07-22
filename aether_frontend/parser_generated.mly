@@ -38,8 +38,13 @@ open Core
 module Declarator = Declarator.Make (Context)
 open Declarator
 open Context
+open Folds.O
+
+let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
+
 %}
 
+(* This makes the global state a functor parameter, so that the parser is reentrant *)
 %parameter <Context:Context.S>
 
 %token<string> NAME
@@ -146,7 +151,7 @@ open Context
 
 %type<context> save_context parameter_type_list function_definition1
 %type<string> typedef_name var_name general_identifier enumeration_constant
-%type<declarator> declarator direct_declarator
+%type<declarator * Ast.decl_name> declarator direct_declarator declarator_varname declarator_typedefname
 
 (* There is a reduce/reduce conflict in the grammar. It corresponds to the
    conflict in the second declaration in the following snippet:
@@ -191,6 +196,9 @@ list(X):
 | (* nothing *) { [] }
 | x=X xs=list(X) { x :: xs }
 
+list1(X):
+| x=X xs=list(X) { x :: xs }
+
 (* A list of A's and B's that contains exactly one A: *)
 
 list_eq1(A, B):
@@ -218,6 +226,13 @@ list_eq1_ge1(A, B, C):
 | x=B xs=list_eq1(A, C) { x :: xs }
 | x=B xs=list_eq1_ge1(A, B, C) { x :: xs }
 | x=C xs=list_eq1_ge1(A, B, C) { x :: xs }
+
+list_sep_rev(X, SEP):
+| x=X { [x] }
+| xs=list_sep_rev(X, SEP) SEP x=X { x :: xs }
+
+list_sep(X, SEP):
+| xs=list_sep_rev(X, SEP) { List.rev xs }
 
 (* Upon finding an identifier, the lexer emits two tokens. The first token,
    [NAME], indicates that a name has been found; the second token, either [TYPE]
@@ -247,20 +262,19 @@ save_context:
     { save_context () }
 
 scoped(X):
-| ctx = save_context x = X
-    { restore_context ctx; x }
+| ctx=save_context x=X { restore_context ctx; x }
 
 (* [declarator_varname] and [declarator_typedefname] are like [declarator]. In
    addition, they have the side effect of introducing the declared identifier as
    a new variable or typedef name in the current context. *)
 
 declarator_varname:
-| d = declarator
-    { declare_varname (identifier d); d }
+| d=declarator
+    { declare_varname (identifier (fst d)); d }
 
 declarator_typedefname:
-| d = declarator
-    { declare_typedefname (identifier d); d }
+| d=declarator
+    { declare_typedefname (identifier (fst d)); d }
 
 (* Merge source-level string literals. *)
 string_literal:
@@ -450,7 +464,7 @@ declaration_specifier:
 | s=storage_class_specifier { Ast.StorageSpec s }
 | s=type_qualifier { Ast.QualSpec s }
 | s=function_specifier { Ast.FuncSpec s }
-| alignment_specifier { raise_s [%sexp [%here]] }
+| alignment_specifier { todo [%here] }
 
 (* [declaration_specifiers] requires that at least one type specifier be
    present, and, if a unique type specifier is present, then no other type
@@ -471,30 +485,35 @@ declaration_specifier:
    [declaration_specifiers] forbids the ["typedef"] keyword. *)
 
 declaration_specifiers:
-| list_eq1(t=type_specifier_unique { Ast.TypeSpec t },    declaration_specifier)
-| list_ge1(t=type_specifier_nonunique { Ast.TypeSpec t }, declaration_specifier)
-    {}
+| xs=list_eq1(t=type_specifier_unique { Ast.TypeSpec t }, declaration_specifier) { xs }
+| xs=list_ge1(t=type_specifier_nonunique { Ast.TypeSpec t }, declaration_specifier) { xs }
 
 (* [declaration_specifiers_typedef] is analogous to [declaration_specifiers],
    but requires the ["typedef"] keyword to be present (exactly once). *)
 
 declaration_specifiers_typedef:
-| list_eq1_eq1("typedef" { None }, t=type_specifier_unique { Some (Ast.TypeSpec t) }, s=declaration_specifier { Some s })
-| list_eq1_ge1("typedef" { None }, t=type_specifier_nonunique { Some (Ast.TypeSpec t) }, s=declaration_specifier { Some s })
-    {}
+| xs=list_eq1_eq1(
+    "typedef" { Ast.StorageSpec Ast.Typedef },
+    t=type_specifier_unique { Ast.TypeSpec t },
+    s=declaration_specifier { s }
+  )
+  { xs }
+| xs=list_eq1_ge1(
+    "typedef" { Ast.StorageSpec Ast.Typedef },
+    t=type_specifier_nonunique { Ast.TypeSpec t },
+    s=declaration_specifier { s }
+  )
+  { xs }
 
 (* The parameter [declarator] in [init_declarator_list] and [init_declarator]
    is instantiated with [declarator_varname] or [declarator_typedefname]. *)
 
 init_declarator_list(declarator):
-| init_declarator(declarator)
-| init_declarator_list(declarator) "," init_declarator(declarator)
-    {}
+| xs=list_sep(init_declarator(declarator), ",") { xs }
 
 init_declarator(declarator):
-| declarator
-| declarator "=" c_initializer
-    {}
+| d=declarator { }
+| declarator "=" c_initializer { }
 
 (* [storage_class_specifier] corresponds to storage-class-specifier in the
    C18 standard, deprived of ["typedef"] (which receives special treatment). *)
@@ -517,17 +536,17 @@ type_specifier_nonunique:
 | "double" { Ast.Double }
 | "signed" { Ast.Signed }
 | "unsigned" { Ast.Unsigned }
-| "_Complex" { raise_s [%sexp [%here]] }
+| "_Complex" { todo [%here] }
 
 (* A type specifier which cannot appear together with other type specifiers. *)
 
 type_specifier_unique:
 | "void" { Ast.Void }
 | "_Bool" { Ast.Bool }
-| atomic_type_specifier { raise_s [%sexp [%here]] }
-| struct_or_union_specifier { raise_s [%sexp [%here]] }
-| enum_specifier { raise_s [%sexp [%here]] }
-| typedef_name_spec { raise_s [%sexp [%here]] }
+| atomic_type_specifier { todo [%here] }
+| struct_or_union_specifier { todo [%here] }
+| enum_specifier { todo [%here] }
+| typedef_name_spec { todo [%here] }
 
 struct_or_union_specifier:
 | struct_or_union general_identifier? "{" struct_declaration_list "}"
@@ -603,12 +622,12 @@ function_specifier:
   | "_Noreturn" { Ast.Noreturn }
 
 alignment_specifier:
-| "_Alignas" "(" type_name ")" { raise_s [%sexp [%here]] }
-| "_Alignas" "(" constant_expression ")" { raise_s [%sexp [%here]] }
+| "_Alignas" "(" type_name ")" { todo [%here] }
+| "_Alignas" "(" constant_expression ")" { todo [%here] }
 
 declarator:
 | ioption(pointer) d=direct_declarator
-    { other_declarator d }
+    { other_declarator (fst d), snd d }
 
 (* The occurrences of [save_context] inside [direct_declarator] and
    [direct_abstract_declarator] seem to serve no purpose. In fact, they are
@@ -618,26 +637,26 @@ declarator:
 
 direct_declarator:
 | i=general_identifier
-    { identifier_declarator i }
-| "(" save_context d=declarator ")"
-    { d }
-| d = direct_declarator "[" type_qualifier_list? assignment_expression? "]"
-| d = direct_declarator "[" "static" type_qualifier_list? assignment_expression "]"
-| d = direct_declarator "[" type_qualifier_list "static" assignment_expression "]"
-| d = direct_declarator "[" type_qualifier_list? "*" "]"
-    { other_declarator d }
-| d = direct_declarator "(" ctx = scoped(parameter_type_list) ")"
-    { function_declarator d ctx }
-| d = direct_declarator "(" save_context identifier_list? ")"
-    { other_declarator d }
+    { identifier_declarator i, { name = i; ty = JustBase } }
+| "(" save_context d=declarator ")" { d }
+| d=direct_declarator "[" type_qualifier* assignment_expression? "]"
+    // { (Tuple2.map_snd & map_decl_name_ty) d ~f:(fun ty -> Array { ty; qual_spec =  } )  }
+    { todo [%here] }
+// | d=direct_declarator "[" "static" type_qualifier* assignment_expression "]"
+// | d=direct_declarator "[" list1(type_qualifier) "static" assignment_expression "]"
+// | d=direct_declarator "[" type_qualifier* "*" "]"
+//     { other_declarator d }
+| d=direct_declarator "(" ctx=scoped(parameter_type_list) ")"
+    { function_declarator (fst d) ctx, todo [%here] }
+| d=direct_declarator "(" save_context identifier_list? ")"
+    { other_declarator (fst d), todo [%here] }
 
 pointer:
 | "*" type_qualifier_list? pointer?
     {}
 
 type_qualifier_list:
-| type_qualifier_list? type_qualifier
-    {}
+| xs=list1(type_qualifier) { xs }
 
 parameter_type_list:
 | parameter_list option("," "..." {}) ctx = save_context
@@ -766,9 +785,9 @@ external_declaration:
     {}
 
 function_definition1:
-| declaration_specifiers d = declarator_varname
+| declaration_specifiers d=declarator_varname
     { let ctx = save_context () in
-      reinstall_function_context d;
+      reinstall_function_context (fst d);
       ctx }
 
 function_definition:
