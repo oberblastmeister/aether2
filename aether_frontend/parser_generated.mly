@@ -207,19 +207,17 @@ list_ge1(A, B):
 (* A list of A's, B's and C's that contains exactly one A and exactly one B: *)
 
 list_eq1_eq1(A, B, C):
-| A list_eq1(B, C)
-| B list_eq1(A, C)
-| C list_eq1_eq1(A, B, C)
-    {}
+| x=A xs=list_eq1(B, C) { x :: xs }
+| x=B xs=list_eq1(A, C) { x :: xs }
+| x=C xs=list_eq1_eq1(A, B, C) { x :: xs }
 
 (* A list of A's, B's and C's that contains exactly one A and at least one B: *)
 
 list_eq1_ge1(A, B, C):
-| A list_ge1(B, C)
-| B list_eq1(A, C)
-| B list_eq1_ge1(A, B, C)
-| C list_eq1_ge1(A, B, C)
-    {}
+| x=A xs=list_ge1(B, C) { x :: xs }
+| x=B xs=list_eq1(A, C) { x :: xs }
+| x=B xs=list_eq1_ge1(A, B, C) { x :: xs }
+| x=C xs=list_eq1_ge1(A, B, C) { x :: xs }
 
 (* Upon finding an identifier, the lexer emits two tokens. The first token,
    [NAME], indicates that a name has been found; the second token, either [TYPE]
@@ -227,12 +225,10 @@ list_eq1_ge1(A, B, C):
    performed only when the second token is demanded by the parser. *)
 
 typedef_name:
-| i = NAME TYPE
-    { i }
+| i=NAME TYPE { i }
 
 var_name:
-| i = NAME VARIABLE
-    { i }
+| i=NAME VARIABLE { i }
 
 (* [typedef_name_spec] must be declared before [general_identifier], so that the
    reduce/reduce conflict is solved the right way. *)
@@ -242,8 +238,8 @@ typedef_name_spec:
     {}
 
 general_identifier:
-| i = typedef_name
-| i = var_name
+| i=typedef_name
+| i=var_name
     { i }
 
 save_context:
@@ -539,9 +535,8 @@ struct_or_union_specifier:
     {}
 
 struct_or_union:
-| "struct"
-| "union"
-    {}
+| "struct" { Ast.Struct }
+| "union" { Ast.Union }
 
 struct_declaration_list:
 | struct_declaration
@@ -622,9 +617,9 @@ declarator:
    avenues in parallel and some of them do require saving the context. *)
 
 direct_declarator:
-| i = general_identifier
+| i=general_identifier
     { identifier_declarator i }
-| "(" save_context d = declarator ")"
+| "(" save_context d=declarator ")"
     { d }
 | d = direct_declarator "[" type_qualifier_list? assignment_expression? "]"
 | d = direct_declarator "[" "static" type_qualifier_list? assignment_expression "]"

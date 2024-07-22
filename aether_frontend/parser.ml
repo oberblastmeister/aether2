@@ -1,20 +1,14 @@
 open Core
 
-type pos =
-  { line : int
-  ; col : int
-  }
-[@@deriving sexp_of]
-
 let get_lexing_position lexbuf =
   let p = Lexing.lexeme_start_p lexbuf in
   let line = p.Lexing.pos_lnum in
   let col = p.Lexing.pos_cnum - p.Lexing.pos_bol + 1 in
-  { line; col }
+  Position.{ line; col }
 ;;
 
 type error =
-  { pos : pos option
+  { pos : Position.t option
   ; msg : string
   }
 [@@deriving sexp_of]
