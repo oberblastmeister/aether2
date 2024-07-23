@@ -25,13 +25,13 @@
   ocaml
   dune
   (core
-   (= v0.16.2))
+   (= v0.17.1))
   (core_bench
-   (= v0.16.0))
+   (= v0.17.1))
   (ppx_deriving
    (= 5.2.1))
   (ppx_jane
-   (= v0.16.0))
+   (= v0.17.1))
   (alcotest
    (= 1.7.0))
   (algaeff

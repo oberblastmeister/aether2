@@ -105,15 +105,28 @@ and init_name =
 and init_expr =
   | NoInit
   | SingleInit of expr
+  | CompoundInit of init_item list
 [@@deriving sexp_of]
 
 and expr =
   | Unary of unary_op * expr
-  | Bin of expr * bin_op * expr
+  | Binary of expr * bin_op * expr
   | Ternary of
       { cond : expr
       ; expr_then : expr
       ; expr_else : expr
+      }
+  | Cast of
+      { ty : full_type
+      ; init : init_expr
+      }
+  | Call of
+      { func : expr
+      ; args : expr list
+      }
+  | BuiltinVaArg of
+      { expr : expr
+      ; ty : full_type
       }
 [@@deriving sexp_of]
 
@@ -212,6 +225,28 @@ and decl =
       ; body : stmt
       ; span : Span.t
       }
+[@@deriving sexp_of]
+
+and init_item =
+  { (* list of places because places can be nested *)
+    (* for example: *)
+    (* struct B b = {.a.x = 0}; // valid C, invalid C++ (nested) *)
+    place : init_place list
+  ; expr : expr
+  }
+[@@deriving sexp_of]
+
+(* also known as the designator *)
+and init_place =
+  | AtIndex of expr
+  | AtField of string
+[@@deriving sexp_of]
+
+(* corresponds to type_name *)
+and full_type =
+  { specs : spec list
+  ; decl_type : decl_type
+  }
 [@@deriving sexp_of]
 
 let map_decl_name_ty (decl_name : decl_name) ~f = { decl_name with ty = f decl_name.ty }

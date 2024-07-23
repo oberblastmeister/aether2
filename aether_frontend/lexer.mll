@@ -34,7 +34,6 @@ open Lexing
 open Options
 open Lexer_utils
 
-let lex_error s = raise (Exn s)
 }
 
 (* Identifiers *)
@@ -92,13 +91,14 @@ let digit_sequence = digit+
 let floating_suffix = ['f' 'l' 'F' 'L']
 
 let fractional_constant =
-    digit_sequence? '.' digit_sequence
-  | digit_sequence '.'
+    (digit_sequence as intpart)? '.' (digit_sequence as frac)
+  | (digit_sequence as intpart) '.'
 let exponent_part =
-    ['e' 'E'] sign? digit_sequence
+    'e' ((sign? digit_sequence) as expo)
+  | 'E' ((sign? digit_sequence) as expo)
 let decimal_floating_constant =
     fractional_constant exponent_part? floating_suffix?
-  | digit_sequence exponent_part floating_suffix?
+  | (digit_sequence as intpart) exponent_part floating_suffix?
 
 let hexadecimal_digit_sequence = hexadecimal_digit+
 let hexadecimal_fractional_constant =
@@ -119,12 +119,12 @@ let preprocessing_number =
 
 (* Character and string constants *)
 let simple_escape_sequence =
-  '\\' ['\''  '\"'  '?'  '\\'  'a'  'b'  'f'  'n'  'r'  't'  'v']
+  '\\' (['\''  '\"'  '?'  '\\'  'a'  'b'  'f'  'n'  'r'  't'  'v'] as c)
 let octal_escape_sequence =
-  '\\' (octal_digit
+  '\\' ((octal_digit
          | octal_digit octal_digit
-         | octal_digit octal_digit octal_digit)
-let hexadecimal_escape_sequence = "\\x" hexadecimal_digit+
+         | octal_digit octal_digit octal_digit) as n)
+let hexadecimal_escape_sequence = "\\x" (hexadecimal_digit+ as n)
 let escape_sequence =
     simple_escape_sequence
   | octal_escape_sequence
@@ -140,8 +140,18 @@ rule initial = parse
   | decimal_floating_constant     { CONSTANT }
   | hexadecimal_floating_constant { CONSTANT }
   | preprocessing_number          { lex_error "These characters form a preprocessor number, but not a constant" }
-  | (['L' 'u' 'U']|"") "'"        { char lexbuf; char_literal_end lexbuf; CONSTANT }
-  | (['L' 'u' 'U']|""|"u8") "\""  { string_literal lexbuf; STRING_LITERAL }
+  | (['L' 'u' 'U']|"") as e "'"
+    {
+      let encoding = Encoding.of_string e |> Core.Option.value_exn in
+      let s = char_literal lexbuf in
+      CHAR_LITERAL { encoding; s }
+    }
+  | (['L' 'u' 'U']|""|"u8") as e "\""
+    {
+      let encoding = Encoding.of_string e |> Core.Option.value_exn in
+      let s = string_literal lexbuf in
+      STRING_LITERAL { encoding; s; }
+    }
   | "..."                         { ELLIPSIS }
   | "+="                          { ADD_ASSIGN }
   | "-="                          { SUB_ASSIGN }
@@ -242,23 +252,37 @@ and initial_linebegin = parse
   | '#' | "%:"                    { hash lexbuf }
   | ""                            { initial lexbuf }
 
-and char = parse
-  | simple_escape_sequence        { }
-  | octal_escape_sequence         { }
-  | hexadecimal_escape_sequence   { }
-  | universal_character_name      { }
-  | '\\' _                        { lex_error "incorrect escape sequence" }
-  | _                             { }
+and char_literal = parse
+  | "" { char_literal_rec (Buffer.create 1) lexbuf }
 
-and char_literal_end = parse
-  | '\''       { }
+and char_literal_rec buf = parse
+  | '\'' { Buffer.contents buf } 
   | '\n' | eof { lex_error "missing terminating \"'\" character" }
-  | ""         { char lexbuf; char_literal_end lexbuf }
+  | "" { char buf lexbuf; char_literal_rec buf lexbuf }
+
+and char buf = parse
+  | simple_escape_sequence
+    { Buffer.add_char buf (unescape c); char buf lexbuf }
+  | octal_escape_sequence
+    { Buffer.add_string buf (Unicode.string_of_uchar (Core.Int.of_string ("0o" ^ n))) }
+  | hexadecimal_escape_sequence
+    {
+      try
+        Buffer.add_string buf (Unicode.string_of_uchar (Core.Int.of_string ("0x" ^ n)))
+      with Failure _ ->
+        lex_error "overflow in hexadecimal escape sequence"
+    }
+  | universal_character_name { failwith "" }
+  | '\\' _ { lex_error "incorrect escape sequence" }
+  | _ { failwith "" }
 
 and string_literal = parse
-  | '\"'       { }
+  | "" { string_literal_rec (Buffer.create 1) lexbuf } 
+
+and string_literal_rec buf = parse
+  | '\"' { Buffer.contents buf }
   | '\n' | eof { lex_error "missing terminating '\"' character" }
-  | ""         { char lexbuf; string_literal lexbuf }
+  | "" { char buf lexbuf; string_literal_rec buf lexbuf }
 
 (* We assume gcc -E syntax but try to tolerate variations. *)
 and hash = parse

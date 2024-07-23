@@ -49,8 +49,9 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 
 %token<string> NAME
 %token VARIABLE TYPE
-%token CONSTANT STRING_LITERAL
-
+%token<Token.encoded_string> STRING_LITERAL
+%token<Token.encoded_string> CHAR_LITERAL
+%token CONSTANT
 %token ALIGNAS "_Alignas"
 %token ALIGNOF "_Alignof"
 %token ATOMIC "_Atomic"
@@ -152,6 +153,7 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 %type<context> save_context parameter_type_list function_definition1
 %type<string> typedef_name var_name general_identifier enumeration_constant
 %type<declarator * Ast.decl_name> declarator direct_declarator declarator_varname declarator_typedefname
+%type<Ast.expr> assignment_expression constant_expression
 
 (* There is a reduce/reduce conflict in the grammar. It corresponds to the
    conflict in the second declaration in the following snippet:
@@ -324,13 +326,13 @@ argument_expression_list:
 
 unary_expression:
 | postfix_expression
-| "++" unary_expression
+| "++" unary_expression 
 | "--" unary_expression
 | unary_operator cast_expression
 | "sizeof" unary_expression
 | "sizeof" "(" type_name ")"
 | "_Alignof" "(" type_name ")"
-    {}
+    { todo [%here] }
 
 unary_operator:
 | "&"
@@ -414,26 +416,24 @@ logical_or_expression:
 conditional_expression:
 | logical_or_expression
 | logical_or_expression "?" expression ":" conditional_expression
-    {}
+    { todo [%here] }
 
 assignment_expression:
-| conditional_expression
-| unary_expression assignment_operator assignment_expression
-    {}
+| conditional_expression { todo [%here] }
+| unary_expression o=assignment_operator assignment_expression { todo [%here] }
 
 assignment_operator:
-| "="
-| "*="
-| "/="
-| "%="
-| "+="
-| "-="
-| "<<="
-| ">>="
-| "&="
-| "^="
-| "|="
-    {}
+| "=" { Ast.Assign }
+| "*=" { Ast.AddAssign }
+| "/=" { Ast.SubAssign }
+| "%=" { Ast.ModAssign }
+| "+=" { Ast.AddAssign }
+| "-=" { Ast.SubAssign }
+| "<<=" { Ast.ShlAssign }
+| ">>=" { Ast.ShrAssign }
+| "&=" { Ast.BandAssign }
+| "^=" { Ast.XorAssign }
+| "|=" { Ast.BorAssign }
 
 expression:
 | assignment_expression
@@ -442,8 +442,7 @@ expression:
 
 
 constant_expression:
-| conditional_expression
-    {}
+| e=conditional_expression { e }
 
 (* We separate type declarations, which contain an occurrence of ["typedef"], and
    normal declarations, which do not. This makes it possible to distinguish /in
@@ -714,9 +713,8 @@ designator_list:
     {}
 
 designator:
-| "[" constant_expression "]"
-| "." general_identifier
-    {}
+| "[" e=constant_expression "]" { Ast.AtIndex e }
+| "." f=general_identifier { Ast.AtField f }
 
 static_assert_declaration:
 | "_Static_assert" "(" constant_expression "," string_literal ")" ";"
