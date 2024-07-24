@@ -1,5 +1,45 @@
 open Core
 
+type float_lit =
+  { is_hex : bool
+  ; integer : string option
+  ; fraction : string option
+  ; exponent : string option
+  ; suffix : string option
+  }
+[@@deriving sexp_of]
+
+module Encoding = struct
+  type t =
+    | None
+    | Wide
+    | Utf16
+    | Utf32
+    | Utf8
+  [@@deriving sexp_of]
+
+  let of_string = function
+    | "" -> Some None
+    | "L" -> Some Wide
+    | "u" -> Some Utf16
+    | "U" -> Some Utf32
+    | "u8" -> Some Utf8
+    | _ -> None
+  ;;
+end
+
+type chr =
+  | Chr of int
+  | Esc of int64
+
+type encoded_string =
+  { s : string
+  ; encoding : Encoding.t
+  }
+[@@deriving sexp_of]
+
+type char_lit = encoded_string [@@deriving sexp_of]
+
 type storage_spec =
   | Extern
   | Static
@@ -56,21 +96,21 @@ and decl_type =
   | JustBase
   | Array of
       { ty : decl_type
-      ; qual_spec : qual_spec list
+      ; specs : qual_spec list
       ; size : expr option
       }
   | Ptr of
-      { qual_spec : qual_spec list
+      { specs : qual_spec list
       ; ty : decl_type
       }
   | Proto of
       { ty : decl_type
-      ; params : parameter list
+      ; params : param list
       ; variadic : bool
       }
 [@@deriving sexp_of]
 
-and parameter =
+and param =
   { specs : spec list
   ; name : string option
   ; ty : decl_type
@@ -128,6 +168,23 @@ and expr =
       { expr : expr
       ; ty : full_type
       }
+  | Int of string
+  | Float of float_lit
+  | Char of char_lit
+  | String of encoded_string list
+  | Variable of string
+  | Index of
+      { expr : expr
+      ; index : expr
+      }
+  | Member of
+      { expr : expr
+      ; field : string
+      }
+  | PtrMember of
+      { expr : expr
+      ; field : string
+      }
 [@@deriving sexp_of]
 
 and unary_op =
@@ -156,7 +213,7 @@ and bin_op =
   | Xor
   | Shl
   | Shr
-  | Eq
+  | E
   | Ne
   | Lt
   | Gt

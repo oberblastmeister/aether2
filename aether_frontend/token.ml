@@ -1,57 +1,13 @@
 open Core
 
-type float =
-  { is_hex : bool
-  ; integer : string option
-  ; fraction : string option
-  ; exponent : string option
-  ; suffix : string option
-  }
-[@@deriving sexp_of]
-
-type const =
-  | Int of string
-  | Float of float
-[@@deriving sexp_of]
-
-module Encoding = struct
-  type t =
-    | None
-    | Wide
-    | Utf16
-    | Utf32
-    | Utf8
-  [@@deriving sexp_of]
-
-  let of_string = function
-    | "" -> Some None
-    | "L" -> Some Wide
-    | "u" -> Some Utf16
-    | "U" -> Some Utf32
-    | "u8" -> Some Utf8
-    | _ -> None
-  ;;
-end
-
-type chr =
-  | Chr of int
-  | Esc of int64
-
-type encoded_string =
-  { s : string
-  ; encoding : Encoding.t
-  }
-[@@deriving sexp_of]
-
-type char_lit = encoded_string [@@deriving sexp_of]
-
 type t =
   | NAME of string
   | VARIABLE
   | TYPE
   | CONSTANT
-  | CHAR_LITERAL of encoded_string
-  | STRING_LITERAL of encoded_string
+  | INT_LITERAL of string
+  | CHAR_LITERAL of Ast.encoded_string
+  | STRING_LITERAL of Ast.encoded_string
   | ALIGNAS
   | ALIGNOF
   | ATOMIC

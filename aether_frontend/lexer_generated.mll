@@ -136,20 +136,24 @@ rule initial = parse
   | '\n'                          { new_line lexbuf; initial_linebegin lexbuf }
   | "/*"                          { multiline_comment lexbuf; initial lexbuf }
   | "//"                          { singleline_comment lexbuf; initial_linebegin lexbuf }
-  | integer_constant              { CONSTANT }
-  | decimal_floating_constant     { CONSTANT }
-  | hexadecimal_floating_constant { CONSTANT }
+  | integer_constant as s         { INT_LITERAL s }
+  | decimal_floating_constant     { failwith "unimplemented" }
+  | hexadecimal_floating_constant { failwith "unimplemented" }
   | preprocessing_number          { lex_error "These characters form a preprocessor number, but not a constant" }
   | (['L' 'u' 'U']|"") as e "'"
     {
-      let encoding = Encoding.of_string e |> Core.Option.value_exn in
+      let encoding = Ast.Encoding.of_string e |> Core.Option.value_exn in
+      let start_p = lexbuf.lex_start_p in
       let s = char_literal lexbuf in
+      lexbuf.lex_start_p <- start_p;
       CHAR_LITERAL { encoding; s }
     }
   | (['L' 'u' 'U']|""|"u8") as e "\""
     {
-      let encoding = Encoding.of_string e |> Core.Option.value_exn in
+      let encoding = Ast.Encoding.of_string e |> Core.Option.value_exn in
+      let start_p = lexbuf.lex_start_p in
       let s = string_literal lexbuf in
+      lexbuf.lex_start_p <- start_p;
       STRING_LITERAL { encoding; s; }
     }
   | "..."                         { ELLIPSIS }
@@ -262,7 +266,7 @@ and char_literal_rec buf = parse
 
 and char buf = parse
   | simple_escape_sequence
-    { Buffer.add_char buf (unescape c); char buf lexbuf }
+    { Buffer.add_char buf (unescape c) }
   | octal_escape_sequence
     { Buffer.add_string buf (Unicode.string_of_uchar (Core.Int.of_string ("0o" ^ n))) }
   | hexadecimal_escape_sequence
@@ -274,15 +278,22 @@ and char buf = parse
     }
   | universal_character_name { failwith "" }
   | '\\' _ { lex_error "incorrect escape sequence" }
-  | _ { failwith "" }
+  | _ as c { Buffer.add_char buf c }
 
 and string_literal = parse
-  | "" { string_literal_rec (Buffer.create 1) lexbuf } 
+  | ""
+    {
+      string_literal_rec (Buffer.create 1) lexbuf
+    } 
 
 and string_literal_rec buf = parse
   | '\"' { Buffer.contents buf }
   | '\n' | eof { lex_error "missing terminating '\"' character" }
-  | "" { char buf lexbuf; string_literal_rec buf lexbuf }
+  | ""
+    {  
+      char buf lexbuf;
+      string_literal_rec buf lexbuf
+    }
 
 (* We assume gcc -E syntax but try to tolerate variations. *)
 and hash = parse
@@ -308,72 +319,3 @@ and singleline_comment = parse
   | '\n'   { new_line lexbuf }
   | eof    { () }
   | _      { singleline_comment lexbuf }
-
-{
-
-  (* This lexer chooses between [inital] or [initial_linebegin],
-     depending on whether we are at the beginning of the line or
-     not. *)
-
-  let lexer : lexbuf -> token =
-    fun lexbuf ->
-      if lexbuf.lex_curr_p.pos_cnum = lexbuf.lex_curr_p.pos_bol then
-        initial_linebegin lexbuf
-      else
-        initial lexbuf
-
-  (* In the following, we define a new lexer, which wraps [lexer], and applies
-     the following two transformations to the token stream:
-
-     - A [NAME] token is replaced with a sequence of either [NAME VARIABLE] or
-       [NAME TYPE]. The decision is made via a call to [Context.is_typedefname].
-       The call takes place only when the second element of the sequence is
-       demanded.
-
-     - When [Options.atomic_strict_syntax] is [true] and an opening parenthesis
-       [LPAREN] follows an [ATOMIC] keyword, the parenthesis is replaced by a
-       special token, [ATOMIC_LPAREN], so as to allow the parser to treat it
-       specially. *)
-
-  (* This second lexer is implemented using a 3-state state machine, whose
-     states are as follows. *)
-
-  type lexer_state =
-    | SRegular          (* Nothing to recall from the previous tokens. *)
-    | SAtomic           (* The previous token was [ATOMIC]. If an opening
-                           parenthesis follows, then it needs special care. *)
-    | SIdent of string  (* We have seen an identifier: we have just
-                           emitted a [NAME] token. The next token will be
-                           either [VARIABLE] or [TYPE], depending on
-                           what kind of identifier this is. *)
-
-  let lexer ~is_typedefname : lexbuf -> token =
-    let st = ref SRegular in
-    fun lexbuf ->
-      match !st with
-
-      | SIdent id ->
-          st := SRegular;
-          if is_typedefname id then TYPE else VARIABLE
-
-      | SAtomic
-      | SRegular ->
-          let token = lexer lexbuf in
-          match !st, token with
-          | _, NAME id ->
-              st := SIdent id;
-              token
-
-          | SAtomic, LPAREN ->
-              st := SRegular;
-              ATOMIC_LPAREN
-
-          | _, ATOMIC ->
-              st := (if !atomic_strict_syntax then SAtomic else SRegular);
-              token
-
-          | _, _ ->
-              st := SRegular;
-              token
-
-}

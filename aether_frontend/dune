@@ -4,7 +4,7 @@
   (modules parser_generated)
   (flags --external-tokens Token --table))
   
-(ocamllex lexer)
+(ocamllex lexer_generated)
 
 (library
  (name aether_frontend)

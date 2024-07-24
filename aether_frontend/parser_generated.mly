@@ -41,7 +41,6 @@ open Context
 open Folds.O
 
 let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
-
 %}
 
 (* This makes the global state a functor parameter, so that the parser is reentrant *)
@@ -49,8 +48,9 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 
 %token<string> NAME
 %token VARIABLE TYPE
-%token<Token.encoded_string> STRING_LITERAL
-%token<Token.encoded_string> CHAR_LITERAL
+%token<Ast.encoded_string> STRING_LITERAL
+%token<Ast.encoded_string> CHAR_LITERAL
+%token<string> INT_LITERAL
 %token CONSTANT
 %token ALIGNAS "_Alignas"
 %token ALIGNOF "_Alignof"
@@ -150,10 +150,18 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 
 %token EOF
 
-%type<context> save_context parameter_type_list function_definition1
+%type<context> save_context function_definition1
+%type<context * Ast.param list * bool> parameter_type_list
 %type<string> typedef_name var_name general_identifier enumeration_constant
 %type<declarator * Ast.decl_name> declarator direct_declarator declarator_varname declarator_typedefname
-%type<Ast.expr> assignment_expression constant_expression
+%type<Ast.expr>
+    primary_expression generic_selection constant_expression
+    postfix_expression unary_expression cast_expression multiplicative_expression additive_expression
+    shift_expression relational_expression equality_expression and_expression 
+    exclusive_or_expression inclusive_or_expression logical_and_expression logical_or_expression
+    conditional_expression assignment_expression expression
+%type<Ast.param> parameter_declaration
+%type<Ast.decl_type> direct_abstract_declarator
 
 (* There is a reduce/reduce conflict in the grammar. It corresponds to the
    conflict in the second declaration in the following snippet:
@@ -229,12 +237,16 @@ list_eq1_ge1(A, B, C):
 | x=B xs=list_eq1_ge1(A, B, C) { x :: xs }
 | x=C xs=list_eq1_ge1(A, B, C) { x :: xs }
 
-list_sep_rev(X, SEP):
+list_sep_rev1(X, SEP):
 | x=X { [x] }
-| xs=list_sep_rev(X, SEP) SEP x=X { x :: xs }
+| xs=list_sep_rev1(X, SEP) SEP x=X { x :: xs }
+
+list_sep1(X, SEP):
+| xs=list_sep_rev1(X, SEP) { List.rev xs }
 
 list_sep(X, SEP):
-| xs=list_sep_rev(X, SEP) { List.rev xs }
+| (* empty *) { [] }
+| xs=list_sep1(X, SEP) { xs }
 
 (* Upon finding an identifier, the lexer emits two tokens. The first token,
    [NAME], indicates that a name has been found; the second token, either [TYPE]
@@ -255,9 +267,8 @@ typedef_name_spec:
     {}
 
 general_identifier:
-| i=typedef_name
-| i=var_name
-    { i }
+| i=typedef_name { i }
+| i=var_name { i }
 
 save_context:
 | (* empty *)
@@ -280,52 +291,44 @@ declarator_typedefname:
 
 (* Merge source-level string literals. *)
 string_literal:
-| STRING_LITERAL
-| string_literal STRING_LITERAL
-    {}
+| xs=STRING_LITERAL+ { xs }
 
 (* End of the helpers, and beginning of the grammar proper: *)
 
 primary_expression:
-| var_name
-| CONSTANT
-| string_literal
-| "(" expression ")"
-| generic_selection
-    {}
+| v=var_name { Variable v }
+| i=INT_LITERAL { Int i }
+| s=string_literal { String s }
+| s=CHAR_LITERAL { Char s }
+| "(" e=expression ")" { todo [%here] }
+| e=generic_selection { todo [%here] }
 
 generic_selection:
-| "_Generic" "(" assignment_expression "," generic_assoc_list ")"
-    {}
+| "_Generic" "(" assignment_expression "," generic_assoc_list ")" { todo [%here] }
 
 generic_assoc_list:
 | generic_association
-| generic_assoc_list "," generic_association
-    {}
+| generic_assoc_list "," generic_association { todo [%here] }
 
 generic_association:
 | type_name ":" assignment_expression
-| "default" ":" assignment_expression
-    {}
+| "default" ":" assignment_expression { todo [%here] }
 
 postfix_expression:
-| primary_expression
-| postfix_expression "[" expression "]"
-| postfix_expression "(" argument_expression_list? ")"
-| postfix_expression "." general_identifier
+| e=primary_expression { e }
+| expr=postfix_expression "[" index=expression "]" { Index { expr; index } }
+| func=postfix_expression "(" args=argument_expression_list ")" { Call { func; args } }
+| expr=postfix_expression "." field=general_identifier { Member { expr; field } }
 | postfix_expression "->" general_identifier
 | postfix_expression "++"
 | postfix_expression "--"
-| "(" type_name ")" "{" initializer_list ","? "}"
-    {}
+| "(" type_name ")" "{" initializer_list ","? "}" { todo [%here] }
 
 argument_expression_list:
-| assignment_expression
-| argument_expression_list "," assignment_expression
-    {}
+| es=list_sep(assignment_expression, ",") { es }
 
 unary_expression:
-| postfix_expression
+| e=postfix_expression { e }
 | "++" unary_expression 
 | "--" unary_expression
 | unary_operator cast_expression
@@ -341,85 +344,85 @@ unary_operator:
 | "-"
 | "~"
 | "!"
-    {}
+    { todo [%here] }
 
 cast_expression:
-| unary_expression
+| e=unary_expression { e }
 | "(" type_name ")" cast_expression
-    {}
+    { todo [%here] }
 
 multiplicative_operator:
   "*" | "/" | "%" {}
 
 multiplicative_expression:
-| cast_expression
+| e=cast_expression { e }
 | multiplicative_expression multiplicative_operator cast_expression
-    {}
+    { todo [%here] }
 
 additive_operator:
   "+" | "-" {}
 
 additive_expression:
-| multiplicative_expression
+| e=multiplicative_expression { e }
 | additive_expression additive_operator multiplicative_expression
-    {}
+    { todo [%here] }
 
 shift_operator:
   "<<" | ">>" {}
 
 shift_expression:
-| additive_expression
+| e=additive_expression { e }
 | shift_expression shift_operator additive_expression
-    {}
+    { todo [%here] }
 
 relational_operator:
   "<" | ">" | "<=" | ">=" {}
 
 relational_expression:
-| shift_expression
+| e=shift_expression { e }
 | relational_expression relational_operator shift_expression
-    {}
+    { todo [%here] }
 
 equality_operator:
   "==" | "!=" {}
 
 equality_expression:
-| relational_expression
+| e=relational_expression { e }
 | equality_expression equality_operator relational_expression
-    {}
+    { todo [%here] }
 
 and_expression:
-| equality_expression
+| e=equality_expression { e }
 | and_expression "&" equality_expression
-    {}
+    { todo [%here] }
 
 exclusive_or_expression:
-| and_expression
+| e=and_expression { e }
 | exclusive_or_expression "^" and_expression
-    {}
-
+    { todo [%here] }
+ 
 inclusive_or_expression:
-| exclusive_or_expression
+| e=exclusive_or_expression { e }
 | inclusive_or_expression "|" exclusive_or_expression
-    {}
+    { todo [%here] }
 
 logical_and_expression:
-| inclusive_or_expression
+| e=inclusive_or_expression { e }
 | logical_and_expression "&&" inclusive_or_expression
-    {}
+    { todo [%here] }
 
 logical_or_expression:
-| logical_and_expression
+| e=logical_and_expression { e }
 | logical_or_expression "||" logical_and_expression
-    {}
+    { todo [%here] }
 
 conditional_expression:
-| logical_or_expression
+| e=logical_or_expression { e }
 | logical_or_expression "?" expression ":" conditional_expression
     { todo [%here] }
 
 assignment_expression:
-| conditional_expression { todo [%here] }
+| e=conditional_expression { e }
 | unary_expression o=assignment_operator assignment_expression { todo [%here] }
 
 assignment_operator:
@@ -436,9 +439,9 @@ assignment_operator:
 | "|=" { Ast.BorAssign }
 
 expression:
-| assignment_expression
+| e=assignment_expression { e }
 | expression "," assignment_expression
-    {}
+    { todo [%here] }
 
 
 constant_expression:
@@ -508,7 +511,7 @@ declaration_specifiers_typedef:
    is instantiated with [declarator_varname] or [declarator_typedefname]. *)
 
 init_declarator_list(declarator):
-| xs=list_sep(init_declarator(declarator), ",") { xs }
+| xs=list_sep1(init_declarator(declarator), ",") { xs }
 
 init_declarator(declarator):
 | d=declarator { }
@@ -562,10 +565,10 @@ struct_declaration_list:
     {}
 
 struct_declaration:
-// | specifier_qualifier_list struct_declarator_list? ";"
-| declaration_specifiers struct_declarator_list? ";"
+// | specifier_qualifier_list struct_declarator_list ";"
+| declaration_specifiers struct_declarator_list ";"
 | static_assert_declaration
-    {}
+    { todo [%here] }
 
 
 (* [specifier_qualifier_list] is as in the standard, except it also encodes the
@@ -577,14 +580,12 @@ specifier_qualifier_list:
     {}
 
 struct_declarator_list:
-| struct_declarator
-| struct_declarator_list "," struct_declarator
-    {}
+| xs=list_sep1(struct_declarator, ",") { xs }
 
 struct_declarator:
 | declarator
 | declarator? ":" constant_expression
-    {}
+    { todo [%here] }
 
 enum_specifier:
 | "enum" general_identifier? "{" enumerator_list ","? "}"
@@ -625,8 +626,8 @@ alignment_specifier:
 | "_Alignas" "(" constant_expression ")" { todo [%here] }
 
 declarator:
-| ioption(pointer) d=direct_declarator
-    { other_declarator (fst d), snd d }
+| add_pointer=ioption(pointer) d=direct_declarator
+    { other_declarator (fst d), Ast.map_decl_name_ty (snd d) ~f:(Option.value ~default:Fn.id add_pointer) }
 
 (* The occurrences of [save_context] inside [direct_declarator] and
    [direct_abstract_declarator] seem to serve no purpose. In fact, they are
@@ -638,38 +639,59 @@ direct_declarator:
 | i=general_identifier
     { identifier_declarator i, { name = i; ty = JustBase } }
 | "(" save_context d=declarator ")" { d }
-| d=direct_declarator "[" type_qualifier* assignment_expression? "]"
-    // { (Tuple2.map_snd & map_decl_name_ty) d ~f:(fun ty -> Array { ty; qual_spec =  } )  }
-    { todo [%here] }
+| d=direct_declarator "[" specs=type_qualifier* size=assignment_expression? "]"
+    {
+        let d, ({ name; ty } : Ast.decl_name) = d in
+        d, ({ name; ty = Array { ty; specs; size } } : Ast.decl_name)
+    }
 // | d=direct_declarator "[" "static" type_qualifier* assignment_expression "]"
 // | d=direct_declarator "[" list1(type_qualifier) "static" assignment_expression "]"
 // | d=direct_declarator "[" type_qualifier* "*" "]"
 //     { other_declarator d }
-| d=direct_declarator "(" ctx=scoped(parameter_type_list) ")"
-    { function_declarator (fst d) ctx, todo [%here] }
+| d=direct_declarator "(" params=scoped(parameter_type_list) ")"
+    {
+        let ctx, params, variadic = params in
+        let d, ({ name; ty } : Ast.decl_name) = d in
+        function_declarator d ctx, { name; ty = Proto { ty; params; variadic } }
+    }
 | d=direct_declarator "(" save_context identifier_list? ")"
+    (* this is the old way to define proto, don't support this yet *)
     { other_declarator (fst d), todo [%here] }
 
 pointer:
-| "*" type_qualifier_list? pointer?
-    {}
+| "*" qs=type_qualifier_list? p=pointer?
+  {
+    fun ty ->
+      Ast.Ptr
+        { specs = Option.value ~default:[] qs;
+          ty = (Option.value ~default:Fn.id p) ty
+        } 
+  }
 
 type_qualifier_list:
 | xs=list1(type_qualifier) { xs }
 
 parameter_type_list:
-| parameter_list option("," "..." {}) ctx = save_context
-    { ctx }
+| params=parameter_list varargs=option("," "..." {}) ctx = save_context
+    { ctx, params, Option.is_some varargs }
 
 parameter_list:
-| parameter_declaration
-| parameter_list "," parameter_declaration
-    {}
+| ps=parameter_list_rev { List.rev ps }
+
+parameter_list_rev:
+| param=parameter_declaration { [param] }
+| params=parameter_list_rev "," param=parameter_declaration { param :: params}
 
 parameter_declaration:
-| declaration_specifiers declarator_varname
-| declaration_specifiers abstract_declarator?
-    {}
+| specs=declaration_specifiers d=declarator_varname
+  { 
+    let decl_name = snd d in
+    ({ specs; name = Some decl_name.name; ty = decl_name.ty } : Ast.param)
+  }
+| specs=declaration_specifiers ty=abstract_declarator?
+  {
+    ({ specs; name = None; ty = Option.value ~default:Ast.JustBase ty } : Ast.param)
+  }
 
 identifier_list:
 | var_name
@@ -683,16 +705,20 @@ type_name:
 abstract_declarator:
 | pointer
 | ioption(pointer) direct_abstract_declarator
-    {}
+    { todo [%here] }
 
 direct_abstract_declarator:
-| "(" save_context abstract_declarator ")"
-| direct_abstract_declarator? "[" ioption(type_qualifier_list) assignment_expression? "]"
-| direct_abstract_declarator? "[" "static" type_qualifier_list? assignment_expression "]"
-| direct_abstract_declarator? "[" type_qualifier_list "static" assignment_expression "]"
-| direct_abstract_declarator? "[" "*" "]"
+| "(" save_context ty=abstract_declarator ")" { ty }
+| ty=direct_abstract_declarator? "[" specs=ioption(type_qualifier_list) size=assignment_expression? "]"
+  { Array { ty = Option.value ~default:Ast.JustBase ty; specs = Option.value ~default:[] specs; size; } }
+// | direct_abstract_declarator? "[" "static" type_qualifier_list? assignment_expression "]"
+// | direct_abstract_declarator? "[" type_qualifier_list "static" assignment_expression "]"
+// | direct_abstract_declarator? "[" "*" "]"
 | ioption(direct_abstract_declarator) "(" scoped(parameter_type_list)? ")"
-    {}
+    {
+       todo [%here]
+    }
+
 
 c_initializer:
 | assignment_expression
