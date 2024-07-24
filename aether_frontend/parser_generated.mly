@@ -241,7 +241,9 @@ list_sep_rev1(X, SEP):
 | x=X { [x] }
 | xs=list_sep_rev1(X, SEP) SEP x=X { x :: xs }
 
-list_sep1(X, SEP):
+(* inline this because we don't want this to be a possible reduction,
+   it just reverses the list *)
+%inline list_sep1(X, SEP):
 | xs=list_sep_rev1(X, SEP) { List.rev xs }
 
 list_sep(X, SEP):
@@ -487,8 +489,8 @@ declaration_specifier:
    [declaration_specifiers] forbids the ["typedef"] keyword. *)
 
 declaration_specifiers:
-| xs=list_eq1(t=type_specifier_unique { Ast.TypeSpec t }, declaration_specifier) { xs }
-| xs=list_ge1(t=type_specifier_nonunique { Ast.TypeSpec t }, declaration_specifier) { xs }
+| xs=list_eq1(type_specifier_unique_spec, declaration_specifier) { xs }
+| xs=list_ge1(type_specifier_nonunique_spec, declaration_specifier) { xs }
 
 (* [declaration_specifiers_typedef] is analogous to [declaration_specifiers],
    but requires the ["typedef"] keyword to be present (exactly once). *)
@@ -540,6 +542,9 @@ type_specifier_nonunique:
 | "unsigned" { Ast.Unsigned }
 | "_Complex" { todo [%here] }
 
+%inline type_specifier_nonunique_spec:
+| t=type_specifier_nonunique { Ast.TypeSpec t }
+
 (* A type specifier which cannot appear together with other type specifiers. *)
 
 type_specifier_unique:
@@ -549,6 +554,9 @@ type_specifier_unique:
 | struct_or_union_specifier { todo [%here] }
 | enum_specifier { todo [%here] }
 | typedef_name_spec { todo [%here] }
+
+%inline type_specifier_unique_spec:
+| t=type_specifier_unique { Ast.TypeSpec t }
 
 struct_or_union_specifier:
 | struct_or_union general_identifier? "{" struct_declaration_list "}"
@@ -575,9 +583,8 @@ struct_declaration:
    same constraint as [declaration_specifiers] (see above). *)
 
 specifier_qualifier_list:
-| list_eq1(type_specifier_unique {},    type_qualifier | alignment_specifier {})
-| list_ge1(type_specifier_nonunique {}, type_qualifier | alignment_specifier {})
-    {}
+| specs=list_eq1(type_specifier_unique_spec,    t=type_qualifier_spec | t=alignment_specifier_spec { t }) { specs }
+| specs=list_ge1(type_specifier_nonunique_spec, t=type_qualifier_spec | t=alignment_specifier_spec { t }) { specs }
 
 struct_declarator_list:
 | xs=list_sep1(struct_declarator, ",") { xs }
@@ -617,6 +624,9 @@ type_qualifier:
 | "volatile" { Ast.Volatile }
 | "_Atomic" { Ast.Atomic }
 
+%inline type_qualifier_spec:
+| t=type_qualifier { Ast.QualSpec t }
+
 function_specifier:
   | "inline" { Ast.Inline }
   | "_Noreturn" { Ast.Noreturn }
@@ -624,6 +634,9 @@ function_specifier:
 alignment_specifier:
 | "_Alignas" "(" type_name ")" { todo [%here] }
 | "_Alignas" "(" constant_expression ")" { todo [%here] }
+
+%inline alignment_specifier_spec:
+| a=alignment_specifier { Ast.QualSpec (Ast.Attr a) }
 
 declarator:
 | add_pointer=ioption(pointer) d=direct_declarator
@@ -672,15 +685,11 @@ type_qualifier_list:
 | xs=list1(type_qualifier) { xs }
 
 parameter_type_list:
-| params=parameter_list varargs=option("," "..." {}) ctx = save_context
+| params=parameter_list varargs=option("," "..." { }) ctx=save_context
     { ctx, params, Option.is_some varargs }
 
-parameter_list:
-| ps=parameter_list_rev { List.rev ps }
-
-parameter_list_rev:
-| param=parameter_declaration { [param] }
-| params=parameter_list_rev "," param=parameter_declaration { param :: params}
+%inline parameter_list:
+| ps=list_sep1(parameter_declaration, ",") { ps }
 
 parameter_declaration:
 | specs=declaration_specifiers d=declarator_varname
@@ -699,13 +708,11 @@ identifier_list:
     {}
 
 type_name:
-| specifier_qualifier_list abstract_declarator?
-    {}
+| specs=specifier_qualifier_list ty=abstract_declarator? { { specs; ty = Option.value ~default:Ast.JustBase ty } : Ast.full_type }
 
 abstract_declarator:
-| pointer
-| ioption(pointer) direct_abstract_declarator
-    { todo [%here] }
+| add_pointer=pointer { add_pointer Ast.JustBase }
+| add_pointer=ioption(pointer) ty=direct_abstract_declarator { (Option.value ~default:Fn.id add_pointer) ty }
 
 direct_abstract_declarator:
 | "(" save_context ty=abstract_declarator ")" { ty }
@@ -714,9 +721,14 @@ direct_abstract_declarator:
 // | direct_abstract_declarator? "[" "static" type_qualifier_list? assignment_expression "]"
 // | direct_abstract_declarator? "[" type_qualifier_list "static" assignment_expression "]"
 // | direct_abstract_declarator? "[" "*" "]"
-| ioption(direct_abstract_declarator) "(" scoped(parameter_type_list)? ")"
+| ty=ioption(direct_abstract_declarator) "(" params=scoped(parameter_type_list) ")"
     {
-       todo [%here]
+      let ctx, params, variadic = params in
+      Proto { ty = Option.value ~default:Ast.JustBase ty; params; variadic }
+    }
+| ty=ioption(direct_abstract_declarator) "(" ")"
+    {
+      (ProtoOld { ty = Option.value ~default:Ast.JustBase ty; params = []; } : Ast.decl_type)
     }
 
 

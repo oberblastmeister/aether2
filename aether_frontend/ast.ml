@@ -49,11 +49,15 @@ type storage_spec =
   | Typedef
 [@@deriving sexp_of]
 
+type attr = |
+[@@deriving sexp_of]
+
 type qual_spec =
   | Const
   | Restrict
   | Volatile
   | Atomic
+  | Attr of attr
 [@@deriving sexp_of]
 
 type func_spec =
@@ -107,6 +111,10 @@ and decl_type =
       { ty : decl_type
       ; params : param list
       ; variadic : bool
+      }
+  | ProtoOld of
+      { ty : decl_type
+      ; params : string list
       }
 [@@deriving sexp_of]
 
@@ -302,7 +310,7 @@ and init_place =
 (* corresponds to type_name *)
 and full_type =
   { specs : spec list
-  ; decl_type : decl_type
+  ; ty : decl_type
   }
 [@@deriving sexp_of]
 
