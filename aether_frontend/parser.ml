@@ -62,7 +62,7 @@ let%expect_test _ =
   int main(char, char, int);
   |} in
   let ast = parse s in
-  print_s [%sexp (ast : (unit, error) Result.t)];
+  print_s [%sexp (ast : (Ast.decl list, error) Result.t)];
   [%expect.unreachable];
   ()
 [@@expect.uncaught_exn

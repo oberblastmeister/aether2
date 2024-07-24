@@ -286,7 +286,7 @@ and decl =
   | FunDecl of
       { specs : spec list
       ; decl_name : decl_name
-      ; params : decl list
+      ; kr_params : decl list
       ; body : stmt
       ; span : Span.t
       }

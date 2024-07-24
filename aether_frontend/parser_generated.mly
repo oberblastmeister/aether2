@@ -150,7 +150,8 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 
 %token EOF
 
-%type<context> save_context function_definition1
+%type<context> save_context 
+%type<context * Ast.spec list * Ast.decl_name> function_definition1
 %type<context * Ast.param list * bool> parameter_type_list
 %type<string> typedef_name var_name general_identifier enumeration_constant
 %type<declarator * Ast.decl_name> declarator direct_declarator declarator_varname declarator_typedefname
@@ -182,7 +183,7 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 %nonassoc below_ELSE
 %nonassoc ELSE
 
-%start<unit> translation_unit_file
+%start<Ast.decl list> translation_unit_file
 
 %%
 
@@ -458,7 +459,7 @@ declaration:
 | declaration_specifiers         init_declarator_list(declarator_varname)?     ";"
 | declaration_specifiers_typedef init_declarator_list(declarator_typedefname)? ";"
 | static_assert_declaration
-    {}
+    { todo [%here] }
 
 (* [declaration_specifier] corresponds to one declaration specifier in the C18
    standard, deprived of "typedef" and of type specifiers. *)
@@ -775,7 +776,7 @@ labeled_statement:
 
 compound_statement:
 | "{" block_item_list? "}"
-    {}
+    { todo [%here] }
 
 block_item_list:
 | block_item_list? block_item
@@ -811,24 +812,35 @@ jump_statement:
     {}
 
 translation_unit_file:
-| external_declaration translation_unit_file
-| external_declaration EOF
-    {}
+| decls=external_declaration* EOF { decls }
 
 external_declaration:
-| function_definition
-| declaration
-    {}
+| decl=function_definition { decl }
+| decl=declaration { decl }
 
 function_definition1:
-| declaration_specifiers d=declarator_varname
-    { let ctx = save_context () in
-      reinstall_function_context (fst d);
-      ctx }
+| specs=declaration_specifiers d=declarator_varname
+    {
+      let d, decl_name = d in
+      let ctx = save_context () in
+      reinstall_function_context d;
+      ctx, specs, decl_name }
 
 function_definition:
-| ctx = function_definition1 declaration_list? compound_statement
-    { restore_context ctx }
+| def=function_definition1 body=compound_statement
+    {
+      let ctx, specs, decl_name = def in
+      restore_context ctx;
+      Ast.FunDecl { specs; decl_name; kr_params = []; body; span = todo [%here] }
+    }
+(* old style K&R function definition, see
+   https://stackoverflow.com/questions/1585390/c-function-syntax-parameter-types-declared-after-parameter-list *)
+| def=function_definition1 declaration_list body=compound_statement
+  {
+    let ctx, specs, decl_name = def in
+    restore_context ctx;
+    todo [%here]
+  }
 
 declaration_list:
 | declaration
