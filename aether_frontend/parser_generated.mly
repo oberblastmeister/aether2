@@ -163,6 +163,7 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
     conditional_expression assignment_expression expression
 %type<Ast.param> parameter_declaration
 %type<Ast.decl_type> direct_abstract_declarator
+%type<Ast.stmt> selection_statement statement
 
 (* There is a reduce/reduce conflict in the grammar. It corresponds to the
    conflict in the second declaration in the following snippet:
@@ -664,13 +665,16 @@ direct_declarator:
 //     { other_declarator d }
 | d=direct_declarator "(" params=scoped(parameter_type_list) ")"
     {
-        let ctx, params, variadic = params in
-        let d, ({ name; ty } : Ast.decl_name) = d in
-        function_declarator d ctx, { name; ty = Proto { ty; params; variadic } }
+      let ctx, params, variadic = params in
+      let d, ({ name; ty } : Ast.decl_name) = d in
+      function_declarator d ctx, { name; ty = Proto { ty; params; variadic } }
     }
-| d=direct_declarator "(" save_context identifier_list? ")"
+| d=direct_declarator "(" save_context params=identifier_list? ")"
     (* this is the old way to define proto, don't support this yet *)
-    { other_declarator (fst d), todo [%here] }
+    {
+      let d, ({ name; ty } : Ast.decl_name) = d in
+      other_declarator d, { name; ty = ProtoOld { ty; params = Option.value ~default:[] params } }
+    }
 
 pointer:
 | "*" qs=type_qualifier_list? p=pointer?
@@ -704,9 +708,7 @@ parameter_declaration:
   }
 
 identifier_list:
-| var_name
-| identifier_list "," var_name
-    {}
+| vs=list_sep1(var_name, ",") { vs }
 
 type_name:
 | specs=specifier_qualifier_list ty=abstract_declarator? { { specs; ty = Option.value ~default:Ast.JustBase ty } : Ast.full_type }
@@ -760,56 +762,77 @@ static_assert_declaration:
     {}
 
 statement:
-| labeled_statement
-| scoped(compound_statement)
-| expression_statement
-| scoped(selection_statement)
-| scoped(iteration_statement)
-| jump_statement
-    {}
+| s=labeled_statement { s }
+| s=scoped(compound_statement) { s }
+| s=expression_statement { s }
+| s=scoped(selection_statement) { s }
+| s=scoped(iteration_statement) { s }
+| s=jump_statement { todo [%here] }
 
 labeled_statement:
 | general_identifier ":" statement
 | "case" constant_expression ":" statement
 | "default" ":" statement
-    {}
-
-compound_statement:
-| "{" block_item_list? "}"
     { todo [%here] }
 
+compound_statement:
+| "{" stmts=block_item_list? "}"
+    { Ast.Block { stmts = Option.value ~default:[] stmts; span = Span.garbage } }
+
 block_item_list:
-| block_item_list? block_item
-    {}
+| stmts=block_item+ { stmts }
 
 block_item:
-| declaration
-| statement
-    {}
+| decl=declaration { Ast.Def decl }
+| stmt=statement { stmt }
 
 expression_statement:
-| expression? ";"
-    {}
+| e=expression? ";"
+  { e |> Option.map ~f:(fun expr -> Ast.Expr { expr; span = Span.garbage }) |> Option.value ~default:(Ast.Noop Span.garbage) }
 
 selection_statement:
-| "if" "(" expression ")" scoped(statement) "else" scoped(statement)
-| "if" "(" expression ")" scoped(statement) %prec below_ELSE
-| "switch" "(" expression ")" scoped(statement)
-    {}
+| "if" "(" cond=expression ")" then_stmt=scoped(statement) "else" else_stmt=scoped(statement)
+  { Ast.If { cond; then_stmt; else_stmt = Some else_stmt; span = Span.garbage } }
+| "if" "(" cond=expression ")" then_stmt=scoped(statement) %prec below_ELSE
+  { Ast.If { cond; then_stmt; else_stmt = None; span = Span.garbage } }
+| "switch" "(" cond=expression ")" body=scoped(statement)
+    { Ast.Switch { cond; body; span = Span.garbage } }
 
 iteration_statement:
-| "while" "(" expression ")" scoped(statement)
+| "while" "(" cond=expression ")" body=scoped(statement)
+   { Ast.While { cond; body; span = Span.garbage } }
 | "do" scoped(statement) "while" "(" expression ")" ";"
-| "for" "(" expression? ";" expression? ";" expression? ")" scoped(statement)
-| "for" "(" declaration expression? ";" expression? ")" scoped(statement)
-    {}
+   { todo [%here] }
+| "for" "(" clause=expression? ";" cond=expression? ";" update=expression? ")" body=scoped(statement)
+   {
+     Ast.For
+       {
+         clause = Option.map ~f:(fun e -> Ast.ForExpr e) clause;
+         cond;
+         update;
+         body;
+         span = Span.garbage
+       }
+   }
+(* decl includes the semicolon *)
+| "for" "(" decl=declaration cond=expression? ";" update=expression? ")" body=scoped(statement)
+    {
+      Ast.For
+        {
+          clause = Some (Ast.ForDecl decl);
+          cond;
+          update;
+          body;
+          span = Span.garbage
+        }
+    }
 
 jump_statement:
 | "goto" general_identifier ";"
 | "continue" ";"
 | "break" ";"
 | "return" expression? ";"
-    {}
+    { todo [%here] }
 
 translation_unit_file:
 | decls=external_declaration* EOF { decls }
@@ -824,14 +847,15 @@ function_definition1:
       let d, decl_name = d in
       let ctx = save_context () in
       reinstall_function_context d;
-      ctx, specs, decl_name }
+      ctx, specs, decl_name
+    }
 
 function_definition:
 | def=function_definition1 body=compound_statement
     {
       let ctx, specs, decl_name = def in
       restore_context ctx;
-      Ast.FunDecl { specs; decl_name; kr_params = []; body; span = todo [%here] }
+      Ast.FunDecl { specs; decl_name; kr_params = []; body; span = Span.garbage }
     }
 (* old style K&R function definition, see
    https://stackoverflow.com/questions/1585390/c-function-syntax-parameter-types-declared-after-parameter-list *)
@@ -845,4 +869,4 @@ function_definition:
 declaration_list:
 | declaration
 | declaration_list declaration
-    {}
+    { todo [%here] }

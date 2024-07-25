@@ -49,8 +49,7 @@ type storage_spec =
   | Typedef
 [@@deriving sexp_of]
 
-type attr = |
-[@@deriving sexp_of]
+type attr = | [@@deriving sexp_of]
 
 type qual_spec =
   | Const
@@ -243,6 +242,7 @@ and bin_op =
 
 and stmt =
   | Noop of Span.t
+  | Def of decl
   | Expr of
       { expr : expr
       ; span : Span.t
@@ -258,6 +258,11 @@ and stmt =
       ; span : Span.t
       }
   | While of
+      { cond : expr
+      ; body : stmt
+      ; span : Span.t
+      }
+  | Switch of
       { cond : expr
       ; body : stmt
       ; span : Span.t
