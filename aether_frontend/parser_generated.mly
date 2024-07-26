@@ -33,6 +33,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    has 3 reduce/reduce conflicts on RPAREN, LPAREN, and LBRACK. If you
    modify the grammar, you should check that this is still the case. *)
 
+(* This makes the global state a functor parameter, so that the parser is reentrant *)
+%parameter <Context:Context.S>
+
 %{
 open Core
 module Declarator = Declarator.Make (Context)
@@ -42,9 +45,6 @@ open Folds.O
 
 let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 %}
-
-(* This makes the global state a functor parameter, so that the parser is reentrant *)
-%parameter <Context:Context.S>
 
 %token<string> NAME
 %token VARIABLE TYPE
@@ -96,7 +96,6 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 %token VOID "void"
 %token VOLATILE "volatile"
 %token WHILE "while"
-
 %token ELLIPSIS "..."
 %token ADD_ASSIGN "+="
 %token SUB_ASSIGN "-="
@@ -164,6 +163,7 @@ let todo pos = raise_s [%sexp "TODO", (pos : Source_code_position.t)]
 %type<Ast.param> parameter_declaration
 %type<Ast.decl_type> direct_abstract_declarator
 %type<Ast.stmt> selection_statement statement
+%type<Ast.decl> declaration
 
 (* There is a reduce/reduce conflict in the grammar. It corresponds to the
    conflict in the second declaration in the following snippet:
@@ -304,8 +304,8 @@ primary_expression:
 | i=INT_LITERAL { Int i }
 | s=string_literal { String s }
 | s=CHAR_LITERAL { Char s }
-| "(" e=expression ")" { todo [%here] }
-| e=generic_selection { todo [%here] }
+| "(" e=expression ")" { e }
+| e=generic_selection { e }
 
 generic_selection:
 | "_Generic" "(" assignment_expression "," generic_assoc_list ")" { todo [%here] }
@@ -323,111 +323,117 @@ postfix_expression:
 | expr=postfix_expression "[" index=expression "]" { Index { expr; index } }
 | func=postfix_expression "(" args=argument_expression_list ")" { Call { func; args } }
 | expr=postfix_expression "." field=general_identifier { Member { expr; field } }
-| postfix_expression "->" general_identifier
-| postfix_expression "++"
-| postfix_expression "--"
-| "(" type_name ")" "{" initializer_list ","? "}" { todo [%here] }
+| expr=postfix_expression "->" field=general_identifier { DerefMember { expr; field } }
+| e=postfix_expression "++" { Unary (Postincr, e) }
+| e=postfix_expression "--" { Unary (Postdecr, e) }
+| "(" ty=type_name ")" "{" items=initializer_list ","? "}" { Cast { ty; init = CompoundInit items } }
 
 argument_expression_list:
 | es=list_sep(assignment_expression, ",") { es }
 
 unary_expression:
 | e=postfix_expression { e }
-| "++" unary_expression 
-| "--" unary_expression
-| unary_operator cast_expression
-| "sizeof" unary_expression
-| "sizeof" "(" type_name ")"
-| "_Alignof" "(" type_name ")"
-    { todo [%here] }
+| "++" e=unary_expression { Unary (Preincr, e) }
+| "--" e=unary_expression { Unary (Postincr, e) }
+| o=unary_operator e=cast_expression { Unary (o, e) }
+| "sizeof" e=unary_expression { ExprSizeof e }
+| "sizeof" "(" ty=type_name ")" { TypeSizeof ty }
+| "_Alignof" "(" ty=type_name ")" { todo [%here] }
 
 unary_operator:
-| "&"
-| "*"
-| "+"
-| "-"
-| "~"
-| "!"
-    { todo [%here] }
+| "&" { Ast.Ref }
+| "*" { Ast.Deref }
+| "+" { Ast.Plus }
+| "-" { Ast.Minus }
+| "~" { Ast.Bnot }
+| "!" { Ast.Not }
 
 cast_expression:
 | e=unary_expression { e }
-| "(" type_name ")" cast_expression
-    { todo [%here] }
+| "(" ty=type_name ")" init=cast_expression
+  { Ast.Cast { ty; init = SingleInit init } }
 
 multiplicative_operator:
-  "*" | "/" | "%" {}
+| "*" { Ast.Mul }
+| "/" { Ast.Div }
+| "%" { Ast.Mod }
 
 multiplicative_expression:
 | e=cast_expression { e }
-| multiplicative_expression multiplicative_operator cast_expression
-    { todo [%here] }
+| e1=multiplicative_expression o=multiplicative_operator e2=cast_expression
+  { Ast.Binary (e1, o, e2) }
 
 additive_operator:
-  "+" | "-" {}
+| "+" { Ast.Add }
+| "-" { Ast.Sub }
 
 additive_expression:
 | e=multiplicative_expression { e }
-| additive_expression additive_operator multiplicative_expression
-    { todo [%here] }
+| e1=additive_expression o=additive_operator e2=multiplicative_expression
+  { Ast.Binary (e1, o, e2) }
 
 shift_operator:
-  "<<" | ">>" {}
+| "<<" { Ast.Shl }
+| ">>" { Ast.Shr }
 
 shift_expression:
 | e=additive_expression { e }
-| shift_expression shift_operator additive_expression
-    { todo [%here] }
+| e1=shift_expression o=shift_operator e2=additive_expression
+  { Ast.Binary (e1, o, e2) }
 
 relational_operator:
-  "<" | ">" | "<=" | ">=" {}
+| "<" { Ast.Lt }
+| ">" { Ast.Gt }
+| "<=" { Ast.Le }
+| ">=" { Ast.Ge }
 
 relational_expression:
 | e=shift_expression { e }
-| relational_expression relational_operator shift_expression
-    { todo [%here] }
+| e1=relational_expression o=relational_operator e2=shift_expression
+  { Ast.Binary (e1, o, e2) }
 
 equality_operator:
-  "==" | "!=" {}
+| "==" { Ast.E }
+| "!=" { Ast.Ne }
 
 equality_expression:
 | e=relational_expression { e }
-| equality_expression equality_operator relational_expression
-    { todo [%here] }
+| e1=equality_expression o=equality_operator e2=relational_expression
+  { Ast.Binary (e1, o, e2) }
 
 and_expression:
 | e=equality_expression { e }
-| and_expression "&" equality_expression
-    { todo [%here] }
+| e1=and_expression "&" e2=equality_expression
+  { Ast.Binary (e1, Band, e2) }
 
 exclusive_or_expression:
 | e=and_expression { e }
-| exclusive_or_expression "^" and_expression
-    { todo [%here] }
+| e1=exclusive_or_expression "^" e2=and_expression
+  { Ast.Binary (e1, Xor, e2) }
  
 inclusive_or_expression:
 | e=exclusive_or_expression { e }
-| inclusive_or_expression "|" exclusive_or_expression
-    { todo [%here] }
+| e1=inclusive_or_expression "|" e2=exclusive_or_expression
+  { Ast.Binary (e1, Bor, e2) }
 
 logical_and_expression:
 | e=inclusive_or_expression { e }
-| logical_and_expression "&&" inclusive_or_expression
-    { todo [%here] }
+| e1=logical_and_expression "&&" e2=inclusive_or_expression
+  { Ast.Binary (e1, And, e2) }
 
 logical_or_expression:
 | e=logical_and_expression { e }
-| logical_or_expression "||" logical_and_expression
-    { todo [%here] }
+| e1=logical_or_expression "||" e2=logical_and_expression
+  { Ast.Binary (e1, Or, e2) }
 
 conditional_expression:
 | e=logical_or_expression { e }
-| logical_or_expression "?" expression ":" conditional_expression
-    { todo [%here] }
+| cond=logical_or_expression "?" expr_then=expression ":" expr_else=conditional_expression
+  { Ternary { cond; expr_then; expr_else; } }
 
 assignment_expression:
 | e=conditional_expression { e }
-| unary_expression o=assignment_operator assignment_expression { todo [%here] }
+| e1=unary_expression o=assignment_operator e2=assignment_expression { Ast.Binary (e1, o, e2) }
 
 assignment_operator:
 | "=" { Ast.Assign }
@@ -457,8 +463,14 @@ constant_expression:
    the context. *)
 
 declaration:
-| declaration_specifiers         init_declarator_list(declarator_varname)?     ";"
-| declaration_specifiers_typedef init_declarator_list(declarator_typedefname)? ";"
+| specs=declaration_specifiers init_names=init_declarator_list(declarator_varname)? ";"
+  {
+    Ast.DeclDef { specs; init_names = Option.value ~default:[] init_names }
+  }
+| specs=declaration_specifiers_typedef init_names=init_declarator_list(declarator_typedefname)? ";"
+  {
+    Ast.DeclDef { specs; init_names = Option.value ~default:[] init_names }
+  }
 | static_assert_declaration
     { todo [%here] }
 
@@ -500,14 +512,14 @@ declaration_specifiers:
 declaration_specifiers_typedef:
 | xs=list_eq1_eq1(
     "typedef" { Ast.StorageSpec Ast.Typedef },
-    t=type_specifier_unique { Ast.TypeSpec t },
-    s=declaration_specifier { s }
+    type_specifier_unique_spec,
+    declaration_specifier
   )
   { xs }
 | xs=list_eq1_ge1(
     "typedef" { Ast.StorageSpec Ast.Typedef },
-    t=type_specifier_nonunique { Ast.TypeSpec t },
-    s=declaration_specifier { s }
+    type_specifier_nonunique_spec,
+    declaration_specifier
   )
   { xs }
 
@@ -518,8 +530,10 @@ init_declarator_list(declarator):
 | xs=list_sep1(init_declarator(declarator), ",") { xs }
 
 init_declarator(declarator):
-| d=declarator { }
-| declarator "=" c_initializer { }
+| decl_name=declarator
+  { { decl_name = snd decl_name; init_expr = Ast.NoInit } : Ast.init_name }
+| decl_name=declarator "=" init_expr=c_initializer
+  { { decl_name = snd decl_name; init_expr } : Ast.init_name }
 
 (* [storage_class_specifier] corresponds to storage-class-specifier in the
    C18 standard, deprived of ["typedef"] (which receives special treatment). *)
@@ -552,8 +566,8 @@ type_specifier_nonunique:
 type_specifier_unique:
 | "void" { Ast.Void }
 | "_Bool" { Ast.Bool }
-| atomic_type_specifier { todo [%here] }
-| struct_or_union_specifier { todo [%here] }
+| spec=atomic_type_specifier { spec }
+| spec=struct_or_union_specifier { spec }
 | enum_specifier { todo [%here] }
 | typedef_name_spec { todo [%here] }
 
@@ -561,40 +575,36 @@ type_specifier_unique:
 | t=type_specifier_unique { Ast.TypeSpec t }
 
 struct_or_union_specifier:
-| struct_or_union general_identifier? "{" struct_declaration_list "}"
-| struct_or_union general_identifier
-    {}
+| kind=struct_or_union name=general_identifier? "{" fields=struct_declaration_list "}"
+  { Ast.StructOrUnion { kind; name; fields } }
+| kind=struct_or_union name=general_identifier
+  { Ast.StructOrUnion { kind; name = Some name; fields = [] } }
 
 struct_or_union:
 | "struct" { Ast.Struct }
 | "union" { Ast.Union }
 
 struct_declaration_list:
-| struct_declaration
-| struct_declaration_list struct_declaration
-    {}
+| decls=struct_declaration+ { decls }
 
 struct_declaration:
-// | specifier_qualifier_list struct_declarator_list ";"
-| declaration_specifiers struct_declarator_list ";"
-| static_assert_declaration
-    { todo [%here] }
+| specs=specifier_qualifier_list decls=struct_declarator_list ";" { Field { specs; decls } }
+| static_assert_declaration { todo [%here] }
 
 
 (* [specifier_qualifier_list] is as in the standard, except it also encodes the
    same constraint as [declaration_specifiers] (see above). *)
 
 specifier_qualifier_list:
-| specs=list_eq1(type_specifier_unique_spec,    t=type_qualifier_spec | t=alignment_specifier_spec { t }) { specs }
+| specs=list_eq1(type_specifier_unique_spec, t=type_qualifier_spec | t=alignment_specifier_spec { t }) { specs }
 | specs=list_ge1(type_specifier_nonunique_spec, t=type_qualifier_spec | t=alignment_specifier_spec { t }) { specs }
 
 struct_declarator_list:
 | xs=list_sep1(struct_declarator, ",") { xs }
 
 struct_declarator:
-| declarator
-| declarator? ":" constant_expression
-    { todo [%here] }
+| name=declarator { Ast.Normal (snd name) }
+| name=declarator? ":" size=constant_expression { Ast.BitField { name = Option.map ~f:snd name; size } }
 
 enum_specifier:
 | "enum" general_identifier? "{" enumerator_list ","? "}"
@@ -607,18 +617,17 @@ enumerator_list:
     {}
 
 enumerator:
-| i = enumeration_constant
-| i = enumeration_constant "=" constant_expression
+| i=enumeration_constant
+| i=enumeration_constant "=" constant_expression
     { declare_varname i }
 
 enumeration_constant:
-| i = general_identifier
-    { i }
+| i = general_identifier { i }
 
 atomic_type_specifier:
 | "_Atomic" "(" type_name ")"
 | "_Atomic" ATOMIC_LPAREN type_name ")"
-    {}
+  { todo [%here] }
 
 type_qualifier:
 | "const" { Ast.Const : Ast.qual_spec }
@@ -736,22 +745,17 @@ direct_abstract_declarator:
 
 
 c_initializer:
-| assignment_expression
-| "{" initializer_list ","? "}"
-    {}
+| e=assignment_expression { Ast.SingleInit e }
+| "{" items=initializer_list ","? "}" { CompoundInit items }
 
-initializer_list:
-| designation? c_initializer
-| initializer_list "," designation? c_initializer
-    {}
+%inline initializer_list:
+| items=list_sep1(d=designation? expr=c_initializer { { place = Option.value ~default:[ ] d; expr } : Ast.init_item }, ",") { items }
 
 designation:
-| designator_list "="
-    {}
+| ds=designator_list "=" { ds }
 
 designator_list:
-| designator_list? designator
-    {}
+| ds=designator+ { ds }
 
 designator:
 | "[" e=constant_expression "]" { Ast.AtIndex e }
@@ -767,7 +771,7 @@ statement:
 | s=expression_statement { s }
 | s=scoped(selection_statement) { s }
 | s=scoped(iteration_statement) { s }
-| s=jump_statement { todo [%here] }
+| s=jump_statement { s }
 
 labeled_statement:
 | general_identifier ":" statement
@@ -867,6 +871,4 @@ function_definition:
   }
 
 declaration_list:
-| declaration
-| declaration_list declaration
-    { todo [%here] }
+| ds=declaration+ { ds }

@@ -76,10 +76,10 @@ and type_spec =
   | Unsigned
   | Bool
   | Named of string
-  | StructUnion of
+  | StructOrUnion of
       { kind : struct_or_union
       ; name : string option
-      ; fields : field list option
+      ; fields : field_group list
       }
 [@@deriving sexp_of]
 
@@ -124,7 +124,20 @@ and param =
   }
 [@@deriving sexp_of]
 
-and field = Field of { specs : spec list } [@@deriving sexp_of]
+and struct_decl =
+  | BitField of
+      { name : decl_name option
+      ; size : expr
+      }
+  | Normal of decl_name
+[@@deriving sexp_of]
+
+and field_group =
+  | Field of
+      { specs : spec list
+      ; decls : struct_decl list
+      }
+[@@deriving sexp_of]
 
 and decl_name =
   { name : string
@@ -188,10 +201,12 @@ and expr =
       { expr : expr
       ; field : string
       }
-  | PtrMember of
+  | DerefMember of
       { expr : expr
       ; field : string
       }
+  | ExprSizeof of expr
+  | TypeSizeof of full_type
 [@@deriving sexp_of]
 
 and unary_op =
@@ -199,12 +214,12 @@ and unary_op =
   | Plus
   | Not
   | Bnot
-  | Memof
-  | Addrof
+  | Deref
+  | Ref
   | Preincr
   | Predecr
-  | Posincr
-  | Posdecr
+  | Postincr
+  | Postdecr
 [@@deriving sexp_of]
 
 and bin_op =
@@ -302,7 +317,7 @@ and init_item =
     (* for example: *)
     (* struct B b = {.a.x = 0}; // valid C, invalid C++ (nested) *)
     place : init_place list
-  ; expr : expr
+  ; expr : init_expr
   }
 [@@deriving sexp_of]
 
