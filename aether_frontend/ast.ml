@@ -294,6 +294,13 @@ and stmt =
       ; body : stmt
       ; span : Span.t
       }
+  | Goto of { label : string; span : Span.t}
+  | Continue of Span.t
+  | Return of
+      { expr : expr option
+      ; span : Span.t
+      }
+  | Break of Span.t
 [@@deriving sexp_of]
 
 and for_clause =

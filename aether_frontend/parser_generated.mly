@@ -832,11 +832,10 @@ iteration_statement:
     }
 
 jump_statement:
-| "goto" general_identifier ";"
-| "continue" ";"
-| "break" ";"
-| "return" expression? ";"
-    { todo [%here] }
+| "goto" label=general_identifier ";" { Ast.Goto { label; span = Span.garbage } }
+| "continue" ";" { Ast.Continue Span.garbage }
+| "break" ";" { Ast.Break Span.garbage }
+| "return" expr=expression? ";" { Ast.Return { expr; span = Span.garbage } }
 
 translation_unit_file:
 | decls=external_declaration* EOF { decls }
