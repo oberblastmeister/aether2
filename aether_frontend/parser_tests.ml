@@ -46,7 +46,8 @@ void main() {
   "afdsdf";
 }
   |};
-  [%expect{|
+  [%expect
+    {|
     (Ok
      ((FunDecl (specs ((TypeSpec Void)))
        (decl_name ((name main) (ty (ProtoOld (ty JustBase) (params ())))))
@@ -64,12 +65,14 @@ let%expect_test _ =
   check_parser {|
   int testing;
   |};
-  [%expect {|
+  [%expect
+    {|
     (Ok
      ((DeclDef
        ((specs ((TypeSpec Int)))
         (init_names
          (((decl_name ((name testing) (ty JustBase))) (init_expr NoInit)))))))) |}]
+;;
 
 let%expect_test _ =
   check_parser {|
@@ -102,7 +105,8 @@ let%expect_test _ =
   const char testing = 'a';
   int first, second, third;
   |};
-  [%expect {|
+  [%expect
+    {|
     (Ok
      ((DeclDef
        ((specs ((QualSpec Const) (TypeSpec Char)))
@@ -115,15 +119,18 @@ let%expect_test _ =
          (((decl_name ((name first) (ty JustBase))) (init_expr NoInit))
           ((decl_name ((name second) (ty JustBase))) (init_expr NoInit))
           ((decl_name ((name third) (ty JustBase))) (init_expr NoInit)))))))) |}]
+;;
 
 let%expect_test _ =
-  check_parser {|
+  check_parser
+    {|
   struct First {
     char first, third, fourth;
     int second:1234;
   };
   |};
-  [%expect {|
+  [%expect
+    {|
     (Ok
      ((DeclDef
        ((specs
@@ -140,3 +147,65 @@ let%expect_test _ =
                 ((BitField (name (((name second) (ty JustBase))))
                   (size (Int 1234))))))))))))
         (init_names ()))))) |}]
+;;
+
+let%expect_test _ =
+  check_parser
+    {|
+  int main() {
+    for (int i = 0; i < 10; i++) {
+      printf("Hello, world!\n%d\n", i);
+      if (i == 5) {
+        break;
+      }
+    }
+    return 0;
+  }
+  |};
+  [%expect
+    {|
+    (Ok
+     ((FunDecl (specs ((TypeSpec Int)))
+       (decl_name ((name main) (ty (ProtoOld (ty JustBase) (params ())))))
+       (kr_params ())
+       (body
+        (Block
+         (stmts
+          ((For
+            (clause
+             ((ForDecl
+               (DeclDef
+                ((specs ((TypeSpec Int)))
+                 (init_names
+                  (((decl_name ((name i) (ty JustBase)))
+                    (init_expr (SingleInit (Int 0)))))))))))
+            (cond ((Binary (Variable i) Lt (Int 10))))
+            (update ((Unary Postincr (Variable i))))
+            (body
+             (Block
+              (stmts
+               ((Expr
+                 (expr
+                  (Call (func (Variable printf))
+                   (args
+                    ((String (((s  "Hello, world!\
+                                  \n%d\
+                                  \n") (encoding None))))
+                     (Variable i)))))
+                 (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0))))))
+                (If (cond (Binary (Variable i) E (Int 5)))
+                 (then_stmt
+                  (Block
+                   (stmts
+                    ((Break
+                      ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))
+                   (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))
+                 (else_stmt ())
+                 (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0))))))))
+              (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))
+            (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0))))))
+           (Return (expr ((Int 0)))
+            (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0))))))))
+         (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))
+       (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))) |}]
+;;
