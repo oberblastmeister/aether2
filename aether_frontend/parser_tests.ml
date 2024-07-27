@@ -209,3 +209,45 @@ let%expect_test _ =
          (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))
        (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))) |}]
 ;;
+
+let%expect_test "vla" =
+  check_parser {|
+  int (*foo)[n][m];
+  |};
+  [%expect
+    {|
+    (Ok
+     ((DeclDef
+       ((specs ((TypeSpec Int)))
+        (init_names
+         (((decl_name
+            ((name foo)
+             (ty
+              (Array
+               (ty
+                (Array (ty (Ptr (specs ()) (ty JustBase))) (specs ())
+                 (size ((Variable n)))))
+               (specs ()) (size ((Variable m)))))))
+           (init_expr NoInit)))))))) |}]
+;;
+
+let%expect_test "weird" =
+  check_parser {|
+  union Bruh {
+    int a;
+    float b;
+  };
+  |};
+  [%expect {|
+    (Ok
+     ((DeclDef
+       ((specs
+         ((TypeSpec
+           (StructOrUnion (kind Union) (name (Bruh))
+            (fields
+             ((Field (specs ((TypeSpec Int)))
+               (decls ((Normal ((name a) (ty JustBase))))))
+              (Field (specs ((TypeSpec Float)))
+               (decls ((Normal ((name b) (ty JustBase))))))))))))
+        (init_names ()))))) |}]
+;;
