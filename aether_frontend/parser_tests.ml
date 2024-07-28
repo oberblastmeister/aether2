@@ -238,7 +238,8 @@ let%expect_test "weird" =
     float b;
   };
   |};
-  [%expect {|
+  [%expect
+    {|
     (Ok
      ((DeclDef
        ((specs
@@ -250,4 +251,75 @@ let%expect_test "weird" =
               (Field (specs ((TypeSpec Float)))
                (decls ((Normal ((name b) (ty JustBase))))))))))))
         (init_names ()))))) |}]
+;;
+
+let%expect_test "weird" =
+  check_parser {|
+  int main(void) {
+    int res = (tmp = &A, *tmp = *tmp + B);
+  }
+  |};
+  [%expect
+    {|
+    (Ok
+     ((FunDecl (specs ((TypeSpec Int)))
+       (decl_name
+        ((name main)
+         (ty
+          (Proto (ty JustBase)
+           (params (((specs ((TypeSpec Void))) (name ()) (ty JustBase))))
+           (variadic false)))))
+       (kr_params ())
+       (body
+        (Block
+         (stmts
+          ((Def
+            (DeclDef
+             ((specs ((TypeSpec Int)))
+              (init_names
+               (((decl_name ((name res) (ty JustBase)))
+                 (init_expr
+                  (SingleInit
+                   (Binary
+                    (Binary (Variable tmp) Assign (Unary Ref (Variable A))) Comma
+                    (Binary (Unary Deref (Variable tmp)) Assign
+                     (Binary (Unary Deref (Variable tmp)) Add (Variable B))))))))))))))
+         (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))
+       (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))) |}]
+;;
+
+let%expect_test "weird" =
+  check_parser {|
+  int main(void) {
+    int res = tmp = &A, *tmp = *tmp + B;
+  }
+  |};
+  [%expect
+    {|
+    (Ok
+     ((FunDecl (specs ((TypeSpec Int)))
+       (decl_name
+        ((name main)
+         (ty
+          (Proto (ty JustBase)
+           (params (((specs ((TypeSpec Void))) (name ()) (ty JustBase))))
+           (variadic false)))))
+       (kr_params ())
+       (body
+        (Block
+         (stmts
+          ((Def
+            (DeclDef
+             ((specs ((TypeSpec Int)))
+              (init_names
+               (((decl_name ((name res) (ty JustBase)))
+                 (init_expr
+                  (SingleInit
+                   (Binary (Variable tmp) Assign (Unary Ref (Variable A))))))
+                ((decl_name ((name tmp) (ty (Ptr (specs ()) (ty JustBase)))))
+                 (init_expr
+                  (SingleInit
+                   (Binary (Unary Deref (Variable tmp)) Add (Variable B))))))))))))
+         (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))
+       (span ((start ((line 0) (col 0))) (stop ((line 0) (col 0)))))))) |}]
 ;;

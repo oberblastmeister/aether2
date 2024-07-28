@@ -450,9 +450,7 @@ assignment_operator:
 
 expression:
 | e=assignment_expression { e }
-| expression "," assignment_expression
-    { todo [%here] }
-
+| e1=expression "," e2=assignment_expression { Ast.Binary (e1, Ast.Comma, e2) }
 
 constant_expression:
 | e=conditional_expression { e }

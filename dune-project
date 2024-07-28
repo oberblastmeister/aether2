@@ -27,11 +27,11 @@
   (core
    (= v0.17.1))
   (core_bench
-   (= v0.17.1))
+   (= v0.17.0))
   (ppx_deriving
    (= 5.2.1))
   (ppx_jane
-   (= v0.17.1))
+   (= v0.17.0))
   (alcotest
    (= 1.7.0))
   (algaeff
