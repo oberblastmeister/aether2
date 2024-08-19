@@ -12,7 +12,7 @@ bug-reports: "https://github.com/username/reponame/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.13"}
-  "core" {= "v0.16.2"}
+  "core" {= "v0.16.1"}
   "core_bench" {= "v0.16.0"}
   "ppx_deriving" {= "5.2.1"}
   "ppx_jane" {= "v0.16.0"}

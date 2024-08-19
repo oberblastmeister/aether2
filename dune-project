@@ -25,7 +25,7 @@
   ocaml
   dune
   (core
-   (= v0.16.2))
+   (= v0.16.1))
   (core_bench
    (= v0.16.0))
   (ppx_deriving

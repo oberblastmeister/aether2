@@ -13,6 +13,7 @@
    ppx_deriving.map
    ppx_deriving.fold
    ppx_jane
+   ppx_inline_test
    -log-source-position))
  (libraries
   core

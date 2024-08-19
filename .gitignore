@@ -5,6 +5,7 @@ zig-cache/
 zig-out/
 lir-out/
 filetests/out/
+.zig-cache/
 a.out
 *.o
 test.s

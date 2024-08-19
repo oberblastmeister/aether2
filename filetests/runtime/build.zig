@@ -5,7 +5,7 @@ pub fn build_lib(b: *std.Build, name: []const u8, root: []const u8, target: anyt
         .name = name,
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
-        .root_source_file = .{ .path = root },
+        .root_source_file = b.path(root),
         .target = target,
         .optimize = optimize,
     });
@@ -37,7 +37,7 @@ pub fn build(b: *std.Build) void {
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const main_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig" ),
         .target = target,
         .optimize = optimize,
     });
