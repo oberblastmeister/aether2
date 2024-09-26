@@ -1,6 +1,14 @@
 open O
 open Utils.Instr_types
 
+module Testing1 = struct
+  type t =
+    { first : int
+    ; second : int
+    ; third : int
+    }
+end
+
 module type Config = sig
   module Instr : sig
     type t [@@deriving sexp_of]

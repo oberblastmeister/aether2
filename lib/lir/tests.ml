@@ -618,3 +618,4 @@ let%expect_test "parse extern" =
       (((name extern_function) (ty ((params (U64 U64)) (return U64))))
        ((name another) (ty ((params (U64 U64)) (return U64))))))) |}]
 ;; *)
+

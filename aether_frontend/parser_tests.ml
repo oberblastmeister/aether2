@@ -42,7 +42,7 @@ let%expect_test _ =
 
 let%expect_test _ =
   check_parser {|
-void main() {
+void main(void) {
   "afdsdf";
 }
   |};
